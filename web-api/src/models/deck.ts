@@ -158,7 +158,7 @@ export class DeckModel {
   static async delete(id: string, userId: string): Promise<boolean> {
     const query = 'DELETE FROM decks WHERE id = $1 AND created_by = $2';
     const result = await pool.query(query, [id, userId]);
-    return result.rowCount > 0;
+    return (result.rowCount || 0) > 0;
   }
 
   static async findByCreator(createdBy: string): Promise<Deck[]> {
