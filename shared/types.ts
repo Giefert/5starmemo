@@ -1,0 +1,184 @@
+// Shared types for 5StarMemo BFF Architecture
+
+export interface User {
+  id: string;
+  email: string;
+  username: string;
+  role: 'student' | 'management';
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateUserInput {
+  email: string;
+  username: string;
+  password: string;
+  role: 'student' | 'management';
+}
+
+export interface LoginInput {
+  email: string;
+  password: string;
+}
+
+export interface AuthResponse {
+  user: Omit<User, 'password'>;
+  token: string;
+}
+
+export interface Deck {
+  id: string;
+  title: string;
+  description?: string;
+  categoryId?: string;
+  createdBy: string;
+  isPublic: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  cards?: Card[];
+  cardCount?: number;
+}
+
+export interface CreateDeckInput {
+  title: string;
+  description?: string;
+  categoryId?: string;
+  isPublic?: boolean;
+}
+
+export interface UpdateDeckInput extends Partial<CreateDeckInput> {}
+
+export interface Card {
+  id: string;
+  deckId: string;
+  front: string;
+  back: string;
+  imageUrl?: string;
+  imageFocusPoint?: { x: number; y: number };
+  order: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateCardInput {
+  front: string;
+  back: string;
+  imageUrl?: string;
+  imageFocusPoint?: { x: number; y: number };
+  order?: number;
+}
+
+export interface UpdateCardInput extends Partial<CreateCardInput> {}
+
+export interface Category {
+  id: string;
+  name: string;
+  description?: string;
+  color?: string;
+  createdBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateCategoryInput {
+  name: string;
+  description?: string;
+  color?: string;
+}
+
+// FSRS (Free Spaced Repetition Scheduler) types
+export interface FSRSCard {
+  id: string;
+  cardId: string;
+  userId: string;
+  difficulty: number;
+  stability: number;
+  retrievability: number;
+  grade: number;
+  lapses: number;
+  reps: number;
+  state: 'new' | 'learning' | 'review' | 'relearning';
+  lastReview?: Date;
+  nextReview: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface StudySession {
+  id: string;
+  userId: string;
+  deckId: string;
+  startedAt: Date;
+  endedAt?: Date;
+  cardsStudied: number;
+  correctAnswers: number;
+  averageRating: number;
+}
+
+export interface ReviewInput {
+  cardId: string;
+  rating: 1 | 2 | 3 | 4; // Again, Hard, Good, Easy
+  studyTime: number; // milliseconds
+}
+
+export interface StudyStats {
+  totalCards: number;
+  newCards: number;
+  learningCards: number;
+  reviewCards: number;
+  masteredCards: number;
+  dailyStats: {
+    studied: number;
+    correct: number;
+    streak: number;
+  };
+}
+
+// API Response types
+export interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
+}
+
+export interface PaginatedResponse<T> extends ApiResponse<T[]> {
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+// Management-specific types for Web API
+export interface DeckWithStats extends Deck {
+  totalStudents: number;
+  totalSessions: number;
+  averageRating: number;
+  lastStudied?: Date;
+}
+
+export interface UserStats {
+  totalDecks: number;
+  totalCards: number;
+  totalStudents: number;
+  averageSessionTime: number;
+}
+
+// Student-specific types for Mobile API
+export interface StudentDeck {
+  id: string;
+  title: string;
+  description?: string;
+  cardCount: number;
+  newCards: number;
+  reviewCards: number;
+  nextReviewAt?: Date;
+}
+
+export interface StudyCardData {
+  card: Card;
+  fsrsData: FSRSCard;
+  isNew: boolean;
+}
