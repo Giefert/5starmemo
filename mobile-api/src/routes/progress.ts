@@ -144,7 +144,6 @@ router.post('/review',
   [
     body('cardId').isUUID().withMessage('Valid card ID required'),
     body('rating').isInt({ min: 1, max: 4 }).withMessage('Rating must be 1-4'),
-    body('studyTime').isInt({ min: 0 }).withMessage('Study time must be a positive integer'),
     body('sessionId').optional().isUUID()
   ],
   async (req: AuthenticatedRequest, res: Response) => {
@@ -160,8 +159,7 @@ router.post('/review',
 
       const reviewInput: ReviewInput = {
         cardId: req.body.cardId,
-        rating: req.body.rating,
-        studyTime: req.body.studyTime
+        rating: req.body.rating
       };
 
       const fsrsCard = await ProgressModel.submitReview(

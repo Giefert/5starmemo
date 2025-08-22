@@ -71,28 +71,23 @@ CREATE TABLE fsrs_cards (
     UNIQUE(card_id, user_id)
 );
 
--- Study sessions for tracking user progress
+-- Study sessions for tracking user progress (no time tracking for privacy)
 CREATE TABLE study_sessions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     deck_id UUID NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
-    started_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    ended_at TIMESTAMP WITH TIME ZONE,
     cards_studied INTEGER DEFAULT 0,
     correct_answers INTEGER DEFAULT 0,
-    average_rating DECIMAL(3,2),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    average_rating DECIMAL(3,2)
 );
 
--- Individual card reviews within study sessions
+-- Individual card reviews within study sessions (no time tracking for privacy)
 CREATE TABLE card_reviews (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     session_id UUID NOT NULL REFERENCES study_sessions(id) ON DELETE CASCADE,
     card_id UUID NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
     fsrs_card_id UUID NOT NULL REFERENCES fsrs_cards(id) ON DELETE CASCADE,
-    rating INTEGER NOT NULL CHECK (rating IN (1, 2, 3, 4)), -- Again, Hard, Good, Easy
-    study_time INTEGER NOT NULL, -- milliseconds
-    reviewed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    rating INTEGER NOT NULL CHECK (rating IN (1, 2, 3, 4)) -- Again, Hard, Good, Easy
 );
 
 -- Indexes for better performance

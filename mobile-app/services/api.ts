@@ -140,6 +140,25 @@ class ApiService {
     throw new Error(response.data.error || 'Failed to submit review');
   }
 
+  async endStudySession(sessionId: string, stats: {
+    cardsStudied: number;
+    correctAnswers: number;
+    averageRating: number;
+  }): Promise<StudySession> {
+    const headers = await this.getAuthHeaders();
+    const response = await axios.put<ApiResponse<StudySession>>(
+      `${API_BASE_URL}/progress/sessions/${sessionId}/end`,
+      stats,
+      { headers }
+    );
+    
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+    
+    throw new Error(response.data.error || 'Failed to end study session');
+  }
+
   async getRecentSessions(limit: number = 10): Promise<StudySession[]> {
     const headers = await this.getAuthHeaders();
     const response = await axios.get<ApiResponse<StudySession[]>>(

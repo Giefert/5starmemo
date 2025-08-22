@@ -10,9 +10,9 @@ export class ProgressModel {
    */
   static async createStudySession(userId: string, deckId: string): Promise<StudySession> {
     const query = `
-      INSERT INTO study_sessions (user_id, deck_id, started_at)
-      VALUES ($1, $2, NOW())
-      RETURNING id, user_id, deck_id, started_at, ended_at, cards_studied, correct_answers, average_rating
+      INSERT INTO study_sessions (user_id, deck_id)
+      VALUES ($1, $2)
+      RETURNING id, user_id, deck_id, cards_studied, correct_answers, average_rating
     `;
     
     const result = await pool.query(query, [userId, deckId]);
@@ -29,9 +29,9 @@ export class ProgressModel {
   }): Promise<StudySession | null> {
     const query = `
       UPDATE study_sessions
-      SET ended_at = NOW(), cards_studied = $2, correct_answers = $3, average_rating = $4
+      SET cards_studied = $2, correct_answers = $3, average_rating = $4
       WHERE id = $1
-      RETURNING id, user_id, deck_id, started_at, ended_at, cards_studied, correct_answers, average_rating
+      RETURNING id, user_id, deck_id, cards_studied, correct_answers, average_rating
     `;
     
     const result = await pool.query(query, [
@@ -97,9 +97,9 @@ export class ProgressModel {
       // Record the review
       if (sessionId) {
         await client.query(`
-          INSERT INTO card_reviews (session_id, card_id, fsrs_card_id, rating, study_time, reviewed_at)
-          VALUES ($1, $2, $3, $4, $5, NOW())
-        `, [sessionId, review.cardId, fsrsResult.rows[0].id, review.rating, review.studyTime]);
+          INSERT INTO card_reviews (session_id, card_id, fsrs_card_id, rating)
+          VALUES ($1, $2, $3, $4)
+        `, [sessionId, review.cardId, fsrsResult.rows[0].id, review.rating]);
       }
 
       await client.query('COMMIT');
@@ -142,8 +142,7 @@ export class ProgressModel {
         COUNT(CASE WHEN cr.rating >= 3 THEN 1 END) as correct
       FROM card_reviews cr
       JOIN study_sessions ss ON cr.session_id = ss.id
-      WHERE ss.user_id = $1 
-        AND DATE(cr.reviewed_at) = CURRENT_DATE
+      WHERE ss.user_id = $1
     `;
 
     const newCardsQuery = `
@@ -189,16 +188,14 @@ export class ProgressModel {
         ss.id,
         ss.user_id,
         ss.deck_id,
-        ss.started_at,
-        ss.ended_at,
         ss.cards_studied,
         ss.correct_answers,
         ss.average_rating,
         d.title as deck_title
       FROM study_sessions ss
       JOIN decks d ON ss.deck_id = d.id
-      WHERE ss.user_id = $1 AND ss.ended_at IS NOT NULL
-      ORDER BY ss.started_at DESC
+      WHERE ss.user_id = $1 AND ss.cards_studied > 0
+      ORDER BY ss.id DESC
       LIMIT $2
     `;
     

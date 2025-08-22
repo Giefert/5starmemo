@@ -11,11 +11,22 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { StudyStats, Deck } from '../types/shared';
 import apiService from '../services/api';
+import { StudyScreen } from './StudyScreen';
+import { StudyCompletedScreen } from './StudyCompletedScreen';
+
+type ScreenState = 'home' | 'study' | 'completed';
 
 export const HomeScreen: React.FC = () => {
   const [stats, setStats] = useState<StudyStats | null>(null);
   const [decks, setDecks] = useState<Deck[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [screenState, setScreenState] = useState<ScreenState>('home');
+  const [selectedDeck, setSelectedDeck] = useState<Deck | null>(null);
+  const [studyStats, setStudyStats] = useState<{
+    studied: number;
+    correct: number;
+    total: number;
+  } | null>(null);
   const { user, logout } = useAuth();
 
   useEffect(() => {
@@ -49,6 +60,51 @@ export const HomeScreen: React.FC = () => {
       ]
     );
   };
+
+  const handleStartStudy = (deck: Deck) => {
+    setSelectedDeck(deck);
+    setScreenState('study');
+  };
+
+  const handleStudyComplete = (stats: {
+    studied: number;
+    correct: number;
+    total: number;
+  }) => {
+    setStudyStats(stats);
+    setScreenState('completed');
+    // Refresh stats after study session
+    loadData();
+  };
+
+  const handleBackToHome = () => {
+    setScreenState('home');
+    setSelectedDeck(null);
+    setStudyStats(null);
+    // Refresh data when returning to home
+    loadData();
+  };
+
+  // Render different screens based on state
+  if (screenState === 'study' && selectedDeck) {
+    return (
+      <StudyScreen
+        deckId={selectedDeck.id}
+        onComplete={handleStudyComplete}
+        onExit={handleBackToHome}
+      />
+    );
+  }
+
+  if (screenState === 'completed' && studyStats) {
+    return (
+      <StudyCompletedScreen
+        stats={studyStats}
+        deckTitle={selectedDeck?.title}
+        onContinue={handleBackToHome}
+      />
+    );
+  }
 
   if (isLoading) {
     return (
@@ -103,7 +159,11 @@ export const HomeScreen: React.FC = () => {
           </View>
         ) : (
           decks.map((deck) => (
-            <TouchableOpacity key={deck.id} style={styles.deckCard}>
+            <TouchableOpacity 
+              key={deck.id} 
+              style={styles.deckCard}
+              onPress={() => handleStartStudy(deck)}
+            >
               <View style={styles.deckInfo}>
                 <Text style={styles.deckTitle}>{deck.title}</Text>
                 {deck.description && (

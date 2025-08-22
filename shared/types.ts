@@ -37,6 +37,8 @@ export interface Deck {
   updatedAt: Date;
   cards?: Card[];
   cardCount?: number;
+  newCards?: number;
+  reviewCards?: number;
 }
 
 export interface CreateDeckInput {
@@ -108,8 +110,6 @@ export interface StudySession {
   id: string;
   userId: string;
   deckId: string;
-  startedAt: Date;
-  endedAt?: Date;
   cardsStudied: number;
   correctAnswers: number;
   averageRating: number;
@@ -118,7 +118,6 @@ export interface StudySession {
 export interface ReviewInput {
   cardId: string;
   rating: 1 | 2 | 3 | 4; // Again, Hard, Good, Easy
-  studyTime: number; // milliseconds
 }
 
 export interface StudyStats {
