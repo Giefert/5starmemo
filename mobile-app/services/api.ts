@@ -2,8 +2,27 @@ import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { LoginInput, ApiResponse, AuthResponse, Deck, StudyStats, StudySession, ReviewInput } from '../types/shared';
 
-// Use localhost for web development, will work with Expo web
-const API_BASE_URL = 'http://localhost:3002/api/student';
+import { Platform } from 'react-native';
+
+// Dynamic API URL based on platform
+const getApiBaseUrl = () => {
+  if (__DEV__) {
+    if (Platform.OS === 'ios') {
+      // iOS Simulator - use host machine's IP address
+      return 'http://10.0.0.10:3002/api/student';
+    } else if (Platform.OS === 'android') {
+      // Android Emulator - use Android emulator IP
+      return 'http://10.0.2.2:3002/api/student';
+    } else {
+      // Web development
+      return 'http://localhost:3002/api/student';
+    }
+  }
+  // Production - would use your actual API domain
+  return 'http://localhost:3002/api/student';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 class ApiService {
   private token: string | null = null;
