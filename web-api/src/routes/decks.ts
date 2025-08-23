@@ -55,13 +55,6 @@ router.get('/:id',
         });
       }
 
-      // Check if user owns this deck
-      if (deck.createdBy !== req.user!.id) {
-        return res.status(403).json({
-          success: false,
-          error: 'Access denied'
-        });
-      }
 
       const response: ApiResponse = {
         success: true,
@@ -145,7 +138,7 @@ router.put('/:id',
       if (!deck) {
         return res.status(404).json({
           success: false,
-          error: 'Deck not found or access denied'
+          error: 'Deck not found'
         });
       }
 
@@ -185,7 +178,7 @@ router.delete('/:id',
       if (!deleted) {
         return res.status(404).json({
           success: false,
-          error: 'Deck not found or access denied'
+          error: 'Deck not found'
         });
       }
 
@@ -227,12 +220,12 @@ router.post('/:id/cards',
         });
       }
 
-      // Verify deck ownership
+      // Verify deck exists
       const deck = await DeckModel.findById(req.params.id);
-      if (!deck || deck.createdBy !== req.user!.id) {
+      if (!deck) {
         return res.status(404).json({
           success: false,
-          error: 'Deck not found or access denied'
+          error: 'Deck not found'
         });
       }
 
@@ -288,10 +281,10 @@ router.put('/cards/:cardId',
       }
 
       const deck = await DeckModel.findById(existingCard.deckId);
-      if (!deck || deck.createdBy !== req.user!.id) {
-        return res.status(403).json({
+      if (!deck) {
+        return res.status(404).json({
           success: false,
-          error: 'Access denied'
+          error: 'Deck not found'
         });
       }
 
@@ -338,10 +331,10 @@ router.delete('/cards/:cardId',
       }
 
       const deck = await DeckModel.findById(existingCard.deckId);
-      if (!deck || deck.createdBy !== req.user!.id) {
-        return res.status(403).json({
+      if (!deck) {
+        return res.status(404).json({
           success: false,
-          error: 'Access denied'
+          error: 'Deck not found'
         });
       }
 

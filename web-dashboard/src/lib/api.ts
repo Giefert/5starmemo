@@ -29,7 +29,9 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    console.log('API Error:', error.response?.status, error.response?.data, error.config?.url);
     if (error.response?.status === 401 || error.response?.status === 403) {
+      console.log('Auth error - logging out user');
       localStorage.removeItem('authToken');
       localStorage.removeItem('user');
       window.location.href = '/login';
