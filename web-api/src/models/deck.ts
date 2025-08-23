@@ -18,7 +18,18 @@ export class DeckModel {
     ];
     
     const result = await pool.query(query, values);
-    return result.rows[0];
+    
+    // Map database fields to API fields for consistency
+    return {
+      id: result.rows[0].id,
+      title: result.rows[0].title,
+      description: result.rows[0].description,
+      categoryId: result.rows[0].category_id,
+      createdBy: result.rows[0].created_by,
+      isPublic: result.rows[0].is_public,
+      createdAt: result.rows[0].created_at,
+      updatedAt: result.rows[0].updated_at
+    };
   }
 
   static async findAll(createdBy?: string): Promise<DeckWithStats[]> {
@@ -92,7 +103,8 @@ export class DeckModel {
       isPublic: result.rows[0].is_public,
       createdAt: result.rows[0].created_at,
       updatedAt: result.rows[0].updated_at,
-      cardCount: parseInt(result.rows[0].card_count) || 0
+      cardCount: parseInt(result.rows[0].card_count) || 0,
+      cards: undefined as any
     };
 
     if (includeCards) {
@@ -149,22 +161,37 @@ export class DeckModel {
     }
 
     setClause.push(`updated_at = CURRENT_TIMESTAMP`);
-    values.push(id, userId);
+    values.push(id);
 
     const query = `
       UPDATE decks
       SET ${setClause.join(', ')}
-      WHERE id = $${paramCount} AND created_by = $${paramCount + 1}
+      WHERE id = $${paramCount + 1}
       RETURNING id, title, description, category_id, created_by, is_public, created_at, updated_at
     `;
 
     const result = await pool.query(query, values);
-    return result.rows[0] || null;
+    
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    // Map database fields to API fields for consistency
+    return {
+      id: result.rows[0].id,
+      title: result.rows[0].title,
+      description: result.rows[0].description,
+      categoryId: result.rows[0].category_id,
+      createdBy: result.rows[0].created_by,
+      isPublic: result.rows[0].is_public,
+      createdAt: result.rows[0].created_at,
+      updatedAt: result.rows[0].updated_at
+    };
   }
 
   static async delete(id: string, userId: string): Promise<boolean> {
-    const query = 'DELETE FROM decks WHERE id = $1 AND created_by = $2';
-    const result = await pool.query(query, [id, userId]);
+    const query = 'DELETE FROM decks WHERE id = $1';
+    const result = await pool.query(query, [id]);
     return (result.rowCount || 0) > 0;
   }
 
