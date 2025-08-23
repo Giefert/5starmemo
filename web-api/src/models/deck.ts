@@ -84,7 +84,14 @@ export class DeckModel {
     }
 
     const deck = {
-      ...result.rows[0],
+      id: result.rows[0].id,
+      title: result.rows[0].title,
+      description: result.rows[0].description,
+      categoryId: result.rows[0].category_id,
+      createdBy: result.rows[0].created_by,
+      isPublic: result.rows[0].is_public,
+      createdAt: result.rows[0].created_at,
+      updatedAt: result.rows[0].updated_at,
       cardCount: parseInt(result.rows[0].card_count) || 0
     };
 
