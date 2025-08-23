@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { deckApi } from '@/lib/api';
 import { Deck, Card } from '../../../../../../shared/types';
@@ -10,7 +10,8 @@ import { ArrowLeft, Plus, Edit, Trash2 } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Link from 'next/link';
 
-function EditDeckContent({ params }: { params: { id: string } }) {
+function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = use(params);
   const [deck, setDeck] = useState<Deck | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -29,11 +30,11 @@ function EditDeckContent({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     fetchDeck();
-  }, [params.id]);
+  }, [resolvedParams.id]);
 
   const fetchDeck = async () => {
     try {
-      const data = await deckApi.getById(params.id);
+      const data = await deckApi.getById(resolvedParams.id);
       setDeck(data);
       setTitle(data.title);
       setDescription(data.description || '');
@@ -51,7 +52,7 @@ function EditDeckContent({ params }: { params: { id: string } }) {
     setError('');
 
     try {
-      const updatedDeck = await deckApi.update(params.id, {
+      const updatedDeck = await deckApi.update(resolvedParams.id, {
         title,
         description: description || undefined,
         isPublic
@@ -79,7 +80,7 @@ function EditDeckContent({ params }: { params: { id: string } }) {
           cards: prev.cards?.map(card => card.id === updatedCard.id ? updatedCard : card)
         } : null);
       } else {
-        const newCard = await deckApi.addCard(params.id, {
+        const newCard = await deckApi.addCard(resolvedParams.id, {
           front: cardFront,
           back: cardBack
         });
@@ -338,7 +339,7 @@ function EditDeckContent({ params }: { params: { id: string } }) {
   );
 }
 
-export default function EditDeckPage({ params }: { params: { id: string } }) {
+export default function EditDeckPage({ params }: { params: Promise<{ id: string }> }) {
   return (
     <ProtectedRoute>
       <EditDeckContent params={params} />
