@@ -48,6 +48,8 @@ CREATE TABLE cards (
     image_focus_point_x DECIMAL(3,2), -- 0.00 to 1.00
     image_focus_point_y DECIMAL(3,2), -- 0.00 to 1.00
     card_order INTEGER NOT NULL DEFAULT 0,
+    -- Restaurant card data (stored as JSON)
+    restaurant_data JSONB,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -98,6 +100,7 @@ CREATE INDEX idx_decks_category_id ON decks(category_id);
 CREATE INDEX idx_decks_is_public ON decks(is_public);
 CREATE INDEX idx_cards_deck_id ON cards(deck_id);
 CREATE INDEX idx_cards_order ON cards(deck_id, card_order);
+CREATE INDEX idx_cards_restaurant_data ON cards USING GIN(restaurant_data);
 CREATE INDEX idx_fsrs_cards_user_id ON fsrs_cards(user_id);
 CREATE INDEX idx_fsrs_cards_card_id ON fsrs_cards(card_id);
 CREATE INDEX idx_fsrs_cards_next_review ON fsrs_cards(next_review);

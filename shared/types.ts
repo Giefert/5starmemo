@@ -60,6 +60,26 @@ export interface Card {
   order: number;
   createdAt: Date;
   updatedAt: Date;
+  // Restaurant-specific fields
+  restaurantData?: RestaurantCardData;
+}
+
+export interface RestaurantCardData {
+  itemName: string;
+  category: 'food' | 'wine' | 'beer' | 'cocktail' | 'spirit' | 'non-alcoholic';
+  description: string;
+  ingredients?: string[];
+  allergens?: string[];
+  region?: string;
+  producer?: string;
+  vintage?: number;
+  abv?: number; // alcohol by volume percentage
+  grapeVarieties?: string[]; // cepage for wines
+  tastingNotes?: string[];
+  servingTemp?: string;
+  foodPairings?: string[];
+  pricePoint?: 'budget' | 'mid-range' | 'premium' | 'luxury';
+  specialNotes?: string;
 }
 
 export interface CreateCardInput {
@@ -68,6 +88,7 @@ export interface CreateCardInput {
   imageUrl?: string;
   imageFocusPoint?: { x: number; y: number };
   order?: number;
+  restaurantData?: RestaurantCardData;
 }
 
 export interface UpdateCardInput extends Partial<CreateCardInput> {}

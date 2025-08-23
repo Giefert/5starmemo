@@ -50,6 +50,7 @@ export class DeckModel {
         c.image_focus_point_x,
         c.image_focus_point_y,
         c.card_order,
+        c.restaurant_data,
         c.created_at,
         c.updated_at,
         fc.id as fsrs_id,
@@ -83,6 +84,7 @@ export class DeckModel {
           ? { x: row.image_focus_point_x, y: row.image_focus_point_y }
           : undefined,
         order: row.card_order,
+        restaurantData: row.restaurant_data || undefined,
         createdAt: row.created_at,
         updatedAt: row.updated_at
       };
@@ -141,6 +143,7 @@ export class DeckModel {
         c.image_focus_point_x,
         c.image_focus_point_y,
         c.card_order,
+        c.restaurant_data,
         c.created_at,
         c.updated_at,
         fc.id as fsrs_id,
@@ -179,6 +182,7 @@ export class DeckModel {
           ? { x: row.image_focus_point_x, y: row.image_focus_point_y }
           : undefined,
         order: row.card_order,
+        restaurantData: row.restaurant_data || undefined,
         createdAt: row.created_at,
         updatedAt: row.updated_at
       };

@@ -3,11 +3,12 @@
 import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { deckApi } from '@/lib/api';
-import { Deck, Card } from '../../../../../../shared/types';
+import { Deck, Card, RestaurantCardData } from '../../../../../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft, Plus, Edit, Trash2 } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import { RestaurantCardForm } from '@/components/RestaurantCardForm';
 import Link from 'next/link';
 
 function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
@@ -23,8 +24,6 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
   // Card form state
   const [showCardForm, setShowCardForm] = useState(false);
   const [editingCard, setEditingCard] = useState<Card | null>(null);
-  const [cardFront, setCardFront] = useState('');
-  const [cardBack, setCardBack] = useState('');
   
   const router = useRouter();
 
@@ -65,15 +64,13 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
     }
   };
 
-  const handleCardSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!cardFront.trim() || !cardBack.trim()) return;
-
+  const handleCardSubmit = async (data: { front: string; back: string; restaurantData: RestaurantCardData }) => {
     try {
       if (editingCard) {
         const updatedCard = await deckApi.updateCard(editingCard.id, {
-          front: cardFront,
-          back: cardBack
+          front: data.front,
+          back: data.back,
+          restaurantData: data.restaurantData
         });
         setDeck(prev => prev ? {
           ...prev,
@@ -81,8 +78,9 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
         } : null);
       } else {
         const newCard = await deckApi.addCard(resolvedParams.id, {
-          front: cardFront,
-          back: cardBack
+          front: data.front,
+          back: data.back,
+          restaurantData: data.restaurantData
         });
         setDeck(prev => prev ? {
           ...prev,
@@ -91,8 +89,6 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
         } : null);
       }
       
-      setCardFront('');
-      setCardBack('');
       setEditingCard(null);
       setShowCardForm(false);
     } catch (err: any) {
@@ -117,15 +113,11 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
 
   const startEditCard = (card: Card) => {
     setEditingCard(card);
-    setCardFront(card.front);
-    setCardBack(card.back);
     setShowCardForm(true);
   };
 
   const cancelCardEdit = () => {
     setEditingCard(null);
-    setCardFront('');
-    setCardBack('');
     setShowCardForm(false);
   };
 
@@ -239,47 +231,18 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
           </div>
 
           <div className="p-6">
-            {/* Card Form */}
+            {/* Restaurant Card Form */}
             {showCardForm && (
-              <form onSubmit={handleCardSubmit} className="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
-                <h3 className="text-sm font-medium text-gray-900 mb-4">
-                  {editingCard ? 'Edit Card' : 'Add New Card'}
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Front *
-                    </label>
-                    <textarea
-                      value={cardFront}
-                      onChange={(e) => setCardFront(e.target.value)}
-                      className="w-full h-20 px-3 py-2 border border-gray-300 rounded-md text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      placeholder="Enter the question or prompt..."
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Back *
-                    </label>
-                    <textarea
-                      value={cardBack}
-                      onChange={(e) => setCardBack(e.target.value)}
-                      className="w-full h-20 px-3 py-2 border border-gray-300 rounded-md text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      placeholder="Enter the answer..."
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="flex justify-end space-x-2">
-                  <Button type="button" variant="outline" onClick={cancelCardEdit}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={!cardFront.trim() || !cardBack.trim()}>
-                    {editingCard ? 'Update Card' : 'Add Card'}
-                  </Button>
-                </div>
-              </form>
+              <RestaurantCardForm
+                onSubmit={handleCardSubmit}
+                onCancel={cancelCardEdit}
+                initialData={editingCard ? {
+                  front: editingCard.front,
+                  back: editingCard.back,
+                  restaurantData: editingCard.restaurantData
+                } : undefined}
+                isEditing={!!editingCard}
+              />
             )}
 
             {/* Cards List */}
@@ -297,8 +260,22 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
               <div className="space-y-4">
                 {deck.cards.map((card, index) => (
                   <div key={card.id} className="border border-gray-200 rounded-lg p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="text-sm text-gray-500">Card {index + 1}</span>
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-500">Card {index + 1}</span>
+                        {card.restaurantData && (
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                            card.restaurantData.category === 'food' ? 'bg-green-100 text-green-800' :
+                            card.restaurantData.category === 'wine' ? 'bg-purple-100 text-purple-800' :
+                            card.restaurantData.category === 'beer' ? 'bg-amber-100 text-amber-800' :
+                            card.restaurantData.category === 'cocktail' ? 'bg-pink-100 text-pink-800' :
+                            card.restaurantData.category === 'spirit' ? 'bg-orange-100 text-orange-800' :
+                            'bg-blue-100 text-blue-800'
+                          }`}>
+                            {card.restaurantData.category}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex space-x-2">
                         <Button
                           size="sm"
@@ -318,16 +295,55 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
                         </Button>
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <h4 className="text-sm font-medium text-gray-700 mb-1">Front</h4>
-                        <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded">{card.front}</p>
+
+                    {card.restaurantData ? (
+                      <div className="space-y-3">
+                        <div className="bg-blue-50 p-3 rounded-lg">
+                          <h4 className="text-sm font-semibold text-blue-900 mb-1">
+                            {card.restaurantData.itemName}
+                          </h4>
+                          <p className="text-sm text-blue-800">{card.restaurantData.description}</p>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                          {card.restaurantData.ingredients && (
+                            <div>
+                              <span className="font-medium text-gray-700">Ingredients:</span>
+                              <span className="text-gray-600 ml-1">{card.restaurantData.ingredients.join(', ')}</span>
+                            </div>
+                          )}
+                          {card.restaurantData.region && (
+                            <div>
+                              <span className="font-medium text-gray-700">Region:</span>
+                              <span className="text-gray-600 ml-1">{card.restaurantData.region}</span>
+                            </div>
+                          )}
+                          {card.restaurantData.abv && (
+                            <div>
+                              <span className="font-medium text-gray-700">ABV:</span>
+                              <span className="text-gray-600 ml-1">{card.restaurantData.abv}%</span>
+                            </div>
+                          )}
+                          {card.restaurantData.tastingNotes && (
+                            <div>
+                              <span className="font-medium text-gray-700">Tasting Notes:</span>
+                              <span className="text-gray-600 ml-1">{card.restaurantData.tastingNotes.join(', ')}</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="text-sm font-medium text-gray-700 mb-1">Back</h4>
-                        <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded">{card.back}</p>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-700 mb-1">Front</h4>
+                          <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded">{card.front}</p>
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-700 mb-1">Back</h4>
+                          <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded">{card.back}</p>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 ))}
               </div>

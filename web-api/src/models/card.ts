@@ -9,9 +9,9 @@ export class CardModel {
     const nextOrder = cardData.order ?? orderResult.rows[0].next_order;
 
     const query = `
-      INSERT INTO cards (deck_id, front, back, image_url, image_focus_point_x, image_focus_point_y, card_order)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING id, deck_id, front, back, image_url, image_focus_point_x, image_focus_point_y, card_order, created_at, updated_at
+      INSERT INTO cards (deck_id, front, back, image_url, image_focus_point_x, image_focus_point_y, card_order, restaurant_data)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING id, deck_id, front, back, image_url, image_focus_point_x, image_focus_point_y, card_order, restaurant_data, created_at, updated_at
     `;
     
     const values = [
@@ -21,7 +21,8 @@ export class CardModel {
       cardData.imageUrl || null,
       cardData.imageFocusPoint?.x || null,
       cardData.imageFocusPoint?.y || null,
-      nextOrder
+      nextOrder,
+      cardData.restaurantData ? JSON.stringify(cardData.restaurantData) : null
     ];
     
     const result = await pool.query(query, values);
@@ -31,13 +32,14 @@ export class CardModel {
       ...card,
       imageFocusPoint: card.image_focus_point_x && card.image_focus_point_y 
         ? { x: card.image_focus_point_x, y: card.image_focus_point_y }
-        : undefined
+        : undefined,
+      restaurantData: card.restaurant_data || undefined
     };
   }
 
   static async findByDeckId(deckId: string): Promise<Card[]> {
     const query = `
-      SELECT id, deck_id, front, back, image_url, image_focus_point_x, image_focus_point_y, card_order, created_at, updated_at
+      SELECT id, deck_id, front, back, image_url, image_focus_point_x, image_focus_point_y, card_order, restaurant_data, created_at, updated_at
       FROM cards
       WHERE deck_id = $1
       ORDER BY card_order ASC, created_at ASC
@@ -49,13 +51,14 @@ export class CardModel {
       ...card,
       imageFocusPoint: card.image_focus_point_x && card.image_focus_point_y 
         ? { x: card.image_focus_point_x, y: card.image_focus_point_y }
-        : undefined
+        : undefined,
+      restaurantData: card.restaurant_data || undefined
     }));
   }
 
   static async findById(id: string): Promise<Card | null> {
     const query = `
-      SELECT id, deck_id, front, back, image_url, image_focus_point_x, image_focus_point_y, card_order, created_at, updated_at
+      SELECT id, deck_id, front, back, image_url, image_focus_point_x, image_focus_point_y, card_order, restaurant_data, created_at, updated_at
       FROM cards
       WHERE id = $1
     `;
@@ -71,7 +74,8 @@ export class CardModel {
       ...card,
       imageFocusPoint: card.image_focus_point_x && card.image_focus_point_y 
         ? { x: card.image_focus_point_x, y: card.image_focus_point_y }
-        : undefined
+        : undefined,
+      restaurantData: card.restaurant_data || undefined
     };
   }
 
@@ -114,6 +118,12 @@ export class CardModel {
       paramCount++;
     }
 
+    if (cardData.restaurantData !== undefined) {
+      setClause.push(`restaurant_data = $${paramCount}`);
+      values.push(cardData.restaurantData ? JSON.stringify(cardData.restaurantData) : null);
+      paramCount++;
+    }
+
     if (setClause.length === 0) {
       return this.findById(id);
     }
@@ -125,7 +135,7 @@ export class CardModel {
       UPDATE cards
       SET ${setClause.join(', ')}
       WHERE id = $${paramCount}
-      RETURNING id, deck_id, front, back, image_url, image_focus_point_x, image_focus_point_y, card_order, created_at, updated_at
+      RETURNING id, deck_id, front, back, image_url, image_focus_point_x, image_focus_point_y, card_order, restaurant_data, created_at, updated_at
     `;
 
     const result = await pool.query(query, values);
@@ -139,7 +149,8 @@ export class CardModel {
       ...card,
       imageFocusPoint: card.image_focus_point_x && card.image_focus_point_y 
         ? { x: card.image_focus_point_x, y: card.image_focus_point_y }
-        : undefined
+        : undefined,
+      restaurantData: card.restaurant_data || undefined
     };
   }
 
@@ -183,9 +194,9 @@ export class CardModel {
         const order = cardData.order ?? i;
         
         const query = `
-          INSERT INTO cards (deck_id, front, back, image_url, image_focus_point_x, image_focus_point_y, card_order)
-          VALUES ($1, $2, $3, $4, $5, $6, $7)
-          RETURNING id, deck_id, front, back, image_url, image_focus_point_x, image_focus_point_y, card_order, created_at, updated_at
+          INSERT INTO cards (deck_id, front, back, image_url, image_focus_point_x, image_focus_point_y, card_order, restaurant_data)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          RETURNING id, deck_id, front, back, image_url, image_focus_point_x, image_focus_point_y, card_order, restaurant_data, created_at, updated_at
         `;
         
         const values = [
@@ -195,7 +206,8 @@ export class CardModel {
           cardData.imageUrl || null,
           cardData.imageFocusPoint?.x || null,
           cardData.imageFocusPoint?.y || null,
-          order
+          order,
+          cardData.restaurantData ? JSON.stringify(cardData.restaurantData) : null
         ];
         
         const result = await client.query(query, values);
@@ -205,7 +217,8 @@ export class CardModel {
           ...card,
           imageFocusPoint: card.image_focus_point_x && card.image_focus_point_y 
             ? { x: card.image_focus_point_x, y: card.image_focus_point_y }
-            : undefined
+            : undefined,
+          restaurantData: card.restaurant_data || undefined
         });
       }
       

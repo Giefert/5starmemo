@@ -26,10 +26,34 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, onFlip }) => {
 
   const { card } = cardData;
 
+  // Get category-specific colors
+  const getCategoryStyles = () => {
+    if (!card.restaurantData) return {};
+    
+    switch (card.restaurantData.category) {
+      case 'food':
+        return { backgroundColor: '#f8fff4', borderLeftColor: '#4CAF50', borderLeftWidth: 4 };
+      case 'wine':
+        return { backgroundColor: '#faf5ff', borderLeftColor: '#9C27B0', borderLeftWidth: 4 };
+      case 'beer':
+        return { backgroundColor: '#fffbf0', borderLeftColor: '#FF9800', borderLeftWidth: 4 };
+      case 'cocktail':
+        return { backgroundColor: '#fdf2f8', borderLeftColor: '#E91E63', borderLeftWidth: 4 };
+      case 'spirit':
+        return { backgroundColor: '#fff7ed', borderLeftColor: '#F57C00', borderLeftWidth: 4 };
+      case 'non-alcoholic':
+        return { backgroundColor: '#f0f9ff', borderLeftColor: '#2196F3', borderLeftWidth: 4 };
+      default:
+        return {};
+    }
+  };
+
+  const categoryStyles = getCategoryStyles();
+
   return (
     <View style={styles.container}>
       <TouchableOpacity 
-        style={styles.card} 
+        style={[styles.card, categoryStyles]} 
         onPress={handleFlip}
         activeOpacity={0.8}
       >
@@ -63,16 +87,111 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, onFlip }) => {
           {/* Card Content */}
           <View style={styles.textContainer}>
             {!isFlipped ? (
-              // Front of card
+              // Front of card - Show item name and category for restaurant cards
               <View style={styles.cardSide}>
-                <Text style={styles.sideLabel}>Front</Text>
-                <Text style={styles.cardText}>{card.front}</Text>
+                {card.restaurantData ? (
+                  <>
+                    <Text style={styles.sideLabel}>
+                      {card.restaurantData.category.toUpperCase()}
+                    </Text>
+                    <Text style={styles.cardText}>{card.restaurantData.itemName}</Text>
+                    {card.restaurantData.region && (
+                      <Text style={styles.subtitleText}>from {card.restaurantData.region}</Text>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.sideLabel}>Front</Text>
+                    <Text style={styles.cardText}>{card.front}</Text>
+                  </>
+                )}
               </View>
             ) : (
-              // Back of card
+              // Back of card - Show structured restaurant data or plain back
               <View style={styles.cardSide}>
-                <Text style={styles.sideLabel}>Back</Text>
-                <Text style={styles.cardText}>{card.back}</Text>
+                {card.restaurantData ? (
+                  <View style={styles.restaurantDetails}>
+                    <Text style={styles.sideLabel}>Details</Text>
+                    
+                    {/* Description */}
+                    <Text style={styles.descriptionText}>{card.restaurantData.description}</Text>
+                    
+                    {/* Key Details */}
+                    <View style={styles.detailsGrid}>
+                      {card.restaurantData.ingredients && (
+                        <View style={styles.detailRow}>
+                          <Text style={styles.detailLabel}>Ingredients:</Text>
+                          <Text style={styles.detailValue}>
+                            {card.restaurantData.ingredients.join(', ')}
+                          </Text>
+                        </View>
+                      )}
+                      
+                      {card.restaurantData.abv && (
+                        <View style={styles.detailRow}>
+                          <Text style={styles.detailLabel}>ABV:</Text>
+                          <Text style={styles.detailValue}>{card.restaurantData.abv}%</Text>
+                        </View>
+                      )}
+                      
+                      {card.restaurantData.vintage && (
+                        <View style={styles.detailRow}>
+                          <Text style={styles.detailLabel}>Vintage:</Text>
+                          <Text style={styles.detailValue}>{card.restaurantData.vintage}</Text>
+                        </View>
+                      )}
+                      
+                      {card.restaurantData.grapeVarieties && (
+                        <View style={styles.detailRow}>
+                          <Text style={styles.detailLabel}>Grapes:</Text>
+                          <Text style={styles.detailValue}>
+                            {card.restaurantData.grapeVarieties.join(', ')}
+                          </Text>
+                        </View>
+                      )}
+                      
+                      {card.restaurantData.tastingNotes && (
+                        <View style={styles.detailRow}>
+                          <Text style={styles.detailLabel}>Tasting Notes:</Text>
+                          <Text style={styles.detailValue}>
+                            {card.restaurantData.tastingNotes.join(', ')}
+                          </Text>
+                        </View>
+                      )}
+                      
+                      {card.restaurantData.foodPairings && (
+                        <View style={styles.detailRow}>
+                          <Text style={styles.detailLabel}>Pairs with:</Text>
+                          <Text style={styles.detailValue}>
+                            {card.restaurantData.foodPairings.join(', ')}
+                          </Text>
+                        </View>
+                      )}
+                      
+                      {card.restaurantData.allergens && (
+                        <View style={[styles.detailRow, styles.allergensRow]}>
+                          <Text style={styles.detailLabel}>⚠️ Allergens:</Text>
+                          <Text style={styles.allergensText}>
+                            {card.restaurantData.allergens.join(', ')}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    
+                    {card.restaurantData.specialNotes && (
+                      <View style={styles.specialNotesContainer}>
+                        <Text style={styles.specialNotesText}>
+                          💡 {card.restaurantData.specialNotes}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                ) : (
+                  <>
+                    <Text style={styles.sideLabel}>Back</Text>
+                    <Text style={styles.cardText}>{card.back}</Text>
+                  </>
+                )}
               </View>
             )}
           </View>
@@ -180,5 +299,67 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#999',
     fontStyle: 'italic',
+  },
+  // Restaurant card specific styles
+  subtitleText: {
+    fontSize: 14,
+    color: '#666',
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  restaurantDetails: {
+    alignItems: 'stretch',
+    width: '100%',
+  },
+  descriptionText: {
+    fontSize: 16,
+    lineHeight: 22,
+    color: '#1a1a1a',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  detailsGrid: {
+    gap: 8,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 6,
+  },
+  detailLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#666',
+    minWidth: 80,
+    marginRight: 8,
+  },
+  detailValue: {
+    fontSize: 12,
+    color: '#1a1a1a',
+    flex: 1,
+  },
+  allergensRow: {
+    backgroundColor: '#FFF3CD',
+    padding: 8,
+    borderRadius: 4,
+    marginTop: 8,
+  },
+  allergensText: {
+    fontSize: 12,
+    color: '#856404',
+    fontWeight: '600',
+    flex: 1,
+  },
+  specialNotesContainer: {
+    backgroundColor: '#E3F2FD',
+    padding: 8,
+    borderRadius: 6,
+    marginTop: 12,
+  },
+  specialNotesText: {
+    fontSize: 12,
+    color: '#1565C0',
+    fontStyle: 'italic',
+    textAlign: 'center',
   },
 });
