@@ -207,7 +207,10 @@ router.post('/:id/cards',
     body('imageUrl').optional().isURL(),
     body('imageFocusPoint.x').optional().isFloat({ min: 0, max: 1 }),
     body('imageFocusPoint.y').optional().isFloat({ min: 0, max: 1 }),
-    body('order').optional().isInt({ min: 0 })
+    body('order').optional().isInt({ min: 0 }),
+    body('restaurantData').optional().isObject(),
+    body('restaurantData.itemName').optional().trim().isLength({ min: 1 }),
+    body('restaurantData.category').optional().isIn(['food', 'wine', 'beer', 'cocktail', 'spirit', 'non-alcoholic'])
   ],
   async (req: AuthenticatedRequest, res: Response) => {
     try {

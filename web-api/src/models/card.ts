@@ -29,10 +29,17 @@ export class CardModel {
     const card = result.rows[0];
     
     return {
-      ...card,
+      id: card.id,
+      deckId: card.deck_id,
+      front: card.front,
+      back: card.back,
+      imageUrl: card.image_url,
       imageFocusPoint: card.image_focus_point_x && card.image_focus_point_y 
         ? { x: card.image_focus_point_x, y: card.image_focus_point_y }
         : undefined,
+      order: card.card_order,
+      createdAt: card.created_at,
+      updatedAt: card.updated_at,
       restaurantData: card.restaurant_data || undefined
     };
   }
@@ -48,10 +55,17 @@ export class CardModel {
     const result = await pool.query(query, [deckId]);
     
     return result.rows.map(card => ({
-      ...card,
+      id: card.id,
+      deckId: card.deck_id,
+      front: card.front,
+      back: card.back,
+      imageUrl: card.image_url,
       imageFocusPoint: card.image_focus_point_x && card.image_focus_point_y 
         ? { x: card.image_focus_point_x, y: card.image_focus_point_y }
         : undefined,
+      order: card.card_order,
+      createdAt: card.created_at,
+      updatedAt: card.updated_at,
       restaurantData: card.restaurant_data || undefined
     }));
   }
@@ -71,10 +85,17 @@ export class CardModel {
 
     const card = result.rows[0];
     return {
-      ...card,
+      id: card.id,
+      deckId: card.deck_id,
+      front: card.front,
+      back: card.back,
+      imageUrl: card.image_url,
       imageFocusPoint: card.image_focus_point_x && card.image_focus_point_y 
         ? { x: card.image_focus_point_x, y: card.image_focus_point_y }
         : undefined,
+      order: card.card_order,
+      createdAt: card.created_at,
+      updatedAt: card.updated_at,
       restaurantData: card.restaurant_data || undefined
     };
   }
@@ -146,10 +167,17 @@ export class CardModel {
 
     const card = result.rows[0];
     return {
-      ...card,
+      id: card.id,
+      deckId: card.deck_id,
+      front: card.front,
+      back: card.back,
+      imageUrl: card.image_url,
       imageFocusPoint: card.image_focus_point_x && card.image_focus_point_y 
         ? { x: card.image_focus_point_x, y: card.image_focus_point_y }
         : undefined,
+      order: card.card_order,
+      createdAt: card.created_at,
+      updatedAt: card.updated_at,
       restaurantData: card.restaurant_data || undefined
     };
   }
@@ -214,10 +242,17 @@ export class CardModel {
         const card = result.rows[0];
         
         cards.push({
-          ...card,
+          id: card.id,
+      deckId: card.deck_id,
+      front: card.front,
+      back: card.back,
+      imageUrl: card.image_url,
           imageFocusPoint: card.image_focus_point_x && card.image_focus_point_y 
             ? { x: card.image_focus_point_x, y: card.image_focus_point_y }
             : undefined,
+          order: card.card_order,
+          createdAt: card.created_at,
+          updatedAt: card.updated_at,
           restaurantData: card.restaurant_data || undefined
         });
       }

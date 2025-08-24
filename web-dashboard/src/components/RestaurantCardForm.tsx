@@ -51,6 +51,20 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
   const [foodPairings, setFoodPairings] = useState<string[]>(
     initialData?.restaurantData?.foodPairings || []
   );
+  
+  // Raw input strings for array fields to preserve user input formatting
+  const [ingredientsRaw, setIngredientsRaw] = useState(
+    initialData?.restaurantData?.ingredients?.join(', ') || ''
+  );
+  const [allergensRaw, setAllergensRaw] = useState(
+    initialData?.restaurantData?.allergens?.join(', ') || ''
+  );
+  const [tastingNotesRaw, setTastingNotesRaw] = useState(
+    initialData?.restaurantData?.tastingNotes?.join(', ') || ''
+  );
+  const [foodPairingsRaw, setFoodPairingsRaw] = useState(
+    initialData?.restaurantData?.foodPairings?.join(', ') || ''
+  );
   const [pricePoint, setPricePoint] = useState<RestaurantCardData['pricePoint']>(
     initialData?.restaurantData?.pricePoint || 'mid-range'
   );
@@ -61,6 +75,16 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
   const handleArrayInput = (value: string, setter: (arr: string[]) => void) => {
     const items = value.split(',').map(item => item.trim()).filter(Boolean);
     setter(items);
+  };
+
+  const handleRawArrayInput = (
+    rawValue: string, 
+    setRaw: (raw: string) => void, 
+    setArray: (arr: string[]) => void
+  ) => {
+    setRaw(rawValue);
+    const items = rawValue.split(',').map(item => item.trim()).filter(Boolean);
+    setArray(items);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -175,8 +199,8 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
             Ingredients
           </label>
           <Input
-            value={ingredients.join(', ')}
-            onChange={(e) => handleArrayInput(e.target.value, setIngredients)}
+            value={ingredientsRaw}
+            onChange={(e) => handleRawArrayInput(e.target.value, setIngredientsRaw, setIngredients)}
             placeholder="beef, garlic, rosemary (comma separated)"
           />
         </div>
@@ -186,8 +210,8 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
             Allergens
           </label>
           <Input
-            value={allergens.join(', ')}
-            onChange={(e) => handleArrayInput(e.target.value, setAllergens)}
+            value={allergensRaw}
+            onChange={(e) => handleRawArrayInput(e.target.value, setAllergensRaw, setAllergens)}
             placeholder="dairy, gluten, nuts (comma separated)"
           />
         </div>
@@ -274,8 +298,8 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
             Tasting Notes
           </label>
           <Input
-            value={tastingNotes.join(', ')}
-            onChange={(e) => handleArrayInput(e.target.value, setTastingNotes)}
+            value={tastingNotesRaw}
+            onChange={(e) => handleRawArrayInput(e.target.value, setTastingNotesRaw, setTastingNotes)}
             placeholder="fruity, oaky, smooth (comma separated)"
           />
         </div>
@@ -298,8 +322,8 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
           Food Pairings
         </label>
         <Input
-          value={foodPairings.join(', ')}
-          onChange={(e) => handleArrayInput(e.target.value, setFoodPairings)}
+          value={foodPairingsRaw}
+          onChange={(e) => handleRawArrayInput(e.target.value, setFoodPairingsRaw, setFoodPairings)}
           placeholder="grilled salmon, aged cheese, dark chocolate (comma separated)"
         />
       </div>
