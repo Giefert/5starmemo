@@ -1,0 +1,87 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: 5starmemo
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web-api:
+    build:
+      context: .
+      dockerfile: ./web-api/Dockerfile
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: 5starmemo
+      DB_USER: postgres
+      DB_PASSWORD: password
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+      - ./web-api:/app
+      - /app/node_modules
+    command: npm run dev
+
+  mobile-api:
+    build:
+      context: .
+      dockerfile: ./mobile-api/Dockerfile
+    environment:
+      NODE_ENV: development
+      PORT: 3002
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: 5starmemo
+      DB_USER: postgres
+      DB_PASSWORD: password
+    ports:
+      - "3002:3002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+      - ./mobile-api:/app
+      - /app/node_modules
+    command: npm run dev
+
+  web-dashboard:
+    build:
+      context: .
+      dockerfile: ./web-dashboard/Dockerfile
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      NEXT_PUBLIC_WEB_API_URL: http://localhost:3001
+      NEXT_PUBLIC_MOBILE_API_URL: http://localhost:3002
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./logs:/app/logs
+      - ./web-dashboard:/app
+      - /app/node_modules
+    command: npm run dev
+
+volumes:
+  postgres_data:
+
+networks:
+  default:
+    driver: bridge

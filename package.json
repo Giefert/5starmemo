@@ -1,0 +1,17 @@
+{
+  "name": "5starmemo",
+  "version": "1.0.0",
+  "description": "5StarMemo - Spaced repetition learning platform",
+  "scripts": {
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "docker:build": "docker-compose build",
+    "docker:restart": "docker-compose restart",
+    "docker:logs:web-api": "docker-compose logs -f web-api",
+    "docker:logs:mobile-api": "docker-compose logs -f mobile-api",
+    "docker:logs:web-dashboard": "docker-compose logs -f web-dashboard",
+    "logs:watch": "./watch-logs.sh"
+  },
+  "private": true
+}
