@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
 import { StudyStats, Deck } from '../types/shared';
 import apiService from '../services/api';
@@ -17,7 +18,8 @@ import { StudyCompletedScreen } from './StudyCompletedScreen';
 type ScreenState = 'home' | 'study' | 'completed';
 
 export const HomeScreen: React.FC = () => {
-  const [stats, setStats] = useState<StudyStats | null>(null);
+  const insets = useSafeAreaInsets()
+  const [stats, setStats] = useState<StudyStats | null>(null)
   const [decks, setDecks] = useState<Deck[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [screenState, setScreenState] = useState<ScreenState>('home');
@@ -36,18 +38,34 @@ export const HomeScreen: React.FC = () => {
   const loadData = async () => {
     try {
       setIsLoading(true);
+      console.log('Loading study data...');
       const [statsData, decksData] = await Promise.all([
         apiService.getStudyStats(),
         apiService.getAvailableDecks(),
       ]);
+      console.log('Data loaded successfully:', { statsData, decksData });
       setStats(statsData);
       setDecks(decksData);
     } catch (error) {
-      Alert.alert('Error', 'Failed to load data');
       console.error('Failed to load data:', error);
-    } finally {
-      setIsLoading(false);
+      // Provide more detailed error message
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      Alert.alert(
+        'Connection Error',
+        `Failed to load study data. Please check your internet connection.\n\nError: ${errorMessage}`,
+        [
+          { text: 'Retry', onPress: () => loadData() },
+          { text: 'Continue Offline', onPress: () => {
+            // Set empty data for offline mode
+            setStats({ totalCards: 0, studiedToday: 0, averageScore: 0 });
+            setDecks([]);
+            setIsLoading(false);
+          }}
+        ]
+      );
+      return; // Don't execute finally block
     }
+    setIsLoading(false);
   };
 
   const handleLogout = () => {
@@ -117,7 +135,7 @@ export const HomeScreen: React.FC = () => {
 
   return (
     <ScrollView style={styles.container}>
-      <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <Text style={styles.greeting}>Hello, {user?.username}!</Text>
         <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
           <Text style={styles.logoutText}>Logout</Text>
@@ -205,7 +223,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingBottom: 16,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#eee',

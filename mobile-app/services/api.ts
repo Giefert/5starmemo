@@ -9,7 +9,7 @@ const getApiBaseUrl = () => {
   if (__DEV__) {
     if (Platform.OS === 'ios') {
       // iOS Simulator - use host machine's IP address
-      return 'http://10.0.0.10:3002/api/student';
+      return 'http://192.168.2.100:3002/api/student';
     } else if (Platform.OS === 'android') {
       // Android Emulator - use Android emulator IP
       return 'http://10.0.2.2:3002/api/student';

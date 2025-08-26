@@ -8,6 +8,7 @@ import {
   Alert,
   TouchableOpacity,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { studySessionManager } from '../services/StudySessionManager';
 import { StudyCard } from '../components/StudyCard';
 import { RatingButtons } from '../components/RatingButtons';
@@ -28,6 +29,7 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
   onComplete, 
   onExit 
 }) => {
+  const insets = useSafeAreaInsets()
   const [currentCard, setCurrentCard] = useState<StudyCardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -147,7 +149,7 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <TouchableOpacity onPress={handleExit} style={styles.exitButton}>
           <Text style={styles.exitButtonText}>Exit</Text>
         </TouchableOpacity>
@@ -215,7 +217,7 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#ffffff',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },

@@ -6,6 +6,7 @@ import {
   SafeAreaView,
   TouchableOpacity,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface StudyCompletedScreenProps {
   stats: {
@@ -24,6 +25,7 @@ export const StudyCompletedScreen: React.FC<StudyCompletedScreenProps> = ({
   onContinue,
   onStudyAgain,
 }) => {
+  const insets = useSafeAreaInsets()
   const accuracyPercentage = stats.studied > 0 
     ? Math.round((stats.correct / stats.studied) * 100) 
     : 0;
@@ -46,7 +48,7 @@ export const StudyCompletedScreen: React.FC<StudyCompletedScreenProps> = ({
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { marginTop: insets.top }]}>
           <Text style={styles.title}>Study Complete!</Text>
           {deckTitle && (
             <Text style={styles.deckTitle}>{deckTitle}</Text>
@@ -147,6 +149,7 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     marginBottom: 30,
+    paddingTop: 20,
   },
   title: {
     fontSize: 32,
