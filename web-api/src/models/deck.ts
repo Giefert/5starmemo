@@ -1,6 +1,19 @@
 import pool from '../config/database';
 import { Deck, CreateDeckInput, UpdateDeckInput, DeckWithStats } from '../../../shared/types';
 
+// Helper function to safely parse restaurant data
+function parseRestaurantData(data: any) {
+  if (!data) return undefined;
+  if (typeof data === 'string') {
+    try {
+      return JSON.parse(data);
+    } catch {
+      return undefined;
+    }
+  }
+  return data; // Already an object
+}
+
 export class DeckModel {
   static async create(deckData: CreateDeckInput, createdBy: string): Promise<Deck> {
     const query = `
@@ -107,7 +120,7 @@ export class DeckModel {
 
     if (includeCards) {
       const cardsQuery = `
-        SELECT id, deck_id, front, back, image_url, image_focus_point_x, image_focus_point_y, card_order, created_at, updated_at
+        SELECT id, deck_id, front, back, image_url, image_focus_point_x, image_focus_point_y, card_order, restaurant_data, created_at, updated_at
         FROM cards
         WHERE deck_id = $1
         ORDER BY card_order ASC, created_at ASC
@@ -115,10 +128,18 @@ export class DeckModel {
       
       const cardsResult = await pool.query(cardsQuery, [id]);
       deck.cards = cardsResult.rows.map(card => ({
-        ...card,
+        id: card.id,
+        deckId: card.deck_id,
+        front: card.front,
+        back: card.back,
+        imageUrl: card.image_url,
         imageFocusPoint: card.image_focus_point_x && card.image_focus_point_y 
           ? { x: card.image_focus_point_x, y: card.image_focus_point_y }
-          : undefined
+          : undefined,
+        order: card.card_order,
+        createdAt: card.created_at,
+        updatedAt: card.updated_at,
+        restaurantData: parseRestaurantData(card.restaurant_data)
       }));
     }
 
@@ -164,7 +185,7 @@ export class DeckModel {
     const query = `
       UPDATE decks
       SET ${setClause.join(', ')}
-      WHERE id = $${paramCount + 1}
+      WHERE id = $${paramCount}
       RETURNING id, title, description, category_id, created_by, is_public, created_at, updated_at
     `;
 

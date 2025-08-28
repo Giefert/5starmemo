@@ -1,6 +1,19 @@
 import pool from '../config/database';
 import { Card, CreateCardInput, UpdateCardInput } from '../../../shared/types';
 
+// Helper function to safely parse restaurant data
+function parseRestaurantData(data: any) {
+  if (!data) return undefined;
+  if (typeof data === 'string') {
+    try {
+      return JSON.parse(data);
+    } catch {
+      return undefined;
+    }
+  }
+  return data; // Already an object
+}
+
 export class CardModel {
   static async create(deckId: string, cardData: CreateCardInput): Promise<Card> {
     // Get the next order number for this deck
@@ -40,7 +53,7 @@ export class CardModel {
       order: card.card_order,
       createdAt: card.created_at,
       updatedAt: card.updated_at,
-      restaurantData: card.restaurant_data || undefined
+      restaurantData: parseRestaurantData(card.restaurant_data)
     };
   }
 
@@ -66,7 +79,7 @@ export class CardModel {
       order: card.card_order,
       createdAt: card.created_at,
       updatedAt: card.updated_at,
-      restaurantData: card.restaurant_data || undefined
+      restaurantData: parseRestaurantData(card.restaurant_data)
     }));
   }
 
@@ -96,7 +109,7 @@ export class CardModel {
       order: card.card_order,
       createdAt: card.created_at,
       updatedAt: card.updated_at,
-      restaurantData: card.restaurant_data || undefined
+      restaurantData: parseRestaurantData(card.restaurant_data)
     };
   }
 
@@ -178,7 +191,7 @@ export class CardModel {
       order: card.card_order,
       createdAt: card.created_at,
       updatedAt: card.updated_at,
-      restaurantData: card.restaurant_data || undefined
+      restaurantData: parseRestaurantData(card.restaurant_data)
     };
   }
 
@@ -253,7 +266,7 @@ export class CardModel {
           order: card.card_order,
           createdAt: card.created_at,
           updatedAt: card.updated_at,
-          restaurantData: card.restaurant_data || undefined
+          restaurantData: parseRestaurantData(card.restaurant_data)
         });
       }
       

@@ -56,7 +56,7 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
         description: description || undefined,
         isPublic
       });
-      setDeck(updatedDeck);
+      setDeck(prev => prev ? { ...prev, ...updatedDeck } : updatedDeck);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to update deck');
     } finally {
