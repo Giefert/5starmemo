@@ -176,7 +176,6 @@ export interface DeckWithStats extends Deck {
   totalStudents: number;
   totalSessions: number;
   averageRating: number;
-  lastStudied?: Date;
 }
 
 export interface UserStats {

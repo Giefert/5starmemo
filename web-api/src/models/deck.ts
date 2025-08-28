@@ -39,8 +39,7 @@ export class DeckModel {
         COUNT(DISTINCT c.id) as card_count,
         COUNT(DISTINCT ss.user_id) as total_students,
         COUNT(DISTINCT ss.id) as total_sessions,
-        AVG(ss.average_rating) as average_rating,
-        MAX(ss.ended_at) as last_studied
+        AVG(ss.average_rating) as average_rating
       FROM decks d
       LEFT JOIN cards c ON d.id = c.deck_id
       LEFT JOIN study_sessions ss ON d.id = ss.deck_id
@@ -73,7 +72,6 @@ export class DeckModel {
       totalStudents: parseInt(row.total_students) || 0,
       totalSessions: parseInt(row.total_sessions) || 0,
       averageRating: parseFloat(row.average_rating) || 0,
-      lastStudied: row.last_studied
     }));
   }
 
