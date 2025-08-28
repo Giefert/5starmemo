@@ -47,7 +47,23 @@ export const HomeScreen: React.FC = () => {
       setStats(statsData);
       setDecks(decksData);
     } catch (error) {
+      // Enhanced error logging for debugging network issues
       console.error('Failed to load data:', error);
+      console.error('Error type:', error?.constructor?.name);
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
+      
+      // Log network-specific information
+      if (error && typeof error === 'object' && 'code' in error) {
+        console.error('Network error code:', error.code);
+      }
+      if (error && typeof error === 'object' && 'response' in error) {
+        console.error('API response status:', error.response?.status);
+        console.error('API response data:', error.response?.data);
+      }
+      
       // Provide more detailed error message
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       Alert.alert(
@@ -59,13 +75,12 @@ export const HomeScreen: React.FC = () => {
             // Set empty data for offline mode
             setStats({ totalCards: 0, studiedToday: 0, averageScore: 0 });
             setDecks([]);
-            setIsLoading(false);
           }}
         ]
       );
-      return; // Don't execute finally block
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const handleLogout = () => {
