@@ -9,7 +9,7 @@ const getApiBaseUrl = () => {
   if (__DEV__) {
     if (Platform.OS === 'ios') {
       // iOS Simulator - use host machine's IP address
-      return 'http://10.13.32.104:3002/api/student';
+      return 'http://localhost:3002/api/student';
     } else if (Platform.OS === 'android') {
       // Android Emulator - use Android emulator IP
       return 'http://10.0.2.2:3002/api/student';
@@ -29,6 +29,33 @@ class ApiService {
 
   constructor() {
     this.initializeToken();
+    this.setupResponseInterceptor();
+  }
+
+  private setupResponseInterceptor() {
+    axios.interceptors.response.use(
+      (response) => response,
+      async (error) => {
+        // Handle 401 authentication errors globally
+        if (error.response?.status === 401) {
+          console.log('401 authentication error detected, clearing stored credentials');
+          await this.clearStoredCredentials();
+          
+          // Create a custom error to indicate re-login is needed
+          const authError = new Error('Authentication expired. Please log in again.');
+          authError.name = 'AuthenticationError';
+          throw authError;
+        }
+        // Re-throw the original error if it's not auth-related
+        throw error;
+      }
+    );
+  }
+
+  private async clearStoredCredentials() {
+    this.token = null;
+    await SecureStore.deleteItemAsync('authToken');
+    await SecureStore.deleteItemAsync('userData');
   }
 
   private async initializeToken() {
@@ -62,8 +89,7 @@ class ApiService {
   }
 
   async logout() {
-    this.token = null;
-    await SecureStore.deleteItemAsync('authToken');
+    await this.clearStoredCredentials();
   }
 
   async getAvailableDecks(): Promise<Deck[]> {

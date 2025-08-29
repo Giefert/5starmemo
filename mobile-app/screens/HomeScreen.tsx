@@ -64,11 +64,45 @@ export const HomeScreen: React.FC = () => {
         console.error('API response data:', error.response?.data);
       }
       
-      // Provide more detailed error message
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      // Handle authentication errors by logging out
+      if (error instanceof Error && error.name === 'AuthenticationError') {
+        console.log('Authentication error detected, logging out user');
+        logout();
+        return; // Don't show alert, user will be redirected to login
+      }
+      
+      // Provide network-specific error messages
+      let alertTitle = 'Connection Error';
+      let alertMessage = 'Failed to load study data. Please try again.';
+      
+      if (error && typeof error === 'object' && 'code' in error) {
+        switch (error.code) {
+          case 'ECONNABORTED':
+            alertTitle = 'Request Timeout';
+            alertMessage = 'The server is taking too long to respond. Please check if the API server is running and try again.';
+            break;
+          case 'ECONNREFUSED':
+            alertTitle = 'Connection Refused';
+            alertMessage = 'Cannot connect to the API server. Please make sure the server is running on port 3002.';
+            break;
+          case 'ENOTFOUND':
+            alertTitle = 'Server Not Found';
+            alertMessage = 'Cannot find the API server. Please check your network configuration.';
+            break;
+          default:
+            alertMessage = `Network error (${error.code}): ${error instanceof Error ? error.message : 'Unknown error'}`;
+        }
+      } else if (error && typeof error === 'object' && 'response' in error && error.response?.status) {
+        alertTitle = 'Server Error';
+        alertMessage = `Server returned error ${error.response.status}. Please try again later.`;
+      } else {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        alertMessage = `Failed to load study data.\n\nError: ${errorMessage}`;
+      }
+      
       Alert.alert(
-        'Connection Error',
-        `Failed to load study data. Please check your internet connection.\n\nError: ${errorMessage}`,
+        alertTitle,
+        alertMessage,
         [
           { text: 'Retry', onPress: () => loadData() },
           { text: 'Continue Offline', onPress: () => {
