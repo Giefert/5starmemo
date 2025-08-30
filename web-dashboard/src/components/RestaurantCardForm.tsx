@@ -73,8 +73,10 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
   const [specialNotes, setSpecialNotes] = useState(initialData?.restaurantData?.specialNotes || '');
   
   // Image fields
-  const [imageUrl, setImageUrl] = useState(initialData?.imageUrl || '');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [imageUrl, setImageUrl] = useState(initialData?.imageUrl || ''); // For existing images
   const [imageFocusPoint, setImageFocusPoint] = useState(initialData?.imageFocusPoint || { x: 0.5, y: 0.5 });
+  const [isUploading, setIsUploading] = useState(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -93,12 +95,53 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
     setArray(items);
   };
 
+  const uploadFile = async (file: File): Promise<string | null> => {
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${process.env.NEXT_PUBLIC_WEB_API_URL}/api/upload/image`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error('Upload failed');
+      }
+
+      const result = await response.json();
+      return result.data?.imageUrl || null;
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      return null;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!itemName.trim() || !description.trim()) return;
 
     setIsSubmitting(true);
     try {
+      let finalImageUrl = imageUrl; // Keep existing image URL if no new file
+
+      // Upload new file if selected
+      if (selectedFile) {
+        setIsUploading(true);
+        const uploadedUrl = await uploadFile(selectedFile);
+        if (uploadedUrl) {
+          finalImageUrl = uploadedUrl;
+        } else {
+          alert('Failed to upload image. Please try again.');
+          return;
+        }
+        setIsUploading(false);
+      }
+
       const restaurantData: RestaurantCardData = {
         itemName: itemName.trim(),
         category,
@@ -123,15 +166,18 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
         restaurantData
       };
 
-      // Only include image fields if imageUrl is provided
-      if (imageUrl.trim()) {
-        submissionData.imageUrl = imageUrl.trim();
+      // Only include image fields if we have an image
+      if (finalImageUrl && finalImageUrl.trim()) {
+        submissionData.imageUrl = finalImageUrl.trim();
         submissionData.imageFocusPoint = imageFocusPoint;
       }
 
       await onSubmit(submissionData);
+    } catch (error) {
+      console.error('Error submitting form:', error);
     } finally {
       setIsSubmitting(false);
+      setIsUploading(false);
     }
   };
 
@@ -209,18 +255,27 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
       {/* Image */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Image URL (Optional)
+          Image Upload (Optional)
         </label>
         <Input
-          value={imageUrl}
-          onChange={(e) => setImageUrl(e.target.value)}
-          placeholder="https://example.com/image.jpg"
-          type="url"
+          type="file"
+          accept="image/*"
+          onChange={(e) => {
+            const file = e.target.files?.[0] || null;
+            setSelectedFile(file);
+            if (!file) {
+              // If no file selected and no existing image, clear imageUrl
+              if (!initialData?.imageUrl) {
+                setImageUrl('');
+              }
+            }
+          }}
+          className="mb-2"
         />
-        {imageUrl && (
+        {(selectedFile || imageUrl) && (
           <div className="mt-2">
             <img
-              src={imageUrl}
+              src={selectedFile ? URL.createObjectURL(selectedFile) : imageUrl}
               alt="Card preview"
               className="max-w-xs h-32 object-cover rounded-md border border-gray-300"
               onError={(e) => {
@@ -463,8 +518,8 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
         <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
           Cancel
         </Button>
-        <Button type="submit" disabled={isSubmitting || !itemName.trim() || !description.trim()}>
-          {isSubmitting ? 'Saving...' : (isEditing ? 'Update Card' : 'Add Card')}
+        <Button type="submit" disabled={isSubmitting || isUploading || !itemName.trim() || !description.trim()}>
+          {isUploading ? 'Uploading...' : isSubmitting ? 'Saving...' : (isEditing ? 'Update Card' : 'Add Card')}
         </Button>
       </div>
     </form>

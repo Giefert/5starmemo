@@ -9,6 +9,7 @@ import rateLimit from 'express-rate-limit';
 
 import authRoutes from './routes/auth';
 import deckRoutes from './routes/decks';
+import uploadRoutes from './routes/upload';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -42,6 +43,9 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Logging middleware
 app.use(morgan('combined'));
 
+// Static file serving for uploaded images
+app.use('/uploads', express.static('uploads'));
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({
@@ -55,6 +59,7 @@ app.get('/health', (req, res) => {
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/decks', deckRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

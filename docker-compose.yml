@@ -35,6 +35,7 @@ services:
         condition: service_healthy
     volumes:
       - ./logs:/app/logs
+      - ./uploads:/app/uploads
       - ./web-api:/app
       - /app/node_modules
     command: npm run dev
