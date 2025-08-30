@@ -64,13 +64,15 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
     }
   };
 
-  const handleCardSubmit = async (data: { front: string; back: string; restaurantData: RestaurantCardData }) => {
+  const handleCardSubmit = async (data: { front: string; back: string; restaurantData: RestaurantCardData; imageUrl?: string; imageFocusPoint?: { x: number; y: number } }) => {
     try {
       if (editingCard) {
         const updatedCard = await deckApi.updateCard(editingCard.id, {
           front: data.front,
           back: data.back,
-          restaurantData: data.restaurantData
+          restaurantData: data.restaurantData,
+          imageUrl: data.imageUrl,
+          imageFocusPoint: data.imageFocusPoint
         });
         setDeck(prev => prev ? {
           ...prev,
@@ -80,7 +82,9 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
         const newCard = await deckApi.addCard(resolvedParams.id, {
           front: data.front,
           back: data.back,
-          restaurantData: data.restaurantData
+          restaurantData: data.restaurantData,
+          imageUrl: data.imageUrl,
+          imageFocusPoint: data.imageFocusPoint
         });
         setDeck(prev => prev ? {
           ...prev,
@@ -239,7 +243,9 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
                 initialData={editingCard ? {
                   front: editingCard.front,
                   back: editingCard.back,
-                  restaurantData: editingCard.restaurantData
+                  restaurantData: editingCard.restaurantData,
+                  imageUrl: editingCard.imageUrl || '',
+                  imageFocusPoint: editingCard.imageFocusPoint || { x: 0.5, y: 0.5 }
                 } : undefined}
                 isEditing={!!editingCard}
               />
@@ -295,6 +301,20 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
                         </Button>
                       </div>
                     </div>
+
+                    {/* Card Image */}
+                    {card.imageUrl && (
+                      <div className="mb-3">
+                        <img
+                          src={card.imageUrl}
+                          alt={card.restaurantData?.itemName || 'Card image'}
+                          className="w-full h-32 object-cover rounded-md border border-gray-300"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
+                      </div>
+                    )}
 
                     {card.restaurantData ? (
                       <div className="space-y-3">

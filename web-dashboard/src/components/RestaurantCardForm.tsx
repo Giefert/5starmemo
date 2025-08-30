@@ -6,12 +6,14 @@ import { Input } from '@/components/ui/input';
 import { RestaurantCardData } from '../../../shared/types';
 
 interface RestaurantCardFormProps {
-  onSubmit: (data: { front: string; back: string; restaurantData: RestaurantCardData }) => Promise<void>;
+  onSubmit: (data: { front: string; back: string; restaurantData: RestaurantCardData; imageUrl?: string; imageFocusPoint?: { x: number; y: number } }) => Promise<void>;
   onCancel: () => void;
   initialData?: {
     front: string;
     back: string;
     restaurantData?: RestaurantCardData;
+    imageUrl?: string;
+    imageFocusPoint?: { x: number; y: number };
   };
   isEditing?: boolean;
 }
@@ -69,6 +71,10 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
     initialData?.restaurantData?.pricePoint || 'mid-range'
   );
   const [specialNotes, setSpecialNotes] = useState(initialData?.restaurantData?.specialNotes || '');
+  
+  // Image fields
+  const [imageUrl, setImageUrl] = useState(initialData?.imageUrl || '');
+  const [imageFocusPoint, setImageFocusPoint] = useState(initialData?.imageFocusPoint || { x: 0.5, y: 0.5 });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -111,11 +117,19 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
         specialNotes: specialNotes.trim() || undefined,
       };
 
-      await onSubmit({
+      const submissionData: any = {
         front: front || itemName, // Use item name as front if no custom front provided
         back: back || description, // Use description as back if no custom back provided
         restaurantData
-      });
+      };
+
+      // Only include image fields if imageUrl is provided
+      if (imageUrl.trim()) {
+        submissionData.imageUrl = imageUrl.trim();
+        submissionData.imageFocusPoint = imageFocusPoint;
+      }
+
+      await onSubmit(submissionData);
     } finally {
       setIsSubmitting(false);
     }
@@ -190,6 +204,62 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
           placeholder="Detailed description of the item, preparation method, flavor profile..."
           required
         />
+      </div>
+
+      {/* Image */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Image URL (Optional)
+        </label>
+        <Input
+          value={imageUrl}
+          onChange={(e) => setImageUrl(e.target.value)}
+          placeholder="https://example.com/image.jpg"
+          type="url"
+        />
+        {imageUrl && (
+          <div className="mt-2">
+            <img
+              src={imageUrl}
+              alt="Card preview"
+              className="max-w-xs h-32 object-cover rounded-md border border-gray-300"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+            <div className="mt-2 text-xs text-gray-600">
+              <label className="block mb-1">Focus Point (for cropping):</label>
+              <div className="flex gap-4">
+                <div className="flex items-center gap-1">
+                  <label>X:</label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.1"
+                    value={imageFocusPoint.x}
+                    onChange={(e) => setImageFocusPoint(prev => ({ ...prev, x: parseFloat(e.target.value) }))}
+                    className="w-16"
+                  />
+                  <span className="text-xs">{imageFocusPoint.x}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <label>Y:</label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.1"
+                    value={imageFocusPoint.y}
+                    onChange={(e) => setImageFocusPoint(prev => ({ ...prev, y: parseFloat(e.target.value) }))}
+                    className="w-16"
+                  />
+                  <span className="text-xs">{imageFocusPoint.y}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Ingredients & Allergens */}
