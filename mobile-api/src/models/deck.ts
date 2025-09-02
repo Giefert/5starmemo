@@ -47,8 +47,6 @@ export class DeckModel {
         c.front,
         c.back,
         c.image_url,
-        c.image_focus_point_x,
-        c.image_focus_point_y,
         c.card_order,
         c.restaurant_data,
         c.created_at,
@@ -80,9 +78,7 @@ export class DeckModel {
         front: row.front,
         back: row.back,
         imageUrl: row.image_url,
-        imageFocusPoint: row.image_focus_point_x && row.image_focus_point_y 
-          ? { x: row.image_focus_point_x, y: row.image_focus_point_y }
-          : undefined,
+        imageFocusPoint: undefined,
         order: row.card_order,
         restaurantData: row.restaurant_data || undefined,
         createdAt: row.created_at,
