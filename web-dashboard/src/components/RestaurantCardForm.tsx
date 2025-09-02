@@ -195,15 +195,11 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
         restaurantData
       };
 
-      // Only include image fields if we have an image
-      if (finalImageUrl && finalImageUrl.trim()) {
-        submissionData.imageUrl = finalImageUrl.trim();
-        console.log('📝 Submitting form with image:', {
-          imageUrl: submissionData.imageUrl
-        });
-      } else {
-        console.log('📝 Submitting form without image');
-      }
+      // Always include imageUrl, even when null/empty to handle image removal
+      submissionData.imageUrl = finalImageUrl && finalImageUrl.trim() ? finalImageUrl.trim() : null;
+      console.log('📝 Submitting form with imageUrl:', {
+        imageUrl: submissionData.imageUrl
+      });
 
       console.log('🚀 Calling onSubmit with:', submissionData);
       await onSubmit(submissionData);
