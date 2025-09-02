@@ -120,7 +120,7 @@ export class DeckModel {
 
     if (includeCards) {
       const cardsQuery = `
-        SELECT id, deck_id, front, back, image_url, image_focus_point_x, image_focus_point_y, card_order, restaurant_data, created_at, updated_at
+        SELECT id, deck_id, front, back, image_url, card_order, restaurant_data, created_at, updated_at
         FROM cards
         WHERE deck_id = $1
         ORDER BY card_order ASC, created_at ASC
@@ -133,9 +133,6 @@ export class DeckModel {
         front: card.front,
         back: card.back,
         imageUrl: card.image_url,
-        imageFocusPoint: card.image_focus_point_x && card.image_focus_point_y 
-          ? { x: card.image_focus_point_x, y: card.image_focus_point_y }
-          : undefined,
         order: card.card_order,
         createdAt: card.created_at,
         updatedAt: card.updated_at,

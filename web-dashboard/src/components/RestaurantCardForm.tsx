@@ -4,16 +4,16 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { RestaurantCardData } from '../../../shared/types';
+import { getImageUrl } from '@/lib/utils';
 
 interface RestaurantCardFormProps {
-  onSubmit: (data: { front: string; back: string; restaurantData: RestaurantCardData; imageUrl?: string; imageFocusPoint?: { x: number; y: number } }) => Promise<void>;
+  onSubmit: (data: { front: string; back: string; restaurantData: RestaurantCardData; imageUrl?: string }) => Promise<void>;
   onCancel: () => void;
   initialData?: {
     front: string;
     back: string;
     restaurantData?: RestaurantCardData;
     imageUrl?: string;
-    imageFocusPoint?: { x: number; y: number };
   };
   isEditing?: boolean;
 }
@@ -75,8 +75,16 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
   // Image fields
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [imageUrl, setImageUrl] = useState(initialData?.imageUrl || ''); // For existing images
-  const [imageFocusPoint, setImageFocusPoint] = useState(initialData?.imageFocusPoint || { x: 0.5, y: 0.5 });
   const [isUploading, setIsUploading] = useState(false);
+
+  // Debug logging for image state
+  console.log('🖼️ RestaurantCardForm image state:', {
+    initialImageUrl: initialData?.imageUrl,
+    currentImageUrl: imageUrl,
+    hasSelectedFile: !!selectedFile,
+    selectedFileName: selectedFile?.name,
+    showImagePreview: !!(selectedFile || imageUrl)
+  });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -96,11 +104,22 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
   };
 
   const uploadFile = async (file: File): Promise<string | null> => {
+    console.log('🔄 Starting file upload:', {
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type
+    });
+
     const formData = new FormData();
     formData.append('image', file);
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('authToken');
+      console.log('📤 Uploading to API:', {
+        apiUrl: process.env.NEXT_PUBLIC_WEB_API_URL,
+        hasToken: !!token
+      });
+
       const response = await fetch(`${process.env.NEXT_PUBLIC_WEB_API_URL}/api/upload/image`, {
         method: 'POST',
         headers: {
@@ -109,14 +128,21 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
         body: formData
       });
 
+      console.log('📥 Upload response:', {
+        ok: response.ok,
+        status: response.status,
+        statusText: response.statusText
+      });
+
       if (!response.ok) {
-        throw new Error('Upload failed');
+        throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
       }
 
       const result = await response.json();
+      console.log('✅ Upload successful:', result);
       return result.data?.imageUrl || null;
     } catch (error) {
-      console.error('Error uploading file:', error);
+      console.error('❌ Error uploading file:', error);
       return null;
     }
   };
@@ -131,11 +157,14 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
 
       // Upload new file if selected
       if (selectedFile) {
+        console.log('🖼️ Uploading new image file...');
         setIsUploading(true);
         const uploadedUrl = await uploadFile(selectedFile);
         if (uploadedUrl) {
           finalImageUrl = uploadedUrl;
+          console.log('✅ Image upload complete, new URL:', finalImageUrl);
         } else {
+          console.log('❌ Image upload failed');
           alert('Failed to upload image. Please try again.');
           return;
         }
@@ -169,9 +198,14 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
       // Only include image fields if we have an image
       if (finalImageUrl && finalImageUrl.trim()) {
         submissionData.imageUrl = finalImageUrl.trim();
-        submissionData.imageFocusPoint = imageFocusPoint;
+        console.log('📝 Submitting form with image:', {
+          imageUrl: submissionData.imageUrl
+        });
+      } else {
+        console.log('📝 Submitting form without image');
       }
 
+      console.log('🚀 Calling onSubmit with:', submissionData);
       await onSubmit(submissionData);
     } catch (error) {
       console.error('Error submitting form:', error);
@@ -257,62 +291,53 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
         <label className="block text-sm font-medium text-gray-700 mb-1">
           Image Upload (Optional)
         </label>
+        
+        {/* Show current image status */}
+        {imageUrl && !selectedFile && (
+          <div className="mb-2 text-sm text-gray-600 bg-blue-50 p-2 rounded border">
+            📷 Current image: Saved to card
+            <button
+              type="button"
+              onClick={() => {
+                setImageUrl('');
+                setSelectedFile(null);
+              }}
+              className="ml-2 text-red-600 hover:text-red-800 text-xs underline"
+            >
+              Remove current image
+            </button>
+          </div>
+        )}
+        
         <Input
           type="file"
           accept="image/*"
           onChange={(e) => {
             const file = e.target.files?.[0] || null;
             setSelectedFile(file);
-            if (!file) {
-              // If no file selected and no existing image, clear imageUrl
-              if (!initialData?.imageUrl) {
-                setImageUrl('');
-              }
-            }
+            // Don't automatically clear imageUrl when no file selected
+            // Let user explicitly choose to remove existing image
           }}
           className="mb-2"
         />
         {(selectedFile || imageUrl) && (
           <div className="mt-2">
+            {/* Debug info */}
+            <div className="text-xs text-gray-500 mb-1">
+              {selectedFile ? `New file: ${selectedFile.name}` : imageUrl ? `Existing: ${imageUrl}` : 'No image'}
+            </div>
             <img
-              src={selectedFile ? URL.createObjectURL(selectedFile) : imageUrl}
+              src={selectedFile ? URL.createObjectURL(selectedFile) : getImageUrl(imageUrl)}
               alt="Card preview"
               className="max-w-xs h-32 object-cover rounded-md border border-gray-300"
               onError={(e) => {
+                console.log('❌ Image load error:', e.currentTarget.src);
                 e.currentTarget.style.display = 'none';
               }}
+              onLoad={() => {
+                console.log('✅ Image loaded successfully:', selectedFile ? 'New file' : imageUrl);
+              }}
             />
-            <div className="mt-2 text-xs text-gray-600">
-              <label className="block mb-1">Focus Point (for cropping):</label>
-              <div className="flex gap-4">
-                <div className="flex items-center gap-1">
-                  <label>X:</label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.1"
-                    value={imageFocusPoint.x}
-                    onChange={(e) => setImageFocusPoint(prev => ({ ...prev, x: parseFloat(e.target.value) }))}
-                    className="w-16"
-                  />
-                  <span className="text-xs">{imageFocusPoint.x}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <label>Y:</label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.1"
-                    value={imageFocusPoint.y}
-                    onChange={(e) => setImageFocusPoint(prev => ({ ...prev, y: parseFloat(e.target.value) }))}
-                    className="w-16"
-                  />
-                  <span className="text-xs">{imageFocusPoint.y}</span>
-                </div>
-              </div>
-            </div>
           </div>
         )}
       </div>

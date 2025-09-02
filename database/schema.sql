@@ -45,8 +45,6 @@ CREATE TABLE cards (
     front TEXT NOT NULL,
     back TEXT NOT NULL,
     image_url VARCHAR(500),
-    image_focus_point_x DECIMAL(3,2), -- 0.00 to 1.00
-    image_focus_point_y DECIMAL(3,2), -- 0.00 to 1.00
     card_order INTEGER NOT NULL DEFAULT 0,
     -- Restaurant card data (stored as JSON)
     restaurant_data JSONB,

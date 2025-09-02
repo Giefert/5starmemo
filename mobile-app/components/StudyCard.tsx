@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Image,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { StudyCardData } from '../types/shared';
 
@@ -15,6 +16,32 @@ interface StudyCardProps {
 }
 
 const { width: screenWidth } = Dimensions.get('window');
+
+// Function to construct proper image URLs
+const getImageUrl = (imagePath: string): string => {
+  if (!imagePath) return '';
+  
+  // If it's already a full URL, return as is
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    return imagePath;
+  }
+  
+  // Get web-api URL based on platform (images are served by web-api on port 3001)
+  let webApiUrl;
+  if (__DEV__) {
+    if (Platform.OS === 'ios') {
+      webApiUrl = 'http://localhost:3001';
+    } else if (Platform.OS === 'android') {
+      webApiUrl = 'http://10.0.2.2:3001';
+    } else {
+      webApiUrl = 'http://localhost:3001';
+    }
+  } else {
+    webApiUrl = 'http://localhost:3001'; // Production would use actual domain
+  }
+  
+  return `${webApiUrl}${imagePath}`;
+};
 
 export const StudyCard: React.FC<StudyCardProps> = ({ cardData, onFlip }) => {
   const [isFlipped, setIsFlipped] = useState(false);
@@ -77,7 +104,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, onFlip }) => {
           {card.imageUrl && (
             <View style={styles.imageContainer}>
               <Image 
-                source={{ uri: card.imageUrl }} 
+                source={{ uri: getImageUrl(card.imageUrl) }} 
                 style={styles.cardImage}
                 resizeMode="cover"
               />

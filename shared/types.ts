@@ -56,7 +56,6 @@ export interface Card {
   front: string;
   back: string;
   imageUrl?: string;
-  imageFocusPoint?: { x: number; y: number };
   order: number;
   createdAt: Date;
   updatedAt: Date;
@@ -86,7 +85,6 @@ export interface CreateCardInput {
   front: string;
   back: string;
   imageUrl?: string;
-  imageFocusPoint?: { x: number; y: number };
   order?: number;
   restaurantData?: RestaurantCardData;
 }

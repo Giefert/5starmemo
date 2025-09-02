@@ -57,7 +57,13 @@ const upload = multer({
 // Upload image endpoint
 router.post('/image', upload.single('image'), async (req: AuthenticatedRequestWithFile, res: Response) => {
   try {
+    console.log('🔄 Image upload request received:', {
+      hasFile: !!req.file,
+      userId: req.user?.id
+    });
+
     if (!req.file) {
+      console.log('❌ No file provided in upload request');
       return res.status(400).json({
         success: false,
         error: 'No image file provided'
@@ -66,6 +72,13 @@ router.post('/image', upload.single('image'), async (req: AuthenticatedRequestWi
 
     // Return the relative path that will be stored in database
     const imagePath = `/uploads/images/${req.file.filename}`;
+
+    console.log('✅ Image uploaded successfully:', {
+      filename: req.file.filename,
+      originalName: req.file.originalname,
+      size: req.file.size,
+      imagePath: imagePath
+    });
 
     const response: ApiResponse = {
       success: true,

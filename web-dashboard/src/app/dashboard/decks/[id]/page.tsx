@@ -10,6 +10,7 @@ import { ArrowLeft, Plus, Edit, Trash2 } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { RestaurantCardForm } from '@/components/RestaurantCardForm';
 import Link from 'next/link';
+import { getImageUrl } from '@/lib/utils';
 
 function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -64,15 +65,14 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
     }
   };
 
-  const handleCardSubmit = async (data: { front: string; back: string; restaurantData: RestaurantCardData; imageUrl?: string; imageFocusPoint?: { x: number; y: number } }) => {
+  const handleCardSubmit = async (data: { front: string; back: string; restaurantData: RestaurantCardData; imageUrl?: string }) => {
     try {
       if (editingCard) {
         const updatedCard = await deckApi.updateCard(editingCard.id, {
           front: data.front,
           back: data.back,
           restaurantData: data.restaurantData,
-          imageUrl: data.imageUrl,
-          imageFocusPoint: data.imageFocusPoint
+          imageUrl: data.imageUrl
         });
         setDeck(prev => prev ? {
           ...prev,
@@ -83,8 +83,7 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
           front: data.front,
           back: data.back,
           restaurantData: data.restaurantData,
-          imageUrl: data.imageUrl,
-          imageFocusPoint: data.imageFocusPoint
+          imageUrl: data.imageUrl
         });
         setDeck(prev => prev ? {
           ...prev,
@@ -244,8 +243,7 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
                   front: editingCard.front,
                   back: editingCard.back,
                   restaurantData: editingCard.restaurantData,
-                  imageUrl: editingCard.imageUrl || '',
-                  imageFocusPoint: editingCard.imageFocusPoint || { x: 0.5, y: 0.5 }
+                  imageUrl: editingCard.imageUrl || ''
                 } : undefined}
                 isEditing={!!editingCard}
               />
@@ -306,7 +304,7 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
                     {card.imageUrl && (
                       <div className="mb-3">
                         <img
-                          src={card.imageUrl}
+                          src={getImageUrl(card.imageUrl)}
                           alt={card.restaurantData?.itemName || 'Card image'}
                           className="w-full h-32 object-cover rounded-md border border-gray-300"
                           onError={(e) => {
