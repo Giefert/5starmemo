@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { RestaurantCardData } from '../../../shared/types';
 import { getImageUrl } from '@/lib/utils';
+import { ImagePreview } from '@/components/ui/ImagePreview';
 
 interface RestaurantCardFormProps {
   onSubmit: (data: { front: string; back: string; restaurantData: RestaurantCardData; imageUrl?: string }) => Promise<void>;
@@ -322,16 +323,13 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
             <div className="text-xs text-gray-500 mb-1">
               {selectedFile ? `New file: ${selectedFile.name}` : imageUrl ? `Existing: ${imageUrl}` : 'No image'}
             </div>
-            <img
+            <ImagePreview
               src={selectedFile ? URL.createObjectURL(selectedFile) : getImageUrl(imageUrl)}
               alt="Card preview"
-              className="max-w-xs h-32 object-cover rounded-md border border-gray-300"
-              onError={(e) => {
-                console.log('❌ Image load error:', e.currentTarget.src);
-                e.currentTarget.style.display = 'none';
-              }}
-              onLoad={() => {
-                console.log('✅ Image loaded successfully:', selectedFile ? 'New file' : imageUrl);
+              mode="preview"
+              className="max-w-xs"
+              onError={() => {
+                console.log('❌ Image load error');
               }}
             />
           </div>

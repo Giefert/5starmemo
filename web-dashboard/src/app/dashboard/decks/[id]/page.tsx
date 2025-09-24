@@ -11,6 +11,7 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import { RestaurantCardForm } from '@/components/RestaurantCardForm';
 import Link from 'next/link';
 import { getImageUrl } from '@/lib/utils';
+import { ImagePreview } from '@/components/ui/ImagePreview';
 
 function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -303,13 +304,10 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
                     {/* Card Image */}
                     {card.imageUrl && (
                       <div className="mb-3">
-                        <img
+                        <ImagePreview
                           src={getImageUrl(card.imageUrl)}
                           alt={card.restaurantData?.itemName || 'Card image'}
-                          className="w-full h-32 object-cover rounded-md border border-gray-300"
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                          }}
+                          mode="preview"
                         />
                       </div>
                     )}
