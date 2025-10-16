@@ -35,8 +35,8 @@ export const LoginScreen: React.FC = () => {
   };
 
   const fillDemoCredentials = () => {
-    setEmail('test.student@example.com');
-    setPassword('password123');
+    setEmail('student@5starmemo.com');
+    setPassword('Student123!');
   };
 
   return (

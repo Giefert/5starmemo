@@ -36,11 +36,11 @@ class ApiService {
     axios.interceptors.response.use(
       (response) => response,
       async (error) => {
-        // Handle 401 authentication errors globally
-        if (error.response?.status === 401) {
-          console.log('401 authentication error detected, clearing stored credentials');
+        // Handle 401 and 403 authentication errors globally
+        if (error.response?.status === 401 || error.response?.status === 403) {
+          console.log(`${error.response.status} authentication error detected, clearing stored credentials`);
           await this.clearStoredCredentials();
-          
+
           // Create a custom error to indicate re-login is needed
           const authError = new Error('Authentication expired. Please log in again.');
           authError.name = 'AuthenticationError';

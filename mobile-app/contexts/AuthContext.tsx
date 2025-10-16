@@ -37,9 +37,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       const token = await SecureStore.getItemAsync('authToken');
       const userData = await SecureStore.getItemAsync('userData');
-      
+
+      // If credentials exist but token might be expired, clear them
+      // The user will need to log in again
+      // This prevents the race condition where HomeScreen tries to load data with expired token
       if (token && userData) {
-        setUser(JSON.parse(userData));
+        // Validate token by making a lightweight API call
+        try {
+          await apiService.getStudyStats();
+          // Token is valid, set user
+          setUser(JSON.parse(userData));
+        } catch (error) {
+          // Token is invalid, clear stored credentials
+          console.log('Stored token is invalid, clearing credentials');
+          await SecureStore.deleteItemAsync('authToken');
+          await SecureStore.deleteItemAsync('userData');
+        }
       }
     } catch (error) {
       console.warn('Failed to check auth status:', error);
