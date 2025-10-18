@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
-import { StudyStats, Deck } from '../types/shared';
+import { Deck } from '../types/shared';
 import apiService from '../services/api';
 import { StudyScreen } from './StudyScreen';
 import { StudyCompletedScreen } from './StudyCompletedScreen';
@@ -19,7 +19,6 @@ type ScreenState = 'home' | 'study' | 'completed';
 
 export const HomeScreen: React.FC = () => {
   const insets = useSafeAreaInsets()
-  const [stats, setStats] = useState<StudyStats | null>(null)
   const [decks, setDecks] = useState<Deck[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [screenState, setScreenState] = useState<ScreenState>('home');
@@ -39,12 +38,8 @@ export const HomeScreen: React.FC = () => {
     try {
       setIsLoading(true);
       console.log('Loading study data...');
-      const [statsData, decksData] = await Promise.all([
-        apiService.getStudyStats(),
-        apiService.getAvailableDecks(),
-      ]);
-      console.log('Data loaded successfully:', { statsData, decksData });
-      setStats(statsData);
+      const decksData = await apiService.getAvailableDecks();
+      console.log('Data loaded successfully:', { decksData });
       setDecks(decksData);
     } catch (error) {
       // Enhanced error logging for debugging network issues
@@ -107,7 +102,6 @@ export const HomeScreen: React.FC = () => {
           { text: 'Retry', onPress: () => loadData() },
           { text: 'Continue Offline', onPress: () => {
             // Set empty data for offline mode
-            setStats({ totalCards: 0, studiedToday: 0, averageScore: 0 });
             setDecks([]);
           }}
         ]
@@ -191,30 +185,6 @@ export const HomeScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {stats && (
-        <View style={styles.statsContainer}>
-          <Text style={styles.sectionTitle}>Today's Progress</Text>
-          <View style={styles.statsGrid}>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>{stats.dailyStats.studied}</Text>
-              <Text style={styles.statLabel}>Cards Studied</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>{stats.dailyStats.correct}</Text>
-              <Text style={styles.statLabel}>Correct</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>{stats.newCards}</Text>
-              <Text style={styles.statLabel}>New Cards</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>{stats.reviewCards}</Text>
-              <Text style={styles.statLabel}>Review Cards</Text>
-            </View>
-          </View>
-        </View>
-      )}
-
       <View style={styles.decksContainer}>
         <Text style={styles.sectionTitle}>Available Decks</Text>
         {decks.length === 0 ? (
@@ -294,43 +264,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  statsContainer: {
-    padding: 20,
-  },
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 16,
     color: '#1a1a1a',
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  statCard: {
-    flex: 1,
-    minWidth: '45%',
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  statNumber: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#007AFF',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
   },
   decksContainer: {
     padding: 20,
