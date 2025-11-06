@@ -23,7 +23,8 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
-  
+  const [successMessage, setSuccessMessage] = useState('');
+
   // Card form state
   const [showCardForm, setShowCardForm] = useState(false);
   const [editingCard, setEditingCard] = useState<Card | null>(null);
@@ -53,6 +54,7 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
     e.preventDefault();
     setIsSaving(true);
     setError('');
+    setSuccessMessage('');
 
     try {
       const updatedDeck = await deckApi.update(resolvedParams.id, {
@@ -62,6 +64,12 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
         isFeatured
       });
       setDeck(prev => prev ? { ...prev, ...updatedDeck } : updatedDeck);
+      setSuccessMessage('Changes saved!');
+
+      // Auto-dismiss success message after 3 seconds
+      setTimeout(() => {
+        setSuccessMessage('');
+      }, 3000);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to update deck');
     } finally {
@@ -160,6 +168,12 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
           </Link>
           <h1 className="text-3xl font-bold text-gray-900">Edit Deck</h1>
         </div>
+
+        {successMessage && (
+          <div className="mb-6 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded text-center">
+            {successMessage}
+          </div>
+        )}
 
         {error && (
           <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
