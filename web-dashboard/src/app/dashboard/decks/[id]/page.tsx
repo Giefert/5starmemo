@@ -170,7 +170,7 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
         </div>
 
         {successMessage && (
-          <div className="mb-6 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded text-center">
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-green-50 border border-green-200 text-green-700 px-6 py-3 rounded shadow-lg z-50 text-center animate-in fade-in duration-200">
             {successMessage}
           </div>
         )}
