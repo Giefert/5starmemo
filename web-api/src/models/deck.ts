@@ -17,21 +17,22 @@ function parseRestaurantData(data: any) {
 export class DeckModel {
   static async create(deckData: CreateDeckInput, createdBy: string): Promise<Deck> {
     const query = `
-      INSERT INTO decks (title, description, category_id, created_by, is_public)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING id, title, description, category_id, created_by, is_public, created_at, updated_at
+      INSERT INTO decks (title, description, category_id, created_by, is_public, is_featured)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id, title, description, category_id, created_by, is_public, is_featured, created_at, updated_at
     `;
-    
+
     const values = [
       deckData.title,
       deckData.description || null,
       deckData.categoryId || null,
       createdBy,
-      deckData.isPublic || false
+      deckData.isPublic || false,
+      deckData.isFeatured || false
     ];
-    
+
     const result = await pool.query(query, values);
-    
+
     // Map database fields to API fields for consistency
     return {
       id: result.rows[0].id,
@@ -40,6 +41,7 @@ export class DeckModel {
       categoryId: result.rows[0].category_id,
       createdBy: result.rows[0].created_by,
       isPublic: result.rows[0].is_public,
+      isFeatured: result.rows[0].is_featured,
       createdAt: result.rows[0].created_at,
       updatedAt: result.rows[0].updated_at
     };
@@ -66,12 +68,12 @@ export class DeckModel {
     }
     
     query += `
-      GROUP BY d.id, d.title, d.description, d.category_id, d.created_by, d.is_public, d.created_at, d.updated_at
+      GROUP BY d.id, d.title, d.description, d.category_id, d.created_by, d.is_public, d.is_featured, d.created_at, d.updated_at
       ORDER BY d.created_at DESC
     `;
-    
+
     const result = await pool.query(query, values);
-    
+
     return result.rows.map(row => ({
       id: row.id,
       title: row.title,
@@ -79,6 +81,7 @@ export class DeckModel {
       categoryId: row.category_id,
       createdBy: row.created_by,
       isPublic: row.is_public,
+      isFeatured: row.is_featured,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       cardCount: parseInt(row.card_count) || 0,
@@ -90,17 +93,17 @@ export class DeckModel {
 
   static async findById(id: string, includeCards: boolean = false): Promise<Deck | null> {
     let query = `
-      SELECT 
+      SELECT
         d.*,
         COUNT(c.id) as card_count
       FROM decks d
       LEFT JOIN cards c ON d.id = c.deck_id
       WHERE d.id = $1
-      GROUP BY d.id, d.title, d.description, d.category_id, d.created_by, d.is_public, d.created_at, d.updated_at
+      GROUP BY d.id, d.title, d.description, d.category_id, d.created_by, d.is_public, d.is_featured, d.created_at, d.updated_at
     `;
-    
+
     const result = await pool.query(query, [id]);
-    
+
     if (result.rows.length === 0) {
       return null;
     }
@@ -112,6 +115,7 @@ export class DeckModel {
       categoryId: result.rows[0].category_id,
       createdBy: result.rows[0].created_by,
       isPublic: result.rows[0].is_public,
+      isFeatured: result.rows[0].is_featured,
       createdAt: result.rows[0].created_at,
       updatedAt: result.rows[0].updated_at,
       cardCount: parseInt(result.rows[0].card_count) || 0,
@@ -172,6 +176,12 @@ export class DeckModel {
       paramCount++;
     }
 
+    if (deckData.isFeatured !== undefined) {
+      setClause.push(`is_featured = $${paramCount}`);
+      values.push(deckData.isFeatured);
+      paramCount++;
+    }
+
     if (setClause.length === 0) {
       return this.findById(id);
     }
@@ -183,11 +193,11 @@ export class DeckModel {
       UPDATE decks
       SET ${setClause.join(', ')}
       WHERE id = $${paramCount}
-      RETURNING id, title, description, category_id, created_by, is_public, created_at, updated_at
+      RETURNING id, title, description, category_id, created_by, is_public, is_featured, created_at, updated_at
     `;
 
     const result = await pool.query(query, values);
-    
+
     if (result.rows.length === 0) {
       return null;
     }
@@ -200,6 +210,7 @@ export class DeckModel {
       categoryId: result.rows[0].category_id,
       createdBy: result.rows[0].created_by,
       isPublic: result.rows[0].is_public,
+      isFeatured: result.rows[0].is_featured,
       createdAt: result.rows[0].created_at,
       updatedAt: result.rows[0].updated_at
     };

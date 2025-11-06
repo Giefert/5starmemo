@@ -161,11 +161,18 @@ function DashboardContent() {
                   <div key={deck.id} className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
                     <div className="flex justify-between items-start mb-4">
                       <h3 className="text-lg font-medium text-gray-900 truncate">{deck.title}</h3>
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        deck.isPublic ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {deck.isPublic ? 'Public' : 'Private'}
-                      </span>
+                      <div className="flex gap-2">
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          deck.isPublic ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {deck.isPublic ? 'Public' : 'Private'}
+                        </span>
+                        {deck.isFeatured && (
+                          <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">
+                            Featured
+                          </span>
+                        )}
+                      </div>
                     </div>
                     
                     {deck.description && (

@@ -37,6 +37,7 @@ services:
       - ./logs:/app/logs
       - ./uploads:/app/uploads
       - ./web-api:/app
+      - ./shared:/shared
       - /app/node_modules
     command: npm run dev
 
@@ -60,6 +61,7 @@ services:
     volumes:
       - ./logs:/app/logs
       - ./mobile-api:/app
+      - ./shared:/shared
       - /app/node_modules
     command: npm run dev
 
@@ -77,6 +79,7 @@ services:
     volumes:
       - ./logs:/app/logs
       - ./web-dashboard:/app
+      - ./shared:/shared
       - /app/node_modules
     command: npm run dev
 

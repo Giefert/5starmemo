@@ -13,9 +13,10 @@ function NewDeckContent() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [isPublic, setIsPublic] = useState(false);
+  const [isFeatured, setIsFeatured] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  
+
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -27,7 +28,8 @@ function NewDeckContent() {
       const deck = await deckApi.create({
         title,
         description: description || undefined,
-        isPublic
+        isPublic,
+        isFeatured
       });
       
       router.push(`/dashboard/decks/${deck.id}`);
@@ -91,17 +93,38 @@ function NewDeckContent() {
               </p>
             </div>
 
-            <div className="flex items-center">
-              <input
-                id="isPublic"
-                type="checkbox"
-                checked={isPublic}
-                onChange={(e) => setIsPublic(e.target.checked)}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-              />
-              <label htmlFor="isPublic" className="ml-2 block text-sm text-gray-900">
-                Make this deck publicly available to all students
-              </label>
+            <div className="space-y-3">
+              <div className="flex items-center">
+                <input
+                  id="isPublic"
+                  type="checkbox"
+                  checked={isPublic}
+                  onChange={(e) => {
+                    setIsPublic(e.target.checked);
+                    if (!e.target.checked) {
+                      setIsFeatured(false);
+                    }
+                  }}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="isPublic" className="ml-2 block text-sm text-gray-900">
+                  Make this deck publicly available to all students
+                </label>
+              </div>
+
+              <div className="flex items-center">
+                <input
+                  id="isFeatured"
+                  type="checkbox"
+                  checked={isFeatured}
+                  onChange={(e) => setIsFeatured(e.target.checked)}
+                  disabled={!isPublic}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+                <label htmlFor="isFeatured" className={`ml-2 block text-sm ${!isPublic ? 'text-gray-400' : 'text-gray-900'}`}>
+                  Feature this deck (highlight as recommended content)
+                </label>
+              </div>
             </div>
 
             {error && (

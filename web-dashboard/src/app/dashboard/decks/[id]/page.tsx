@@ -19,6 +19,7 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [isPublic, setIsPublic] = useState(false);
+  const [isFeatured, setIsFeatured] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
@@ -40,6 +41,7 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
       setTitle(data.title);
       setDescription(data.description || '');
       setIsPublic(data.isPublic);
+      setIsFeatured(data.isFeatured);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to fetch deck');
     } finally {
@@ -56,7 +58,8 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
       const updatedDeck = await deckApi.update(resolvedParams.id, {
         title,
         description: description || undefined,
-        isPublic
+        isPublic,
+        isFeatured
       });
       setDeck(prev => prev ? { ...prev, ...updatedDeck } : updatedDeck);
     } catch (err: any) {
@@ -199,17 +202,38 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
               />
             </div>
 
-            <div className="flex items-center">
-              <input
-                id="isPublic"
-                type="checkbox"
-                checked={isPublic}
-                onChange={(e) => setIsPublic(e.target.checked)}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-              />
-              <label htmlFor="isPublic" className="ml-2 block text-sm text-gray-900">
-                Make this deck publicly available
-              </label>
+            <div className="space-y-3">
+              <div className="flex items-center">
+                <input
+                  id="isPublic"
+                  type="checkbox"
+                  checked={isPublic}
+                  onChange={(e) => {
+                    setIsPublic(e.target.checked);
+                    if (!e.target.checked) {
+                      setIsFeatured(false);
+                    }
+                  }}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="isPublic" className="ml-2 block text-sm text-gray-900">
+                  Make this deck publicly available
+                </label>
+              </div>
+
+              <div className="flex items-center">
+                <input
+                  id="isFeatured"
+                  type="checkbox"
+                  checked={isFeatured}
+                  onChange={(e) => setIsFeatured(e.target.checked)}
+                  disabled={!isPublic}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+                <label htmlFor="isFeatured" className={`ml-2 block text-sm ${!isPublic ? 'text-gray-400' : 'text-gray-900'}`}>
+                  Feature this deck (highlight as recommended content)
+                </label>
+              </div>
             </div>
 
             <div className="flex justify-end">

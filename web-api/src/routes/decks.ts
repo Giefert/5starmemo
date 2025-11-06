@@ -79,7 +79,8 @@ router.post('/',
     body('title').trim().isLength({ min: 1, max: 200 }),
     body('description').optional().trim().isLength({ max: 1000 }),
     body('categoryId').optional().isUUID(),
-    body('isPublic').optional().isBoolean()
+    body('isPublic').optional().isBoolean(),
+    body('isFeatured').optional().isBoolean()
   ],
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -119,7 +120,8 @@ router.put('/:id',
     body('title').optional().trim().isLength({ min: 1, max: 200 }),
     body('description').optional().trim().isLength({ max: 1000 }),
     body('categoryId').optional().isUUID(),
-    body('isPublic').optional().isBoolean()
+    body('isPublic').optional().isBoolean(),
+    body('isFeatured').optional().isBoolean()
   ],
   async (req: AuthenticatedRequest, res: Response) => {
     try {

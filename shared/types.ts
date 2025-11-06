@@ -33,6 +33,7 @@ export interface Deck {
   categoryId?: string;
   createdBy: string;
   isPublic: boolean;
+  isFeatured: boolean;
   createdAt: Date;
   updatedAt: Date;
   cards?: Card[];
@@ -46,6 +47,7 @@ export interface CreateDeckInput {
   description?: string;
   categoryId?: string;
   isPublic?: boolean;
+  isFeatured?: boolean;
 }
 
 export interface UpdateDeckInput extends Partial<CreateDeckInput> {}
