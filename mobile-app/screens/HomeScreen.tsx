@@ -196,13 +196,20 @@ export const HomeScreen: React.FC = () => {
           </View>
         ) : (
           decks.map((deck) => (
-            <TouchableOpacity 
-              key={deck.id} 
+            <TouchableOpacity
+              key={deck.id}
               style={styles.deckCard}
               onPress={() => handleStartStudy(deck)}
             >
               <View style={styles.deckInfo}>
-                <Text style={styles.deckTitle}>{deck.title}</Text>
+                <View style={styles.deckTitleRow}>
+                  <Text style={styles.deckTitle}>{deck.title}</Text>
+                  {deck.isFeatured && (
+                    <View style={styles.featuredBadge}>
+                      <Text style={styles.featuredText}>Featured</Text>
+                    </View>
+                  )}
+                </View>
                 {deck.description && (
                   <Text style={styles.deckDescription}>{deck.description}</Text>
                 )}
@@ -307,11 +314,28 @@ const styles = StyleSheet.create({
   deckInfo: {
     flex: 1,
   },
+  deckTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+    flexWrap: 'wrap',
+    gap: 8,
+  },
   deckTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#1a1a1a',
-    marginBottom: 4,
+  },
+  featuredBadge: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  featuredText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#92400E',
   },
   deckDescription: {
     fontSize: 14,

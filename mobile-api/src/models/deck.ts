@@ -7,10 +7,11 @@ export class DeckModel {
    */
   static async getAvailableDecks(userId: string): Promise<StudentDeck[]> {
     const query = `
-      SELECT 
+      SELECT
         d.id,
         d.title,
         d.description,
+        d.is_featured,
         COUNT(c.id) as card_count,
         COUNT(CASE WHEN fc.state = 'new' OR fc.card_id IS NULL THEN 1 END) as new_cards,
         COUNT(CASE WHEN fc.state IN ('learning', 'review', 'relearning') AND fc.next_review <= NOW() THEN 1 END) as review_cards,
@@ -19,16 +20,17 @@ export class DeckModel {
       LEFT JOIN cards c ON d.id = c.deck_id
       LEFT JOIN fsrs_cards fc ON c.id = fc.card_id AND fc.user_id = $1
       WHERE d.is_public = true
-      GROUP BY d.id, d.title, d.description
-      ORDER BY d.created_at DESC
+      GROUP BY d.id, d.title, d.description, d.is_featured
+      ORDER BY d.is_featured DESC, d.created_at DESC
     `;
-    
+
     const result = await pool.query(query, [userId]);
-    
+
     return result.rows.map(row => ({
       id: row.id,
       title: row.title,
       description: row.description,
+      isFeatured: row.is_featured,
       cardCount: parseInt(row.card_count) || 0,
       newCards: parseInt(row.new_cards) || 0,
       reviewCards: parseInt(row.review_cards) || 0,

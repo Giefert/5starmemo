@@ -190,6 +190,7 @@ export interface StudentDeck {
   id: string;
   title: string;
   description?: string;
+  isFeatured: boolean;
   cardCount: number;
   newCards: number;
   reviewCards: number;
