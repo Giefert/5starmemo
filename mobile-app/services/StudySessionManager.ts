@@ -8,6 +8,7 @@ export interface StudySessionState {
   studiedCount: number;
   correctCount: number;
   isComplete: boolean;
+  deckTitle?: string;
 }
 
 export class StudySessionManager {
@@ -20,28 +21,30 @@ export class StudySessionManager {
       currentCardIndex: 0,
       studiedCount: 0,
       correctCount: 0,
-      isComplete: false
+      isComplete: false,
+      deckTitle: undefined
     };
   }
 
   /**
    * Start a new study session
    */
-  async startSession(deckId: string): Promise<StudyCardData[]> {
+  async startSession(deckId: string, deckTitle?: string): Promise<StudyCardData[]> {
     try {
       // Create study session
       this.state.session = await apiService.createStudySession(deckId);
-      
+
       // Get cards for study
       const studyData = await apiService.getDeckForStudy(deckId);
       this.state.cards = studyData.cards;
-      
+
       // Reset state
       this.state.currentCardIndex = 0;
       this.state.studiedCount = 0;
       this.state.correctCount = 0;
       this.state.isComplete = false;
-      
+      this.state.deckTitle = deckTitle;
+
       return this.state.cards;
     } catch (error) {
       throw new Error(`Failed to start study session: ${error}`);
@@ -173,7 +176,8 @@ export class StudySessionManager {
       currentCardIndex: 0,
       studiedCount: 0,
       correctCount: 0,
-      isComplete: false
+      isComplete: false,
+      deckTitle: undefined
     };
   }
 }

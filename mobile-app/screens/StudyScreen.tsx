@@ -16,6 +16,7 @@ import { StudyCardData } from '../types/shared';
 
 interface StudyScreenProps {
   deckId: string;
+  deckTitle?: string;
   onComplete: (stats: {
     studied: number;
     correct: number;
@@ -24,10 +25,11 @@ interface StudyScreenProps {
   onExit: () => void;
 }
 
-export const StudyScreen: React.FC<StudyScreenProps> = ({ 
-  deckId, 
-  onComplete, 
-  onExit 
+export const StudyScreen: React.FC<StudyScreenProps> = ({
+  deckId,
+  deckTitle,
+  onComplete,
+  onExit
 }) => {
   const insets = useSafeAreaInsets()
   const [currentCard, setCurrentCard] = useState<StudyCardData | null>(null);
@@ -54,7 +56,7 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
   const startStudySession = async () => {
     try {
       setIsLoading(true);
-      await studySessionManager.startSession(deckId);
+      await studySessionManager.startSession(deckId, deckTitle);
       updateCurrentState();
     } catch (error) {
       Alert.alert(
@@ -150,16 +152,24 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <TouchableOpacity onPress={handleExit} style={styles.exitButton}>
-          <Text style={styles.exitButtonText}>Exit</Text>
-        </TouchableOpacity>
-        
+        <View style={styles.topRow}>
+          <TouchableOpacity onPress={handleExit} style={styles.exitButton}>
+            <Text style={styles.exitButtonText}>Exit</Text>
+          </TouchableOpacity>
+
+          {deckTitle && (
+            <Text style={styles.deckTitle}>{deckTitle}</Text>
+          )}
+
+          <View style={styles.exitButtonSpacer} />
+        </View>
+
         <View style={styles.progressContainer}>
           <Text style={styles.progressText}>
             {progress.current} of {progress.total}
           </Text>
           <View style={styles.progressBar}>
-            <View 
+            <View
               style={[
                 styles.progressFill,
                 { width: `${progress.percentage}%` }
@@ -221,19 +231,34 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
   exitButton: {
-    alignSelf: 'flex-start',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 6,
     borderWidth: 1,
     borderColor: '#007AFF',
-    marginBottom: 12,
+    minWidth: 60,
+  },
+  exitButtonSpacer: {
+    minWidth: 60,
   },
   exitButtonText: {
     color: '#007AFF',
     fontSize: 14,
     fontWeight: '600',
+  },
+  deckTitle: {
+    fontSize: 30,
+    fontWeight: 'bold',
+    color: '#1a1a1a',
+    flex: 1,
+    textAlign: 'center',
   },
   progressContainer: {
     marginBottom: 8,

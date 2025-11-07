@@ -151,6 +151,7 @@ export const HomeScreen: React.FC = () => {
     return (
       <StudyScreen
         deckId={selectedDeck.id}
+        deckTitle={selectedDeck.title}
         onComplete={handleStudyComplete}
         onExit={handleBackToHome}
       />
