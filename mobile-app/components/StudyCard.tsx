@@ -88,7 +88,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, onFlip }) => {
           {/* Card State Indicator */}
           <View style={styles.stateIndicator}>
             <View style={[
-              styles.stateBadge, 
+              styles.stateBadge,
               cardData.isNew ? styles.stateNew :
               cardData.fsrsData.state === 'learning' ? styles.stateLearning :
               cardData.fsrsData.state === 'review' ? styles.stateReview :
@@ -100,46 +100,36 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, onFlip }) => {
             </View>
           </View>
 
+          {/* Card Content - Always visible */}
+          <View style={styles.textContainer}>
+            <View style={styles.cardSide}>
+              {card.restaurantData ? (
+                <Text style={styles.cardText}>{card.restaurantData.itemName}</Text>
+              ) : (
+                <Text style={styles.cardText}>{card.front}</Text>
+              )}
+            </View>
+          </View>
+
           {/* Card Image */}
           {card.imageUrl && (
             <View style={styles.imageContainer}>
-              <Image 
-                source={{ uri: getImageUrl(card.imageUrl) }} 
+              <Image
+                source={{ uri: getImageUrl(card.imageUrl) }}
                 style={styles.cardImage}
                 resizeMode="cover"
               />
             </View>
           )}
 
-          {/* Card Content */}
-          <View style={styles.textContainer}>
-            {!isFlipped ? (
-              // Front of card - Show item name and category for restaurant cards
-              <View style={styles.cardSide}>
-                {card.restaurantData ? (
-                  <>
-                    <Text style={styles.sideLabel}>
-                      {card.restaurantData.category.toUpperCase()}
-                    </Text>
-                    <Text style={styles.cardText}>{card.restaurantData.itemName}</Text>
-                    {card.restaurantData.region && (
-                      <Text style={styles.subtitleText}>from {card.restaurantData.region}</Text>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <Text style={styles.sideLabel}>Front</Text>
-                    <Text style={styles.cardText}>{card.front}</Text>
-                  </>
-                )}
-              </View>
-            ) : (
-              // Back of card - Show structured restaurant data or plain back
+          {isFlipped && (
+            <View style={styles.textContainer}>
+              {/* Back of card - Show structured restaurant data or plain back */}
               <View style={styles.cardSide}>
                 {card.restaurantData ? (
                   <View style={styles.restaurantDetails}>
                     <Text style={styles.sideLabel}>Details</Text>
-                    
+
                     {/* Description */}
                     <Text style={styles.descriptionText}>{card.restaurantData.description}</Text>
                     
@@ -220,8 +210,8 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, onFlip }) => {
                   </>
                 )}
               </View>
-            )}
-          </View>
+            </View>
+          )}
 
           {/* Flip Instruction */}
           <View style={styles.flipHint}>
@@ -285,17 +275,16 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   imageContainer: {
-    marginBottom: 20,
     borderRadius: 12,
     overflow: 'hidden',
+    marginBottom: 16,
   },
   cardImage: {
     width: '100%',
     height: 200,
   },
   textContainer: {
-    flex: 1,
-    justifyContent: 'center',
+    marginBottom: 16,
   },
   cardSide: {
     alignItems: 'center',
