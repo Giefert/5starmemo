@@ -128,36 +128,31 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, onFlip }) => {
               <View style={styles.cardSide}>
                 {card.restaurantData ? (
                   <View style={styles.restaurantDetails}>
-                    <Text style={styles.sideLabel}>Details</Text>
-
-                    {/* Description */}
-                    <Text style={styles.descriptionText}>{card.restaurantData.description}</Text>
-                    
                     {/* Key Details */}
                     <View style={styles.detailsGrid}>
-                      {card.restaurantData.ingredients && (
+                      {card.restaurantData.tastingNotes && (
                         <View style={styles.detailRow}>
-                          <Text style={styles.detailLabel}>Ingredients:</Text>
+                          <Text style={styles.detailLabel}>Tasting Notes:</Text>
                           <Text style={styles.detailValue}>
-                            {card.restaurantData.ingredients.join(', ')}
+                            {card.restaurantData.tastingNotes.join(', ')}
                           </Text>
                         </View>
                       )}
-                      
+
                       {card.restaurantData.abv && (
                         <View style={styles.detailRow}>
                           <Text style={styles.detailLabel}>ABV:</Text>
                           <Text style={styles.detailValue}>{card.restaurantData.abv}%</Text>
                         </View>
                       )}
-                      
+
                       {card.restaurantData.vintage && (
                         <View style={styles.detailRow}>
                           <Text style={styles.detailLabel}>Vintage:</Text>
                           <Text style={styles.detailValue}>{card.restaurantData.vintage}</Text>
                         </View>
                       )}
-                      
+
                       {card.restaurantData.grapeVarieties && (
                         <View style={styles.detailRow}>
                           <Text style={styles.detailLabel}>Grapes:</Text>
@@ -166,12 +161,12 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, onFlip }) => {
                           </Text>
                         </View>
                       )}
-                      
-                      {card.restaurantData.tastingNotes && (
+
+                      {card.restaurantData.ingredients && (
                         <View style={styles.detailRow}>
-                          <Text style={styles.detailLabel}>Tasting Notes:</Text>
+                          <Text style={styles.detailLabel}>Ingredients:</Text>
                           <Text style={styles.detailValue}>
-                            {card.restaurantData.tastingNotes.join(', ')}
+                            {card.restaurantData.ingredients.join(', ')}
                           </Text>
                         </View>
                       )}
