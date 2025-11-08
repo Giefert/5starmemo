@@ -36,6 +36,7 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showRatingButtons, setShowRatingButtons] = useState(false);
+  const [isFlipped, setIsFlipped] = useState(false);
   const [progress, setProgress] = useState({
     current: 0,
     total: 0,
@@ -72,10 +73,11 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
   const updateCurrentState = () => {
     const card = studySessionManager.getCurrentCard();
     const progressInfo = studySessionManager.getProgress();
-    
+
     setCurrentCard(card);
     setProgress(progressInfo);
     setShowRatingButtons(false);
+    setIsFlipped(false);
 
     // Check if session is complete
     if (studySessionManager.isSessionComplete()) {
@@ -88,7 +90,8 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
   };
 
   const handleCardFlip = () => {
-    // Show rating buttons when card is flipped to the back
+    // Flip the card and show rating buttons
+    setIsFlipped(true);
     setShowRatingButtons(true);
   };
 
@@ -152,60 +155,47 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <View style={styles.topRow}>
-          <TouchableOpacity onPress={handleExit} style={styles.exitButton}>
-            <Text style={styles.exitButtonText}>Exit</Text>
-          </TouchableOpacity>
+        <TouchableOpacity onPress={handleExit} style={styles.exitButton}>
+          <Text style={styles.exitButtonText}>Exit</Text>
+        </TouchableOpacity>
 
-          {deckTitle && (
-            <Text style={styles.deckTitle}>{deckTitle}</Text>
-          )}
+        {deckTitle && (
+          <Text style={styles.deckTitle}>{deckTitle}</Text>
+        )}
 
-          <View style={styles.exitButtonSpacer} />
-        </View>
-
-        <View style={styles.progressContainer}>
-          <Text style={styles.progressText}>
-            {progress.current} of {progress.total}
-          </Text>
-          <View style={styles.progressBar}>
-            <View
-              style={[
-                styles.progressFill,
-                { width: `${progress.percentage}%` }
-              ]}
-            />
-          </View>
-        </View>
-
-        <View style={styles.statsContainer}>
-          <Text style={styles.statsText}>
-            Studied: {progress.studied} | Correct: {progress.correct}
-          </Text>
+        <View style={styles.progressBar}>
+          <View
+            style={[
+              styles.progressFill,
+              { width: `${progress.percentage}%` }
+            ]}
+          />
         </View>
       </View>
 
       {/* Study Card */}
       <View style={styles.cardContainer}>
-        <StudyCard 
-          cardData={currentCard} 
-          onFlip={handleCardFlip}
+        <StudyCard
+          cardData={currentCard}
+          isFlipped={isFlipped}
         />
       </View>
 
-      {/* Rating Buttons */}
+      {/* Rating Buttons / Show Answer */}
       <View style={styles.ratingContainer}>
         {showRatingButtons ? (
-          <RatingButtons 
-            onRating={handleRating} 
+          <RatingButtons
+            onRating={handleRating}
             disabled={isSubmitting}
           />
         ) : (
-          <View style={styles.flipPrompt}>
-            <Text style={styles.flipPromptText}>
-              Flip the card to see the answer, then rate your performance
-            </Text>
-          </View>
+          <TouchableOpacity
+            style={styles.showAnswerButton}
+            onPress={handleCardFlip}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.showAnswerText}>SHOW ANSWER</Text>
+          </TouchableOpacity>
         )}
       </View>
 
@@ -225,28 +215,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   header: {
-    backgroundColor: '#ffffff',
     paddingHorizontal: 20,
     paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  topRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
   },
   exitButton: {
+    position: 'absolute',
+    top: 16,
+    left: 20,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 6,
     borderWidth: 1,
     borderColor: '#007AFF',
-    minWidth: 60,
-  },
-  exitButtonSpacer: {
-    minWidth: 60,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    zIndex: 10,
   },
   exitButtonText: {
     color: '#007AFF',
@@ -254,21 +236,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   deckTitle: {
-    fontSize: 30,
-    fontWeight: 'bold',
-    color: '#1a1a1a',
-    flex: 1,
-    textAlign: 'center',
-  },
-  progressContainer: {
-    marginBottom: 8,
-  },
-  progressText: {
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: '600',
     color: '#1a1a1a',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   progressBar: {
     height: 4,
@@ -280,33 +252,23 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: '#007AFF',
   },
-  statsContainer: {
-    marginTop: 8,
-  },
-  statsText: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-  },
   cardContainer: {
     flex: 1,
     justifyContent: 'center',
   },
   ratingContainer: {
-    backgroundColor: '#ffffff',
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
+    paddingHorizontal: 20,
     paddingBottom: 16,
   },
-  flipPrompt: {
-    paddingHorizontal: 20,
-    paddingVertical: 24,
+  showAnswerButton: {
+    paddingVertical: 16,
+    alignItems: 'center',
   },
-  flipPromptText: {
+  showAnswerText: {
     fontSize: 16,
+    fontWeight: '600',
     color: '#666',
-    textAlign: 'center',
-    fontStyle: 'italic',
+    letterSpacing: 1,
   },
   loadingContainer: {
     flex: 1,
