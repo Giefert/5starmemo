@@ -167,7 +167,7 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
           <View
             style={[
               styles.progressFill,
-              { width: `${progress.percentage}%` }
+              { width: `${Math.max(5, progress.percentage)}%` }
             ]}
           />
         </View>
