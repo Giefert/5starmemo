@@ -218,9 +218,6 @@ export const HomeScreen: React.FC = () => {
                   {deck.cardCount || 0} cards • {deck.newCards || 0} new • {deck.reviewCards || 0} review
                 </Text>
               </View>
-              <View style={styles.studyButton}>
-                <Text style={styles.studyButtonText}>Study</Text>
-              </View>
             </TouchableOpacity>
           ))
         )}
@@ -346,16 +343,5 @@ const styles = StyleSheet.create({
   deckStats: {
     fontSize: 12,
     color: '#999',
-  },
-  studyButton: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  studyButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
   },
 });
