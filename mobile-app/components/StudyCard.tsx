@@ -3,8 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  Image,
-  Platform,
 } from 'react-native';
 import { StudyCardData } from '../types/shared';
 
@@ -12,32 +10,6 @@ interface StudyCardProps {
   cardData: StudyCardData;
   isFlipped: boolean;
 }
-
-// Function to construct proper image URLs
-const getImageUrl = (imagePath: string): string => {
-  if (!imagePath) return '';
-  
-  // If it's already a full URL, return as is
-  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-    return imagePath;
-  }
-  
-  // Get web-api URL based on platform (images are served by web-api on port 3001)
-  let webApiUrl;
-  if (__DEV__) {
-    if (Platform.OS === 'ios') {
-      webApiUrl = 'http://localhost:3001';
-    } else if (Platform.OS === 'android') {
-      webApiUrl = 'http://10.0.2.2:3001';
-    } else {
-      webApiUrl = 'http://localhost:3001';
-    }
-  } else {
-    webApiUrl = 'http://localhost:3001'; // Production would use actual domain
-  }
-  
-  return `${webApiUrl}${imagePath}`;
-};
 
 export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped }) => {
   const { card } = cardData;
@@ -54,17 +26,6 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped }) => 
       {/* Answer/Back - Only visible when flipped */}
       {isFlipped && (
         <View style={styles.answerContainer}>
-          {/* Card Image - Only show on answer side */}
-          {card.imageUrl && (
-            <View style={styles.imageContainer}>
-              <Image
-                source={{ uri: getImageUrl(card.imageUrl) }}
-                style={styles.cardImage}
-                resizeMode="cover"
-              />
-            </View>
-          )}
-
           {/* Answer Details */}
           {card.restaurantData ? (
             <View style={styles.detailsContainer}>
@@ -77,44 +38,16 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped }) => 
                 </View>
               )}
 
-              {card.restaurantData.abv && (
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>ABV:</Text>
-                  <Text style={styles.detailValue}>{card.restaurantData.abv}%</Text>
-                </View>
-              )}
-
-              {card.restaurantData.vintage && (
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Vintage:</Text>
-                  <Text style={styles.detailValue}>{card.restaurantData.vintage}</Text>
-                </View>
-              )}
-
-              {card.restaurantData.grapeVarieties && (
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Grapes:</Text>
-                  <Text style={styles.detailValue}>
-                    {card.restaurantData.grapeVarieties.join(', ')}
-                  </Text>
-                </View>
-              )}
-
-              {card.restaurantData.ingredients && (
+              {card.restaurantData.ingredients && card.restaurantData.ingredients.length > 0 && (
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Ingredients:</Text>
-                  <Text style={styles.detailValue}>
-                    {card.restaurantData.ingredients.join(', ')}
-                  </Text>
-                </View>
-              )}
-
-              {card.restaurantData.foodPairings && (
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Pairs with:</Text>
-                  <Text style={styles.detailValue}>
-                    {card.restaurantData.foodPairings.join(', ')}
-                  </Text>
+                  <View style={styles.ingredientsList}>
+                    {card.restaurantData.ingredients.map((ingredient, index) => (
+                      <Text key={index} style={styles.ingredientText}>
+                        {ingredient}
+                      </Text>
+                    ))}
+                  </View>
                 </View>
               )}
 
@@ -123,14 +56,6 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped }) => 
                   <Text style={styles.detailLabel}>⚠️ Allergens:</Text>
                   <Text style={styles.allergensText}>
                     {card.restaurantData.allergens.join(', ')}
-                  </Text>
-                </View>
-              )}
-
-              {card.restaurantData.specialNotes && (
-                <View style={styles.specialNotesContainer}>
-                  <Text style={styles.specialNotesText}>
-                    💡 {card.restaurantData.specialNotes}
                   </Text>
                 </View>
               )}
@@ -147,8 +72,8 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped }) => 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
     paddingHorizontal: 20,
+    paddingTop: 40,
   },
   questionContainer: {
     alignItems: 'center',
@@ -170,15 +95,6 @@ const styles = StyleSheet.create({
     color: '#1a1a1a',
     textAlign: 'center',
   },
-  imageContainer: {
-    borderRadius: 8,
-    overflow: 'hidden',
-    marginBottom: 20,
-  },
-  cardImage: {
-    width: '100%',
-    height: 200,
-  },
   detailsContainer: {
     gap: 10,
   },
@@ -199,6 +115,14 @@ const styles = StyleSheet.create({
     color: '#1a1a1a',
     flex: 1,
   },
+  ingredientsList: {
+    flex: 1,
+  },
+  ingredientText: {
+    fontSize: 14,
+    color: '#1a1a1a',
+    marginBottom: 2,
+  },
   allergensRow: {
     backgroundColor: '#FFF3CD',
     padding: 10,
@@ -210,17 +134,5 @@ const styles = StyleSheet.create({
     color: '#856404',
     fontWeight: '600',
     flex: 1,
-  },
-  specialNotesContainer: {
-    backgroundColor: '#E3F2FD',
-    padding: 10,
-    borderRadius: 6,
-    marginTop: 8,
-  },
-  specialNotesText: {
-    fontSize: 14,
-    color: '#1565C0',
-    fontStyle: 'italic',
-    textAlign: 'center',
   },
 });

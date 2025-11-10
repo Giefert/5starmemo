@@ -51,8 +51,6 @@ export const RatingButtons: React.FC<RatingButtonsProps> = ({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>How well did you know this?</Text>
-      
       <View style={styles.buttonsContainer}>
         {ratings.map((rating) => (
           <TouchableOpacity
@@ -67,30 +65,15 @@ export const RatingButtons: React.FC<RatingButtonsProps> = ({
           >
             <Text style={[
               styles.ratingLabel,
-              { 
+              {
                 color: disabled ? '#999' : rating.textColor,
                 fontWeight: '600'
               }
             ]}>
               {rating.label}
             </Text>
-            <Text style={[
-              styles.ratingDescription,
-              { 
-                color: disabled ? '#999' : rating.textColor,
-                opacity: 0.9
-              }
-            ]}>
-              {rating.description}
-            </Text>
           </TouchableOpacity>
         ))}
-      </View>
-
-      <View style={styles.hintContainer}>
-        <Text style={styles.hintText}>
-          Your rating helps optimize when you'll see this card again
-        </Text>
       </View>
     </View>
   );
