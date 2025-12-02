@@ -1,74 +1,40 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Dimensions,
-} from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 
 interface RatingButtonsProps {
   onRating: (rating: 1 | 2 | 3 | 4) => void;
   disabled?: boolean;
 }
 
-const { width: screenWidth } = Dimensions.get('window');
-
-export const RatingButtons: React.FC<RatingButtonsProps> = ({ 
-  onRating, 
-  disabled = false 
-}) => {
+export const RatingButtons: React.FC<RatingButtonsProps> = ({ onRating, disabled = false }) => {
   const ratings = [
-    {
-      value: 1 as const,
-      label: 'Again',
-      description: 'Incorrect or very difficult',
-      color: '#FF3B30',
-      textColor: '#ffffff',
-    },
-    {
-      value: 2 as const,
-      label: 'Hard',
-      description: 'Correct but difficult',
-      color: '#FF9500',
-      textColor: '#ffffff',
-    },
-    {
-      value: 3 as const,
-      label: 'Good',
-      description: 'Correct with some effort',
-      color: '#34C759',
-      textColor: '#ffffff',
-    },
-    {
-      value: 4 as const,
-      label: 'Easy',
-      description: 'Correct and easy',
-      color: '#007AFF',
-      textColor: '#ffffff',
-    },
+    { value: 1 as const, label: 'Again', color: '#EF5350' }, // Soft Red
+    { value: 2 as const, label: 'Hard',  color: '#FFB74D' }, // Soft Orange
+    { value: 3 as const, label: 'Good',  color: '#66BB6A' }, // Soft Green
+    { value: 4 as const, label: 'Easy',  color: '#42A5F5' }, // Soft Blue
   ];
 
   return (
     <View style={styles.container}>
-      <View style={styles.buttonsContainer}>
+      <View style={styles.grid}>
         {ratings.map((rating) => (
           <TouchableOpacity
             key={rating.value}
+            // Dynamic border styling based on the specific rating color
             style={[
-              styles.ratingButton,
-              { backgroundColor: disabled ? '#f0f0f0' : rating.color },
+              styles.button,
+              disabled && styles.disabledButton,
+              !disabled && { borderColor: rating.color }
             ]}
             onPress={() => !disabled && onRating(rating.value)}
             disabled={disabled}
-            activeOpacity={0.8}
+            activeOpacity={0.6}
           >
             <Text style={[
-              styles.ratingLabel,
-              {
-                color: disabled ? '#999' : rating.textColor,
-                fontWeight: '600'
-              }
+              styles.label,
+              // Text takes the color, background stays neutral
+              !disabled && { color: rating.color },
+              disabled && { color: '#CCC' }
             ]}>
               {rating.label}
             </Text>
@@ -82,54 +48,30 @@ export const RatingButtons: React.FC<RatingButtonsProps> = ({
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    width: '100%',
   },
-  title: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1a1a1a',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  buttonsContainer: {
+  grid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 8,
+    gap: 12,
   },
-  ratingButton: {
+  button: {
     flex: 1,
-    paddingVertical: 16,
-    paddingHorizontal: 8,
+    paddingVertical: 14,
+    backgroundColor: '#FFFFFF', // Neutral Background
     borderRadius: 12,
+    borderWidth: 1.5, // The border carries the weight now
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 80,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    // Removed heavy shadows for a cleaner, flatter look
   },
-  ratingLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
+  disabledButton: {
+    borderColor: '#E0E0E0',
+    backgroundColor: '#FAFAFA',
   },
-  ratingDescription: {
-    fontSize: 12,
-    textAlign: 'center',
-    lineHeight: 16,
-  },
-  hintContainer: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-  },
-  hintText: {
-    fontSize: 13,
-    color: '#666',
-    textAlign: 'center',
-    fontStyle: 'italic',
+  label: {
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
 });

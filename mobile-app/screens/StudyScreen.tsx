@@ -129,9 +129,9 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.safeArea}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
+          <ActivityIndicator size="large" color="#4A90E2" />
           <Text style={styles.loadingText}>Loading study session...</Text>
         </View>
       </SafeAreaView>
@@ -140,11 +140,11 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
 
   if (!currentCard) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.safeArea}>
         <View style={styles.loadingContainer}>
           <Text style={styles.noCardsText}>No cards available for study</Text>
           <TouchableOpacity style={styles.exitButton} onPress={onExit}>
-            <Text style={styles.exitButtonText}>Go Back</Text>
+            <Text style={styles.exitIcon}>✕</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -152,113 +152,120 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <TouchableOpacity onPress={handleExit} style={styles.exitButton}>
-          <Text style={styles.exitButtonText}>Exit</Text>
-        </TouchableOpacity>
-
-        {deckTitle && (
-          <Text style={styles.deckTitle}>{deckTitle}</Text>
-        )}
-
-        <View style={styles.progressBar}>
-          <View
-            style={[
-              styles.progressFill,
-              { width: `${Math.max(5, progress.percentage)}%` }
-            ]}
-          />
-        </View>
-      </View>
-
-      {/* Study Card */}
-      <View style={styles.cardContainer}>
-        <StudyCard
-          cardData={currentCard}
-          isFlipped={isFlipped}
-        />
-      </View>
-
-      {/* Rating Buttons / Show Answer */}
-      <View style={styles.ratingContainer}>
-        {showRatingButtons ? (
-          <RatingButtons
-            onRating={handleRating}
-            disabled={isSubmitting}
-          />
-        ) : (
-          <TouchableOpacity
-            style={styles.showAnswerButton}
-            onPress={handleCardFlip}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.showAnswerText}>SHOW ANSWER</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        {/* Header Zone */}
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.exitButton} onPress={handleExit}>
+            <Text style={styles.exitIcon}>✕</Text>
           </TouchableOpacity>
+
+          <View style={styles.progressContainer}>
+            {deckTitle && (
+              <Text style={styles.deckTitle}>{deckTitle}</Text>
+            )}
+            {/* Slimmer, Blue Focus Progress Bar */}
+            <View style={styles.progressBar}>
+              <View style={[styles.progressFill, { width: `${Math.max(5, progress.percentage)}%` }]} />
+            </View>
+          </View>
+        </View>
+
+        {/* Main Card Zone */}
+        <View style={styles.cardArea}>
+          <StudyCard
+            cardData={currentCard}
+            isFlipped={isFlipped}
+          />
+        </View>
+
+        {/* Bottom Grading Zone */}
+        {showRatingButtons ? (
+          <View style={styles.gradingZone}>
+            <RatingButtons
+              onRating={handleRating}
+              disabled={isSubmitting}
+            />
+          </View>
+        ) : (
+          <View style={styles.gradingZone}>
+            <TouchableOpacity
+              style={styles.showAnswerButton}
+              onPress={handleCardFlip}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.showAnswerText}>SHOW ANSWER</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Loading Overlay */}
+        {isSubmitting && (
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator size="large" color="#4A90E2" />
+          </View>
         )}
       </View>
-
-      {/* Loading Overlay */}
-      {isSubmitting && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#007AFF" />
-        </View>
-      )}
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#F7F6F2', // Warm Off-White Canvas
+  },
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#F7F6F2',
   },
   header: {
     paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingTop: 10,
+    paddingBottom: 20,
   },
   exitButton: {
     position: 'absolute',
-    top: 16,
-    left: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#007AFF',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    top: -10,
+    left: 12,
+    padding: 8,
     zIndex: 10,
   },
-  exitButtonText: {
-    color: '#007AFF',
-    fontSize: 14,
-    fontWeight: '600',
+  exitIcon: {
+    fontSize: 24,
+    color: '#2D2D2D', // Charcoal
+    fontWeight: '300',
+  },
+  progressContainer: {
+    width: '100%',
   },
   deckTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#1a1a1a',
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#666666',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 8,
     textAlign: 'center',
-    marginBottom: 12,
   },
   progressBar: {
-    height: 4,
-    backgroundColor: '#e0e0e0',
+    height: 4, // Slimmer profile
+    backgroundColor: '#E0E0E0',
     borderRadius: 2,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#007AFF',
+    backgroundColor: '#4A90E2', // Focus Blue
   },
-  cardContainer: {
+  cardArea: {
     flex: 1,
     justifyContent: 'center',
+    paddingHorizontal: 16, // Breathing room for the card
+    paddingBottom: 20,
   },
-  ratingContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 16,
+  gradingZone: {
+    paddingBottom: 20,
   },
   showAnswerButton: {
     paddingVertical: 16,

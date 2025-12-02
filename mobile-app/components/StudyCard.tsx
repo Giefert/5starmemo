@@ -1,9 +1,5 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-} from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
 import { StudyCardData } from '../types/shared';
 
 interface StudyCardProps {
@@ -14,125 +10,188 @@ interface StudyCardProps {
 export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped }) => {
   const { card } = cardData;
 
+  // Placeholder for image logic.
+  // Ideally, your cardData structure should eventually have an 'imageUrl' field.
+  const imageUrl = card.restaurantData?.imageUrl;
+
   return (
-    <View style={styles.container}>
-      {/* Question/Front - Always visible */}
-      <View style={styles.questionContainer}>
-        <Text style={styles.questionText}>
-          {card.restaurantData ? card.restaurantData.itemName : card.front}
-        </Text>
+    <View style={styles.cardContainer}>
+
+      {/* 1. Reserved Square Image Space */}
+      <View style={styles.imagePlaceholder}>
+        {imageUrl ? (
+          <Image
+            source={{ uri: imageUrl }}
+            style={styles.cardImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={styles.emptyImageState}>
+            <Text style={styles.emptyImageText}>No Image</Text>
+          </View>
+        )}
       </View>
 
-      {/* Answer/Back - Only visible when flipped */}
-      {isFlipped && (
-        <View style={styles.answerContainer}>
-          {/* Answer Details */}
-          {card.restaurantData ? (
-            <View style={styles.detailsContainer}>
-              {card.restaurantData.tastingNotes && (
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Tasting Notes:</Text>
-                  <Text style={styles.detailValue}>
-                    {card.restaurantData.tastingNotes.join(', ')}
-                  </Text>
-                </View>
-              )}
-
-              {card.restaurantData.ingredients && card.restaurantData.ingredients.length > 0 && (
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Ingredients:</Text>
-                  <View style={styles.ingredientsList}>
-                    {card.restaurantData.ingredients.map((ingredient, index) => (
-                      <Text key={index} style={styles.ingredientText}>
-                        {ingredient}
-                      </Text>
-                    ))}
-                  </View>
-                </View>
-              )}
-
-              {card.restaurantData.allergens && (
-                <View style={[styles.detailRow, styles.allergensRow]}>
-                  <Text style={styles.detailLabel}>⚠️ Allergens:</Text>
-                  <Text style={styles.allergensText}>
-                    {card.restaurantData.allergens.join(', ')}
-                  </Text>
-                </View>
-              )}
-            </View>
-          ) : (
-            <Text style={styles.answerText}>{card.back}</Text>
-          )}
+      <View style={styles.contentPadding}>
+        {/* 2. Question / Title */}
+        <View style={styles.headerContainer}>
+          <Text style={styles.mainTitle}>
+            {card.restaurantData ? card.restaurantData.itemName : card.front}
+          </Text>
         </View>
-      )}
+
+        {/* 3. Divider */}
+        <View style={styles.divider} />
+
+        {/* 4. Answer / Details */}
+        {isFlipped && (
+          <View style={styles.detailsContainer}>
+            {card.restaurantData ? (
+              <>
+                {/* Tasting Notes */}
+                {card.restaurantData.tastingNotes && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>TASTING NOTES</Text>
+                    <Text style={styles.valueText}>
+                      {card.restaurantData.tastingNotes.join(', ')}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Ingredients */}
+                {card.restaurantData.ingredients?.length > 0 && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>INGREDIENTS</Text>
+                    <View style={styles.ingredientList}>
+                      {card.restaurantData.ingredients.map((ing, i) => (
+                        <Text key={i} style={styles.ingredientItem}>• {ing}</Text>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* Allergens - Redesigned as Integrated Warning */}
+                {card.restaurantData.allergens && (
+                  <View style={styles.allergenContainer}>
+                    <Text style={styles.warningIcon}>⚠️</Text>
+                    <Text style={styles.allergenText}>
+                      Contains: <Text style={styles.allergenBold}>{card.restaurantData.allergens.join(', ')}</Text>
+                    </Text>
+                  </View>
+                )}
+              </>
+            ) : (
+              <Text style={styles.backText}>{card.back}</Text>
+            )}
+          </View>
+        )}
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 40,
+  cardContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24, // Softer, modern corners
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08, // Very subtle shadow
+    shadowRadius: 12,
+    elevation: 4,
+    overflow: 'hidden', // Ensures image stays within rounded corners
+    width: '100%',
   },
-  questionContainer: {
+  // The Reserved Square
+  imagePlaceholder: {
+    width: '100%',
+    aspectRatio: 1, // Forces a perfect square
+    backgroundColor: '#F0F0F0', // Placeholder color
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 32,
   },
-  questionText: {
-    fontSize: 28,
-    lineHeight: 36,
-    color: '#1a1a1a',
-    textAlign: 'center',
+  cardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  emptyImageState: {
+    opacity: 0.3,
+  },
+  emptyImageText: {
+    color: '#999',
     fontWeight: '600',
   },
-  answerContainer: {
-    marginTop: 20,
+  contentPadding: {
+    padding: 24,
   },
-  answerText: {
-    fontSize: 20,
-    lineHeight: 28,
-    color: '#1a1a1a',
+  headerContainer: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  mainTitle: {
+    fontSize: 28,
+    fontWeight: '800', // Heavy weight for hierarchy
+    color: '#2D2D2D', // Charcoal
     textAlign: 'center',
+    letterSpacing: -0.5,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#F0F0F0',
+    width: '40%',
+    alignSelf: 'center',
+    marginBottom: 20,
   },
   detailsContainer: {
-    gap: 10,
+    gap: 20, // Clean spacing between sections
   },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+  detailBlock: {
+    marginBottom: 4,
+  },
+  label: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#9CA3AF', // Muted gray for metadata
     marginBottom: 6,
+    letterSpacing: 1, // Uppercase needs spacing
+    textTransform: 'uppercase',
   },
-  detailLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
-    minWidth: 100,
+  valueText: {
+    fontSize: 16,
+    color: '#4B5563',
+    lineHeight: 24,
+  },
+  ingredientList: {
+    marginTop: 2,
+  },
+  ingredientItem: {
+    fontSize: 16,
+    color: '#4B5563',
+    lineHeight: 26, // Generous line height for scanning
+  },
+  // New Allergen Styling
+  allergenContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    backgroundColor: '#FFF8F1', // Very faint orange bg
+    padding: 12,
+    borderRadius: 8,
+  },
+  warningIcon: {
+    fontSize: 16,
     marginRight: 8,
   },
-  detailValue: {
+  allergenText: {
     fontSize: 14,
-    color: '#1a1a1a',
-    flex: 1,
+    color: '#D97706', // Warm Amber
   },
-  ingredientsList: {
-    flex: 1,
+  allergenBold: {
+    fontWeight: '700',
   },
-  ingredientText: {
-    fontSize: 14,
-    color: '#1a1a1a',
-    marginBottom: 2,
-  },
-  allergensRow: {
-    backgroundColor: '#FFF3CD',
-    padding: 10,
-    borderRadius: 6,
-    marginTop: 4,
-  },
-  allergensText: {
-    fontSize: 14,
-    color: '#856404',
-    fontWeight: '600',
-    flex: 1,
-  },
+  backText: {
+    fontSize: 18,
+    textAlign: 'center',
+    color: '#4B5563',
+  }
 });
