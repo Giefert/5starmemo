@@ -1,13 +1,14 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { StudyCardData } from '../types/shared';
 
 interface StudyCardProps {
   cardData: StudyCardData;
   isFlipped: boolean;
+  onFlip?: () => void;
 }
 
-export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped }) => {
+export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFlip }) => {
   const { card } = cardData;
 
   // Placeholder for image logic.
@@ -15,10 +16,15 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped }) => 
   const imageUrl = card.restaurantData?.imageUrl;
 
   return (
-    <View style={styles.cardContainer}>
+    <TouchableOpacity
+      style={styles.cardContainer}
+      onPress={() => onFlip?.()}
+      activeOpacity={0.7}
+    >
 
       {/* 1. Reserved Square Image Space */}
-      <View style={styles.imagePlaceholder}>
+      {!isFlipped && (
+        <View style={styles.imagePlaceholder}>
         {imageUrl ? (
           <Image
             source={{ uri: imageUrl }}
@@ -30,7 +36,8 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped }) => 
             <Text style={styles.emptyImageText}>No Image</Text>
           </View>
         )}
-      </View>
+        </View>
+      )}
 
       <View style={styles.contentPadding}>
         {/* 2. Question / Title */}
@@ -86,7 +93,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped }) => 
           </View>
         )}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 };
 
