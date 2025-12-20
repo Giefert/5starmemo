@@ -8,11 +8,9 @@ import { getImageUrl } from '@/lib/utils';
 import { ImagePreview } from '@/components/ui/ImagePreview';
 
 interface RestaurantCardFormProps {
-  onSubmit: (data: { front: string; back: string; restaurantData: RestaurantCardData; imageUrl?: string }) => Promise<void>;
+  onSubmit: (data: { restaurantData: RestaurantCardData; imageUrl?: string }) => Promise<void>;
   onCancel: () => void;
   initialData?: {
-    front: string;
-    back: string;
     restaurantData?: RestaurantCardData;
     imageUrl?: string;
   };
@@ -25,9 +23,6 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
   initialData,
   isEditing = false
 }) => {
-  const [front, setFront] = useState(initialData?.front || '');
-  const [back, setBack] = useState(initialData?.back || '');
-  
   // Restaurant-specific fields
   const [itemName, setItemName] = useState(initialData?.restaurantData?.itemName || '');
   const [category, setCategory] = useState<RestaurantCardData['category']>(
@@ -72,7 +67,16 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
     initialData?.restaurantData?.pricePoint || 'mid-range'
   );
   const [specialNotes, setSpecialNotes] = useState(initialData?.restaurantData?.specialNotes || '');
-  
+
+  // Maki-specific fields
+  const [topping, setTopping] = useState(initialData?.restaurantData?.topping || '');
+  const [base, setBase] = useState(initialData?.restaurantData?.base || '');
+  const [sauce, setSauce] = useState(initialData?.restaurantData?.sauce || '');
+  const [paper, setPaper] = useState(initialData?.restaurantData?.paper || '');
+  const [gluten, setGluten] = useState<RestaurantCardData['gluten']>(
+    initialData?.restaurantData?.gluten || undefined
+  );
+
   // Image fields
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [imageUrl, setImageUrl] = useState(initialData?.imageUrl || ''); // For existing images
@@ -150,7 +154,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!itemName.trim() || !description.trim()) return;
+    if (!itemName.trim()) return;
 
     setIsSubmitting(true);
     try {
@@ -175,7 +179,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
       const restaurantData: RestaurantCardData = {
         itemName: itemName.trim(),
         category,
-        description: description.trim(),
+        description: description.trim() || undefined,
         ingredients: ingredients.length > 0 ? ingredients : undefined,
         allergens: allergens.length > 0 ? allergens : undefined,
         region: region.trim() || undefined,
@@ -188,11 +192,15 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
         foodPairings: foodPairings.length > 0 ? foodPairings : undefined,
         pricePoint,
         specialNotes: specialNotes.trim() || undefined,
+        // Maki-specific fields
+        topping: topping.trim() || undefined,
+        base: base.trim() || undefined,
+        sauce: sauce.trim() || undefined,
+        paper: paper.trim() || undefined,
+        gluten: gluten || undefined,
       };
 
       const submissionData: any = {
-        front: front || itemName, // Use item name as front if no custom front provided
-        back: back || description, // Use description as back if no custom back provided
         restaurantData
       };
 
@@ -213,6 +221,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
   };
 
   const categoryOptions = [
+    { value: 'maki', label: 'Maki' },
     { value: 'food', label: 'Food' },
     { value: 'wine', label: 'Wine' },
     { value: 'beer', label: 'Beer' },
@@ -226,6 +235,13 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
     { value: 'mid-range', label: 'Mid-Range' },
     { value: 'premium', label: 'Premium' },
     { value: 'luxury', label: 'Luxury' },
+  ];
+
+  const glutenOptions = [
+    { value: '', label: 'Not specified' },
+    { value: 'yes', label: 'Yes' },
+    { value: 'no', label: 'No' },
+    { value: 'optional', label: 'Optional' },
   ];
 
   const isAlcoholic = ['wine', 'beer', 'cocktail', 'spirit'].includes(category);
@@ -272,14 +288,13 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
       {/* Description */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Description *
+          Description
         </label>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           className="w-full h-20 px-3 py-2 border border-gray-300 rounded-md text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           placeholder="Detailed description of the item, preparation method, flavor profile..."
-          required
         />
       </div>
 
@@ -337,54 +352,58 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
       </div>
 
       {/* Ingredients & Allergens */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Ingredients
-          </label>
-          <Input
-            value={ingredientsRaw}
-            onChange={(e) => handleRawArrayInput(e.target.value, setIngredientsRaw, setIngredients)}
-            placeholder="beef, garlic, rosemary (comma separated)"
-          />
-        </div>
+      {category !== 'maki' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Ingredients
+            </label>
+            <Input
+              value={ingredientsRaw}
+              onChange={(e) => handleRawArrayInput(e.target.value, setIngredientsRaw, setIngredients)}
+              placeholder="beef, garlic, rosemary (comma separated)"
+            />
+          </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Allergens
-          </label>
-          <Input
-            value={allergensRaw}
-            onChange={(e) => handleRawArrayInput(e.target.value, setAllergensRaw, setAllergens)}
-            placeholder="dairy, gluten, nuts (comma separated)"
-          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Allergens
+            </label>
+            <Input
+              value={allergensRaw}
+              onChange={(e) => handleRawArrayInput(e.target.value, setAllergensRaw, setAllergens)}
+              placeholder="dairy, gluten, nuts (comma separated)"
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Origin Information */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Region/Origin
-          </label>
-          <Input
-            value={region}
-            onChange={(e) => setRegion(e.target.value)}
-            placeholder="e.g., Tuscany, Scotland, Local Farm"
-          />
-        </div>
+      {category !== 'maki' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Region/Origin
+            </label>
+            <Input
+              value={region}
+              onChange={(e) => setRegion(e.target.value)}
+              placeholder="e.g., Tuscany, Scotland, Local Farm"
+            />
+          </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Producer/Source
-          </label>
-          <Input
-            value={producer}
-            onChange={(e) => setProducer(e.target.value)}
-            placeholder="e.g., Château Margaux, Highland Distillery"
-          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Producer/Source
+            </label>
+            <Input
+              value={producer}
+              onChange={(e) => setProducer(e.target.value)}
+              placeholder="e.g., Château Margaux, Highland Distillery"
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Alcohol-specific fields */}
       {isAlcoholic && (
@@ -435,109 +454,152 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
         </div>
       )}
 
-      {/* Tasting & Service */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Tasting Notes
-          </label>
-          <Input
-            value={tastingNotesRaw}
-            onChange={(e) => handleRawArrayInput(e.target.value, setTastingNotesRaw, setTastingNotes)}
-            placeholder="fruity, oaky, smooth (comma separated)"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Serving Temperature
-          </label>
-          <Input
-            value={servingTemp}
-            onChange={(e) => setServingTemp(e.target.value)}
-            placeholder="e.g., 55-60°F, Room temperature"
-          />
-        </div>
-      </div>
-
-      {/* Food Pairings */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Food Pairings
-        </label>
-        <Input
-          value={foodPairingsRaw}
-          onChange={(e) => handleRawArrayInput(e.target.value, setFoodPairingsRaw, setFoodPairings)}
-          placeholder="grilled salmon, aged cheese, dark chocolate (comma separated)"
-        />
-      </div>
-
-      {/* Price Point & Special Notes */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Price Point
-          </label>
-          <select
-            value={pricePoint}
-            onChange={(e) => setPricePoint(e.target.value as RestaurantCardData['pricePoint'])}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          >
-            {pricePointOptions.map(option => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Special Notes
-          </label>
-          <Input
-            value={specialNotes}
-            onChange={(e) => setSpecialNotes(e.target.value)}
-            placeholder="Limited availability, seasonal special, etc."
-          />
-        </div>
-      </div>
-
-      {/* Custom Front/Back (Optional) */}
-      <div className="border-t pt-4">
-        <h4 className="text-sm font-medium text-gray-700 mb-2">Custom Card Text (Optional)</h4>
+      {/* Maki-specific fields */}
+      {category === 'maki' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-600 mb-1">
-              Front (defaults to item name)
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Topping
             </label>
-            <textarea
-              value={front}
-              onChange={(e) => setFront(e.target.value)}
-              className="w-full h-16 px-3 py-2 border border-gray-300 rounded-md text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              placeholder="Custom question or prompt..."
+            <Input
+              value={topping}
+              onChange={(e) => setTopping(e.target.value)}
+              placeholder="e.g., Tuna, Salmon"
             />
           </div>
+
           <div>
-            <label className="block text-sm font-medium text-gray-600 mb-1">
-              Back (defaults to description)
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Base
             </label>
-            <textarea
-              value={back}
-              onChange={(e) => setBack(e.target.value)}
-              className="w-full h-16 px-3 py-2 border border-gray-300 rounded-md text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              placeholder="Custom answer or details..."
+            <Input
+              value={base}
+              onChange={(e) => setBase(e.target.value)}
+              placeholder="e.g., Sushi Rice, Brown Rice"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Sauce
+            </label>
+            <Input
+              value={sauce}
+              onChange={(e) => setSauce(e.target.value)}
+              placeholder="e.g., Spicy Mayo, Eel Sauce"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Paper
+            </label>
+            <Input
+              value={paper}
+              onChange={(e) => setPaper(e.target.value)}
+              placeholder="e.g., Nori, Soy Paper"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Gluten
+            </label>
+            <select
+              value={gluten || ''}
+              onChange={(e) => setGluten(e.target.value as RestaurantCardData['gluten'] | '')}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              {glutenOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
+      {/* Tasting & Service */}
+      {category !== 'maki' && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Tasting Notes
+              </label>
+              <Input
+                value={tastingNotesRaw}
+                onChange={(e) => handleRawArrayInput(e.target.value, setTastingNotesRaw, setTastingNotes)}
+                placeholder="fruity, oaky, smooth (comma separated)"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Serving Temperature
+              </label>
+              <Input
+                value={servingTemp}
+                onChange={(e) => setServingTemp(e.target.value)}
+                placeholder="e.g., 55-60°F, Room temperature"
+              />
+            </div>
+          </div>
+
+          {/* Food Pairings */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Food Pairings
+            </label>
+            <Input
+              value={foodPairingsRaw}
+              onChange={(e) => handleRawArrayInput(e.target.value, setFoodPairingsRaw, setFoodPairings)}
+              placeholder="grilled salmon, aged cheese, dark chocolate (comma separated)"
+            />
+          </div>
+        </>
+      )}
+
+      {/* Price Point & Special Notes */}
+      {category !== 'maki' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Price Point
+            </label>
+            <select
+              value={pricePoint}
+              onChange={(e) => setPricePoint(e.target.value as RestaurantCardData['pricePoint'])}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              {pricePointOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Special Notes
+            </label>
+            <Input
+              value={specialNotes}
+              onChange={(e) => setSpecialNotes(e.target.value)}
+              placeholder="Limited availability, seasonal special, etc."
             />
           </div>
         </div>
-      </div>
+      )}
 
       {/* Form Actions */}
       <div className="flex justify-end space-x-2">
         <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
           Cancel
         </Button>
-        <Button type="submit" disabled={isSubmitting || isUploading || !itemName.trim() || !description.trim()}>
+        <Button type="submit" disabled={isSubmitting || isUploading || !itemName.trim()}>
           {isUploading ? 'Uploading...' : isSubmitting ? 'Saving...' : (isEditing ? 'Update Card' : 'Add Card')}
         </Button>
       </div>

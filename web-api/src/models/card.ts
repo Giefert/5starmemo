@@ -22,15 +22,13 @@ export class CardModel {
     const nextOrder = cardData.order ?? orderResult.rows[0].next_order;
 
     const query = `
-      INSERT INTO cards (deck_id, front, back, image_url, card_order, restaurant_data)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING id, deck_id, front, back, image_url, card_order, restaurant_data, created_at, updated_at
+      INSERT INTO cards (deck_id, image_url, card_order, restaurant_data)
+      VALUES ($1, $2, $3, $4)
+      RETURNING id, deck_id, image_url, card_order, restaurant_data, created_at, updated_at
     `;
-    
+
     const values = [
       deckId,
-      cardData.front,
-      cardData.back,
       cardData.imageUrl || null,
       nextOrder,
       cardData.restaurantData ? JSON.stringify(cardData.restaurantData) : null
@@ -38,12 +36,10 @@ export class CardModel {
     
     const result = await pool.query(query, values);
     const card = result.rows[0];
-    
+
     return {
       id: card.id,
       deckId: card.deck_id,
-      front: card.front,
-      back: card.back,
       imageUrl: card.image_url,
       order: card.card_order,
       createdAt: card.created_at,
@@ -54,19 +50,17 @@ export class CardModel {
 
   static async findByDeckId(deckId: string): Promise<Card[]> {
     const query = `
-      SELECT id, deck_id, front, back, image_url, card_order, restaurant_data, created_at, updated_at
+      SELECT id, deck_id, image_url, card_order, restaurant_data, created_at, updated_at
       FROM cards
       WHERE deck_id = $1
       ORDER BY card_order ASC, created_at ASC
     `;
-    
+
     const result = await pool.query(query, [deckId]);
-    
+
     return result.rows.map(card => ({
       id: card.id,
       deckId: card.deck_id,
-      front: card.front,
-      back: card.back,
       imageUrl: card.image_url,
       order: card.card_order,
       createdAt: card.created_at,
@@ -77,13 +71,13 @@ export class CardModel {
 
   static async findById(id: string): Promise<Card | null> {
     const query = `
-      SELECT id, deck_id, front, back, image_url, card_order, restaurant_data, created_at, updated_at
+      SELECT id, deck_id, image_url, card_order, restaurant_data, created_at, updated_at
       FROM cards
       WHERE id = $1
     `;
-    
+
     const result = await pool.query(query, [id]);
-    
+
     if (result.rows.length === 0) {
       return null;
     }
@@ -92,8 +86,6 @@ export class CardModel {
     return {
       id: card.id,
       deckId: card.deck_id,
-      front: card.front,
-      back: card.back,
       imageUrl: card.image_url,
       order: card.card_order,
       createdAt: card.created_at,
@@ -107,24 +99,11 @@ export class CardModel {
     const values = [];
     let paramCount = 1;
 
-    if (cardData.front !== undefined) {
-      setClause.push(`front = $${paramCount}`);
-      values.push(cardData.front);
-      paramCount++;
-    }
-
-    if (cardData.back !== undefined) {
-      setClause.push(`back = $${paramCount}`);
-      values.push(cardData.back);
-      paramCount++;
-    }
-
     if (cardData.imageUrl !== undefined) {
       setClause.push(`image_url = $${paramCount}`);
       values.push(cardData.imageUrl);
       paramCount++;
     }
-
 
     if (cardData.order !== undefined) {
       setClause.push(`card_order = $${paramCount}`);
@@ -149,11 +128,11 @@ export class CardModel {
       UPDATE cards
       SET ${setClause.join(', ')}
       WHERE id = $${paramCount}
-      RETURNING id, deck_id, front, back, image_url, card_order, restaurant_data, created_at, updated_at
+      RETURNING id, deck_id, image_url, card_order, restaurant_data, created_at, updated_at
     `;
 
     const result = await pool.query(query, values);
-    
+
     if (result.rows.length === 0) {
       return null;
     }
@@ -162,8 +141,6 @@ export class CardModel {
     return {
       id: card.id,
       deckId: card.deck_id,
-      front: card.front,
-      back: card.back,
       imageUrl: card.image_url,
       order: card.card_order,
       createdAt: card.created_at,
@@ -212,28 +189,24 @@ export class CardModel {
         const order = cardData.order ?? i;
         
         const query = `
-          INSERT INTO cards (deck_id, front, back, image_url, card_order, restaurant_data)
-          VALUES ($1, $2, $3, $4, $5, $6)
-          RETURNING id, deck_id, front, back, image_url, card_order, restaurant_data, created_at, updated_at
+          INSERT INTO cards (deck_id, image_url, card_order, restaurant_data)
+          VALUES ($1, $2, $3, $4)
+          RETURNING id, deck_id, image_url, card_order, restaurant_data, created_at, updated_at
         `;
-        
+
         const values = [
           deckId,
-          cardData.front,
-          cardData.back,
           cardData.imageUrl || null,
           order,
           cardData.restaurantData ? JSON.stringify(cardData.restaurantData) : null
         ];
-        
+
         const result = await client.query(query, values);
         const card = result.rows[0];
-        
+
         cards.push({
           id: card.id,
           deckId: card.deck_id,
-          front: card.front,
-          back: card.back,
           imageUrl: card.image_url,
           order: card.card_order,
           createdAt: card.created_at,

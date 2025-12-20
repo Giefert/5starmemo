@@ -350,15 +350,17 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
                       </div>
                     )}
 
-                    {card.restaurantData ? (
+                    {card.restaurantData && (
                       <div className="space-y-3">
                         <div className="bg-blue-50 p-3 rounded-lg">
                           <h4 className="text-sm font-semibold text-blue-900 mb-1">
                             {card.restaurantData.itemName}
                           </h4>
-                          <p className="text-sm text-blue-800">{card.restaurantData.description}</p>
+                          {card.restaurantData.description && (
+                            <p className="text-sm text-blue-800">{card.restaurantData.description}</p>
+                          )}
                         </div>
-                        
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                           {card.restaurantData.ingredients && (
                             <div>
@@ -384,17 +386,6 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
                               <span className="text-gray-600 ml-1">{card.restaurantData.tastingNotes.join(', ')}</span>
                             </div>
                           )}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-700 mb-1">Front</h4>
-                          <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded">{card.front}</p>
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-700 mb-1">Back</h4>
-                          <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded">{card.back}</p>
                         </div>
                       </div>
                     )}

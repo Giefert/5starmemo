@@ -43,8 +43,6 @@ CREATE TABLE decks (
 CREATE TABLE cards (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     deck_id UUID NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
-    front TEXT NOT NULL,
-    back TEXT NOT NULL,
     image_url VARCHAR(500),
     card_order INTEGER NOT NULL DEFAULT 0,
     -- Restaurant card data (stored as JSON)

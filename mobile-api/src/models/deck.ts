@@ -43,11 +43,9 @@ export class DeckModel {
    */
   static async getDeckForStudy(deckId: string, userId: string): Promise<StudyCardData[]> {
     const query = `
-      SELECT 
+      SELECT
         c.id,
         c.deck_id,
-        c.front,
-        c.back,
         c.image_url,
         c.card_order,
         c.restaurant_data,
@@ -70,17 +68,14 @@ export class DeckModel {
       WHERE c.deck_id = $1
       ORDER BY c.card_order ASC, c.created_at ASC
     `;
-    
+
     const result = await pool.query(query, [deckId, userId]);
-    
+
     return result.rows.map(row => {
       const card: Card = {
         id: row.id,
         deckId: row.deck_id,
-        front: row.front,
-        back: row.back,
         imageUrl: row.image_url,
-        imageFocusPoint: undefined,
         order: row.card_order,
         restaurantData: row.restaurant_data || undefined,
         createdAt: row.created_at,
@@ -135,11 +130,7 @@ export class DeckModel {
       SELECT 
         c.id,
         c.deck_id,
-        c.front,
-        c.back,
         c.image_url,
-        c.image_focus_point_x,
-        c.image_focus_point_y,
         c.card_order,
         c.restaurant_data,
         c.created_at,
@@ -160,25 +151,20 @@ export class DeckModel {
       FROM fsrs_cards fc
       JOIN cards c ON fc.card_id = c.id
       JOIN decks d ON c.deck_id = d.id
-      WHERE fc.user_id = $1 
+      WHERE fc.user_id = $1
         AND fc.next_review <= NOW()
         AND d.is_public = true
       ORDER BY fc.next_review ASC, c.card_order ASC
       LIMIT $2
     `;
-    
+
     const result = await pool.query(query, [userId, limit]);
-    
+
     return result.rows.map(row => {
       const card: Card = {
         id: row.id,
         deckId: row.deck_id,
-        front: row.front,
-        back: row.back,
         imageUrl: row.image_url,
-        imageFocusPoint: row.image_focus_point_x && row.image_focus_point_y 
-          ? { x: row.image_focus_point_x, y: row.image_focus_point_y }
-          : undefined,
         order: row.card_order,
         restaurantData: row.restaurant_data || undefined,
         createdAt: row.created_at,

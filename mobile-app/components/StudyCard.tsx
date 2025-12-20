@@ -43,7 +43,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
         {/* 2. Question / Title */}
         <View style={styles.headerContainer}>
           <Text style={styles.mainTitle}>
-            {card.restaurantData ? card.restaurantData.itemName : card.front}
+            {card.restaurantData?.itemName}
           </Text>
         </View>
 
@@ -51,44 +51,90 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
         <View style={styles.divider} />
 
         {/* 4. Answer / Details */}
-        {isFlipped && (
+        {isFlipped && card.restaurantData && (
           <View style={styles.detailsContainer}>
-            {card.restaurantData ? (
+            {/* Tasting Notes */}
+            {card.restaurantData.tastingNotes && (
+              <View style={styles.detailBlock}>
+                <Text style={styles.label}>TASTING NOTES</Text>
+                <Text style={styles.valueText}>
+                  {card.restaurantData.tastingNotes.join(', ')}
+                </Text>
+              </View>
+            )}
+
+            {/* Ingredients */}
+            {card.restaurantData.ingredients?.length > 0 && (
+              <View style={styles.detailBlock}>
+                <Text style={styles.label}>INGREDIENTS</Text>
+                <View style={styles.ingredientList}>
+                  {card.restaurantData.ingredients.map((ing, i) => (
+                    <Text key={i} style={styles.ingredientItem}>• {ing}</Text>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* Allergens - Redesigned as Integrated Warning */}
+            {card.restaurantData.allergens && (
+              <View style={styles.allergenContainer}>
+                <Text style={styles.warningIcon}>⚠️</Text>
+                <Text style={styles.allergenText}>
+                  Contains: <Text style={styles.allergenBold}>{card.restaurantData.allergens.join(', ')}</Text>
+                </Text>
+              </View>
+            )}
+
+            {/* Maki-specific fields */}
+            {card.restaurantData.category === 'maki' && (
               <>
-                {/* Tasting Notes */}
-                {card.restaurantData.tastingNotes && (
+                {card.restaurantData.topping && (
                   <View style={styles.detailBlock}>
-                    <Text style={styles.label}>TASTING NOTES</Text>
+                    <Text style={styles.label}>TOPPING</Text>
                     <Text style={styles.valueText}>
-                      {card.restaurantData.tastingNotes.join(', ')}
+                      {card.restaurantData.topping}
                     </Text>
                   </View>
                 )}
 
-                {/* Ingredients */}
-                {card.restaurantData.ingredients?.length > 0 && (
+                {card.restaurantData.base && (
                   <View style={styles.detailBlock}>
-                    <Text style={styles.label}>INGREDIENTS</Text>
-                    <View style={styles.ingredientList}>
-                      {card.restaurantData.ingredients.map((ing, i) => (
-                        <Text key={i} style={styles.ingredientItem}>• {ing}</Text>
-                      ))}
-                    </View>
+                    <Text style={styles.label}>BASE</Text>
+                    <Text style={styles.valueText}>
+                      {card.restaurantData.base}
+                    </Text>
                   </View>
                 )}
 
-                {/* Allergens - Redesigned as Integrated Warning */}
-                {card.restaurantData.allergens && (
-                  <View style={styles.allergenContainer}>
-                    <Text style={styles.warningIcon}>⚠️</Text>
-                    <Text style={styles.allergenText}>
-                      Contains: <Text style={styles.allergenBold}>{card.restaurantData.allergens.join(', ')}</Text>
+                {card.restaurantData.sauce && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>SAUCE</Text>
+                    <Text style={styles.valueText}>
+                      {card.restaurantData.sauce}
+                    </Text>
+                  </View>
+                )}
+
+                {card.restaurantData.paper && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>PAPER</Text>
+                    <Text style={styles.valueText}>
+                      {card.restaurantData.paper}
+                    </Text>
+                  </View>
+                )}
+
+                {card.restaurantData.gluten && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>GLUTEN</Text>
+                    <Text style={styles.valueText}>
+                      {card.restaurantData.gluten === 'yes' ? 'Contains Gluten' :
+                       card.restaurantData.gluten === 'no' ? 'Gluten-Free' :
+                       'Gluten Optional'}
                     </Text>
                   </View>
                 )}
               </>
-            ) : (
-              <Text style={styles.backText}>{card.back}</Text>
             )}
           </View>
         )}

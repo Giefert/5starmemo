@@ -204,12 +204,10 @@ router.delete('/:id',
 router.post('/:id/cards',
   [
     param('id').isUUID(),
-    body('front').trim().isLength({ min: 1 }),
-    body('back').trim().isLength({ min: 1 }),
     body('order').optional().isInt({ min: 0 }),
     body('restaurantData').optional().isObject(),
     body('restaurantData.itemName').optional().trim().isLength({ min: 1 }),
-    body('restaurantData.category').optional().isIn(['food', 'wine', 'beer', 'cocktail', 'spirit', 'non-alcoholic'])
+    body('restaurantData.category').optional().isIn(['food', 'wine', 'beer', 'cocktail', 'spirit', 'non-alcoholic', 'maki'])
   ],
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -255,12 +253,10 @@ router.post('/:id/cards',
 router.put('/cards/:cardId',
   [
     param('cardId').isUUID(),
-    body('front').optional().trim().isLength({ min: 1 }),
-    body('back').optional().trim().isLength({ min: 1 }),
     body('order').optional().isInt({ min: 0 }),
     body('restaurantData').optional().isObject(),
     body('restaurantData.itemName').optional().trim().isLength({ min: 1 }),
-    body('restaurantData.category').optional().isIn(['food', 'wine', 'beer', 'cocktail', 'spirit', 'non-alcoholic'])
+    body('restaurantData.category').optional().isIn(['food', 'wine', 'beer', 'cocktail', 'spirit', 'non-alcoholic', 'maki'])
   ],
   async (req: AuthenticatedRequest, res: Response) => {
     try {

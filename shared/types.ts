@@ -55,8 +55,6 @@ export interface UpdateDeckInput extends Partial<CreateDeckInput> {}
 export interface Card {
   id: string;
   deckId: string;
-  front: string;
-  back: string;
   imageUrl?: string;
   order: number;
   createdAt: Date;
@@ -67,8 +65,8 @@ export interface Card {
 
 export interface RestaurantCardData {
   itemName: string;
-  category: 'food' | 'wine' | 'beer' | 'cocktail' | 'spirit' | 'non-alcoholic';
-  description: string;
+  category: 'food' | 'wine' | 'beer' | 'cocktail' | 'spirit' | 'non-alcoholic' | 'maki';
+  description?: string;
   ingredients?: string[];
   allergens?: string[];
   region?: string;
@@ -81,11 +79,15 @@ export interface RestaurantCardData {
   foodPairings?: string[];
   pricePoint?: 'budget' | 'mid-range' | 'premium' | 'luxury';
   specialNotes?: string;
+  // Maki-specific fields
+  topping?: string;
+  base?: string;
+  sauce?: string;
+  paper?: string;
+  gluten?: 'yes' | 'no' | 'optional';
 }
 
 export interface CreateCardInput {
-  front: string;
-  back: string;
   imageUrl?: string;
   order?: number;
   restaurantData?: RestaurantCardData;
