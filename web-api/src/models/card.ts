@@ -1,17 +1,34 @@
 import pool from '../config/database';
-import { Card, CreateCardInput, UpdateCardInput } from '../../../shared/types';
+import {
+  Card,
+  CreateCardInput,
+  UpdateCardInput,
+  RestaurantCardDataV2,
+  RestaurantCardData,
+  migrateToV2
+} from '../../../shared/types';
 
-// Helper function to safely parse restaurant data
-function parseRestaurantData(data: any) {
+// Helper function to safely parse restaurant data and migrate to V2
+function parseRestaurantData(data: any): RestaurantCardDataV2 | undefined {
   if (!data) return undefined;
+
+  let parsed: any;
   if (typeof data === 'string') {
     try {
-      return JSON.parse(data);
+      parsed = JSON.parse(data);
     } catch {
       return undefined;
     }
+  } else {
+    parsed = data;
   }
-  return data; // Already an object
+
+  // Migrate V1 format to V2 (strips category-incompatible fields)
+  if (parsed && parsed.category) {
+    return migrateToV2(parsed as RestaurantCardData);
+  }
+
+  return undefined;
 }
 
 export class CardModel {

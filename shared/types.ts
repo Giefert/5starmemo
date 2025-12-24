@@ -60,7 +60,7 @@ export interface Card {
   createdAt: Date;
   updatedAt: Date;
   // Restaurant-specific fields
-  restaurantData?: RestaurantCardData;
+  restaurantData?: RestaurantCardDataV2;
 }
 
 // Helper types for discriminated union
