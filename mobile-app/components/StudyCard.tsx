@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
-import { StudyCardData } from '../types/shared';
+import { StudyCardData, isMakiCard } from '../types/shared';
 
 interface StudyCardProps {
   cardData: StudyCardData;
@@ -11,9 +11,8 @@ interface StudyCardProps {
 export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFlip }) => {
   const { card } = cardData;
 
-  // Placeholder for image logic.
-  // Ideally, your cardData structure should eventually have an 'imageUrl' field.
-  const imageUrl = card.restaurantData?.imageUrl;
+  // Get image URL from card (not from restaurantData)
+  const imageUrl = card.imageUrl;
 
   return (
     <TouchableOpacity
@@ -53,40 +52,45 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
         {/* 4. Answer / Details */}
         {isFlipped && card.restaurantData && (
           <View style={styles.detailsContainer}>
-            {/* Tasting Notes */}
-            {card.restaurantData.tastingNotes && (
-              <View style={styles.detailBlock}>
-                <Text style={styles.label}>TASTING NOTES</Text>
-                <Text style={styles.valueText}>
-                  {card.restaurantData.tastingNotes.join(', ')}
-                </Text>
-              </View>
-            )}
+            {/* Food/Beverage fields (not shown for maki) */}
+            {!isMakiCard(card.restaurantData) && (
+              <>
+                {/* Tasting Notes */}
+                {card.restaurantData.tastingNotes && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>TASTING NOTES</Text>
+                    <Text style={styles.valueText}>
+                      {card.restaurantData.tastingNotes.join(', ')}
+                    </Text>
+                  </View>
+                )}
 
-            {/* Ingredients */}
-            {card.restaurantData.ingredients?.length > 0 && (
-              <View style={styles.detailBlock}>
-                <Text style={styles.label}>INGREDIENTS</Text>
-                <View style={styles.ingredientList}>
-                  {card.restaurantData.ingredients.map((ing, i) => (
-                    <Text key={i} style={styles.ingredientItem}>• {ing}</Text>
-                  ))}
-                </View>
-              </View>
-            )}
+                {/* Ingredients */}
+                {card.restaurantData.ingredients && card.restaurantData.ingredients.length > 0 && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>INGREDIENTS</Text>
+                    <View style={styles.ingredientList}>
+                      {card.restaurantData.ingredients.map((ing, i) => (
+                        <Text key={i} style={styles.ingredientItem}>• {ing}</Text>
+                      ))}
+                    </View>
+                  </View>
+                )}
 
-            {/* Allergens - Redesigned as Integrated Warning */}
-            {card.restaurantData.allergens && (
-              <View style={styles.allergenContainer}>
-                <Text style={styles.warningIcon}>⚠️</Text>
-                <Text style={styles.allergenText}>
-                  Contains: <Text style={styles.allergenBold}>{card.restaurantData.allergens.join(', ')}</Text>
-                </Text>
-              </View>
+                {/* Allergens - Redesigned as Integrated Warning */}
+                {card.restaurantData.allergens && (
+                  <View style={styles.allergenContainer}>
+                    <Text style={styles.warningIcon}>⚠️</Text>
+                    <Text style={styles.allergenText}>
+                      Contains: <Text style={styles.allergenBold}>{card.restaurantData.allergens.join(', ')}</Text>
+                    </Text>
+                  </View>
+                )}
+              </>
             )}
 
             {/* Maki-specific fields */}
-            {card.restaurantData.category === 'maki' && (
+            {isMakiCard(card.restaurantData) && (
               <>
                 {card.restaurantData.topping && (
                   <View style={styles.detailBlock}>
