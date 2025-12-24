@@ -63,6 +63,105 @@ export interface Card {
   restaurantData?: RestaurantCardData;
 }
 
+// Helper types for discriminated union
+export type RestaurantCategory = 'food' | 'wine' | 'beer' | 'cocktail' | 'spirit' | 'non-alcoholic' | 'maki';
+export type PricePoint = 'budget' | 'mid-range' | 'premium' | 'luxury';
+
+// V2: Discriminated Union Architecture
+// Base fields that apply to ALL categories
+interface BaseRestaurantCardData {
+  itemName: string;
+  category: RestaurantCategory;
+  description?: string;
+  pricePoint?: PricePoint;
+  specialNotes?: string;
+}
+
+// Category-specific data layers
+type FoodBeverageSharedFields = {
+  ingredients?: string[];
+  allergens?: string[];
+  region?: string;
+  producer?: string;
+  tastingNotes?: string[];
+  servingTemp?: string;
+  foodPairings?: string[];
+};
+
+type AlcoholicFields = {
+  abv?: number;
+};
+
+// Discriminated union cases
+export type FoodCardData = BaseRestaurantCardData &
+  FoodBeverageSharedFields & {
+    category: 'food';
+  };
+
+export type WineCardData = BaseRestaurantCardData &
+  FoodBeverageSharedFields &
+  AlcoholicFields & {
+    category: 'wine';
+    vintage?: number;
+    grapeVarieties?: string[];
+  };
+
+export type BeerCardData = BaseRestaurantCardData &
+  FoodBeverageSharedFields &
+  AlcoholicFields & {
+    category: 'beer';
+  };
+
+export type CocktailCardData = BaseRestaurantCardData &
+  FoodBeverageSharedFields &
+  AlcoholicFields & {
+    category: 'cocktail';
+  };
+
+export type SpiritCardData = BaseRestaurantCardData &
+  FoodBeverageSharedFields &
+  AlcoholicFields & {
+    category: 'spirit';
+  };
+
+export type NonAlcoholicCardData = BaseRestaurantCardData &
+  FoodBeverageSharedFields & {
+    category: 'non-alcoholic';
+  };
+
+export type MakiCardData = BaseRestaurantCardData & {
+  category: 'maki';
+  topping?: string;
+  base?: string;
+  sauce?: string;
+  paper?: string;
+  gluten?: 'yes' | 'no' | 'optional';
+};
+
+/**
+ * Restaurant card data using discriminated union pattern based on category.
+ *
+ * This ensures type safety: TypeScript prevents accessing wine-specific fields
+ * (like `vintage`) on maki cards, and vice versa.
+ *
+ * @example
+ * ```typescript
+ * if (isMakiCard(card.restaurantData)) {
+ *   // TypeScript knows `topping` exists
+ *   console.log(card.restaurantData.topping);
+ * }
+ * ```
+ */
+export type RestaurantCardDataV2 =
+  | FoodCardData
+  | WineCardData
+  | BeerCardData
+  | CocktailCardData
+  | SpiritCardData
+  | NonAlcoholicCardData
+  | MakiCardData;
+
+// V1: Monolithic interface (DEPRECATED - kept for backward compatibility during migration)
 export interface RestaurantCardData {
   itemName: string;
   category: 'food' | 'wine' | 'beer' | 'cocktail' | 'spirit' | 'non-alcoholic' | 'maki';
@@ -203,4 +302,121 @@ export interface StudyCardData {
   card: Card;
   fsrsData: FSRSCard;
   isNew: boolean;
+}
+
+// Type guards for RestaurantCardDataV2 discriminated union
+export function isMakiCard(data: RestaurantCardDataV2): data is MakiCardData {
+  return data.category === 'maki';
+}
+
+export function isWineCard(data: RestaurantCardDataV2): data is WineCardData {
+  return data.category === 'wine';
+}
+
+export function isFoodCard(data: RestaurantCardDataV2): data is FoodCardData {
+  return data.category === 'food';
+}
+
+export function isBeerCard(data: RestaurantCardDataV2): data is BeerCardData {
+  return data.category === 'beer';
+}
+
+export function isCocktailCard(data: RestaurantCardDataV2): data is CocktailCardData {
+  return data.category === 'cocktail';
+}
+
+export function isSpiritCard(data: RestaurantCardDataV2): data is SpiritCardData {
+  return data.category === 'spirit';
+}
+
+export function isNonAlcoholicCard(data: RestaurantCardDataV2): data is NonAlcoholicCardData {
+  return data.category === 'non-alcoholic';
+}
+
+export function isAlcoholicCard(
+  data: RestaurantCardDataV2
+): data is WineCardData | BeerCardData | CocktailCardData | SpiritCardData {
+  return ['wine', 'beer', 'cocktail', 'spirit'].includes(data.category);
+}
+
+// Migration helper: convert V1 to V2 (strips invalid category-specific fields)
+export function migrateToV2(v1: RestaurantCardData): RestaurantCardDataV2 {
+  const base = {
+    itemName: v1.itemName,
+    category: v1.category,
+    description: v1.description,
+    pricePoint: v1.pricePoint,
+    specialNotes: v1.specialNotes,
+  };
+
+  const foodBeverageShared = {
+    ingredients: v1.ingredients,
+    allergens: v1.allergens,
+    region: v1.region,
+    producer: v1.producer,
+    tastingNotes: v1.tastingNotes,
+    servingTemp: v1.servingTemp,
+    foodPairings: v1.foodPairings,
+  };
+
+  switch (v1.category) {
+    case 'maki':
+      return {
+        ...base,
+        category: 'maki',
+        topping: v1.topping,
+        base: v1.base,
+        sauce: v1.sauce,
+        paper: v1.paper,
+        gluten: v1.gluten,
+      };
+
+    case 'wine':
+      return {
+        ...base,
+        ...foodBeverageShared,
+        category: 'wine',
+        abv: v1.abv,
+        vintage: v1.vintage,
+        grapeVarieties: v1.grapeVarieties,
+      };
+
+    case 'beer':
+      return {
+        ...base,
+        ...foodBeverageShared,
+        category: 'beer',
+        abv: v1.abv,
+      };
+
+    case 'cocktail':
+      return {
+        ...base,
+        ...foodBeverageShared,
+        category: 'cocktail',
+        abv: v1.abv,
+      };
+
+    case 'spirit':
+      return {
+        ...base,
+        ...foodBeverageShared,
+        category: 'spirit',
+        abv: v1.abv,
+      };
+
+    case 'non-alcoholic':
+      return {
+        ...base,
+        ...foodBeverageShared,
+        category: 'non-alcoholic',
+      };
+
+    case 'food':
+      return {
+        ...base,
+        ...foodBeverageShared,
+        category: 'food',
+      };
+  }
 }
