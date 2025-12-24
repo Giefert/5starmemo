@@ -3,15 +3,21 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { RestaurantCardData } from '../../../shared/types';
+import {
+  RestaurantCardDataV2,
+  RestaurantCardData,
+  RestaurantCategory,
+  PricePoint,
+  migrateToV2
+} from '../../../shared/types';
 import { getImageUrl } from '@/lib/utils';
 import { ImagePreview } from '@/components/ui/ImagePreview';
 
 interface RestaurantCardFormProps {
-  onSubmit: (data: { restaurantData: RestaurantCardData; imageUrl?: string }) => Promise<void>;
+  onSubmit: (data: { restaurantData: RestaurantCardDataV2; imageUrl?: string }) => Promise<void>;
   onCancel: () => void;
   initialData?: {
-    restaurantData?: RestaurantCardData;
+    restaurantData?: RestaurantCardDataV2;
     imageUrl?: string;
   };
   isEditing?: boolean;
@@ -21,60 +27,63 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
   onSubmit,
   onCancel,
   initialData,
-  isEditing = false
+  isEditing = false,
 }) => {
+  // Type assertion helper for initializing from existing data
+  const initData = initialData?.restaurantData as any;
+
   // Restaurant-specific fields
-  const [itemName, setItemName] = useState(initialData?.restaurantData?.itemName || '');
-  const [category, setCategory] = useState<RestaurantCardData['category']>(
-    initialData?.restaurantData?.category || 'food'
+  const [itemName, setItemName] = useState(initData?.itemName || '');
+  const [category, setCategory] = useState<RestaurantCategory>(
+    initData?.category || 'food'
   );
-  const [description, setDescription] = useState(initialData?.restaurantData?.description || '');
+  const [description, setDescription] = useState(initData?.description || '');
   const [ingredients, setIngredients] = useState<string[]>(
-    initialData?.restaurantData?.ingredients || []
+    initData?.ingredients || []
   );
   const [allergens, setAllergens] = useState<string[]>(
-    initialData?.restaurantData?.allergens || []
+    initData?.allergens || []
   );
-  const [region, setRegion] = useState(initialData?.restaurantData?.region || '');
-  const [producer, setProducer] = useState(initialData?.restaurantData?.producer || '');
-  const [vintage, setVintage] = useState(initialData?.restaurantData?.vintage?.toString() || '');
-  const [abv, setAbv] = useState(initialData?.restaurantData?.abv?.toString() || '');
+  const [region, setRegion] = useState(initData?.region || '');
+  const [producer, setProducer] = useState(initData?.producer || '');
+  const [vintage, setVintage] = useState(initData?.vintage?.toString() || '');
+  const [abv, setAbv] = useState(initData?.abv?.toString() || '');
   const [grapeVarieties, setGrapeVarieties] = useState<string[]>(
-    initialData?.restaurantData?.grapeVarieties || []
+    initData?.grapeVarieties || []
   );
   const [tastingNotes, setTastingNotes] = useState<string[]>(
-    initialData?.restaurantData?.tastingNotes || []
+    initData?.tastingNotes || []
   );
-  const [servingTemp, setServingTemp] = useState(initialData?.restaurantData?.servingTemp || '');
+  const [servingTemp, setServingTemp] = useState(initData?.servingTemp || '');
   const [foodPairings, setFoodPairings] = useState<string[]>(
-    initialData?.restaurantData?.foodPairings || []
+    initData?.foodPairings || []
   );
-  
+
   // Raw input strings for array fields to preserve user input formatting
   const [ingredientsRaw, setIngredientsRaw] = useState(
-    initialData?.restaurantData?.ingredients?.join(', ') || ''
+    initData?.ingredients?.join(', ') || ''
   );
   const [allergensRaw, setAllergensRaw] = useState(
-    initialData?.restaurantData?.allergens?.join(', ') || ''
+    initData?.allergens?.join(', ') || ''
   );
   const [tastingNotesRaw, setTastingNotesRaw] = useState(
-    initialData?.restaurantData?.tastingNotes?.join(', ') || ''
+    initData?.tastingNotes?.join(', ') || ''
   );
   const [foodPairingsRaw, setFoodPairingsRaw] = useState(
-    initialData?.restaurantData?.foodPairings?.join(', ') || ''
+    initData?.foodPairings?.join(', ') || ''
   );
-  const [pricePoint, setPricePoint] = useState<RestaurantCardData['pricePoint']>(
-    initialData?.restaurantData?.pricePoint || 'mid-range'
+  const [pricePoint, setPricePoint] = useState<PricePoint>(
+    initData?.pricePoint || 'mid-range'
   );
-  const [specialNotes, setSpecialNotes] = useState(initialData?.restaurantData?.specialNotes || '');
+  const [specialNotes, setSpecialNotes] = useState(initData?.specialNotes || '');
 
   // Maki-specific fields
-  const [topping, setTopping] = useState(initialData?.restaurantData?.topping || '');
-  const [base, setBase] = useState(initialData?.restaurantData?.base || '');
-  const [sauce, setSauce] = useState(initialData?.restaurantData?.sauce || '');
-  const [paper, setPaper] = useState(initialData?.restaurantData?.paper || '');
-  const [gluten, setGluten] = useState<RestaurantCardData['gluten']>(
-    initialData?.restaurantData?.gluten || undefined
+  const [topping, setTopping] = useState(initData?.topping || '');
+  const [base, setBase] = useState(initData?.base || '');
+  const [sauce, setSauce] = useState(initData?.sauce || '');
+  const [paper, setPaper] = useState(initData?.paper || '');
+  const [gluten, setGluten] = useState<'yes' | 'no' | 'optional' | undefined>(
+    initData?.gluten || undefined
   );
 
   // Image fields
@@ -176,7 +185,8 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
         setIsUploading(false);
       }
 
-      const restaurantData: RestaurantCardData = {
+      // Build V1 format with all fields, then migrate to V2 (strips category-incompatible fields)
+      const restaurantDataV1: RestaurantCardData = {
         itemName: itemName.trim(),
         category,
         description: description.trim() || undefined,
@@ -199,6 +209,9 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
         paper: paper.trim() || undefined,
         gluten: gluten || undefined,
       };
+
+      // Migrate to V2: strips fields incompatible with selected category
+      const restaurantData = migrateToV2(restaurantDataV1);
 
       const submissionData: any = {
         restaurantData
@@ -272,7 +285,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
           </label>
           <select
             value={category}
-            onChange={(e) => setCategory(e.target.value as RestaurantCardData['category'])}
+            onChange={(e) => setCategory(e.target.value as RestaurantCategory)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             required
           >
@@ -507,7 +520,10 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
             </label>
             <select
               value={gluten || ''}
-              onChange={(e) => setGluten(e.target.value as RestaurantCardData['gluten'] | '')}
+              onChange={(e) => {
+                const value = e.target.value;
+                setGluten(value === '' ? undefined : value as 'yes' | 'no' | 'optional');
+              }}
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
               {glutenOptions.map(option => (
@@ -570,7 +586,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
             </label>
             <select
               value={pricePoint}
-              onChange={(e) => setPricePoint(e.target.value as RestaurantCardData['pricePoint'])}
+              onChange={(e) => setPricePoint(e.target.value as PricePoint)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
               {pricePointOptions.map(option => (

@@ -3,7 +3,7 @@
 import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { deckApi } from '@/lib/api';
-import { Deck, Card, RestaurantCardData } from '../../../../../../shared/types';
+import { Deck, Card, RestaurantCardDataV2 } from '../../../../../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft, Plus, Edit, Trash2 } from 'lucide-react';
@@ -77,12 +77,10 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
     }
   };
 
-  const handleCardSubmit = async (data: { front: string; back: string; restaurantData: RestaurantCardData; imageUrl?: string }) => {
+  const handleCardSubmit = async (data: { restaurantData: RestaurantCardDataV2; imageUrl?: string }) => {
     try {
       if (editingCard) {
         const updatedCard = await deckApi.updateCard(editingCard.id, {
-          front: data.front,
-          back: data.back,
           restaurantData: data.restaurantData,
           imageUrl: data.imageUrl
         });
@@ -92,8 +90,6 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
         } : null);
       } else {
         const newCard = await deckApi.addCard(resolvedParams.id, {
-          front: data.front,
-          back: data.back,
           restaurantData: data.restaurantData,
           imageUrl: data.imageUrl
         });
@@ -279,8 +275,6 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
                 onSubmit={handleCardSubmit}
                 onCancel={cancelCardEdit}
                 initialData={editingCard ? {
-                  front: editingCard.front,
-                  back: editingCard.back,
                   restaurantData: editingCard.restaurantData,
                   imageUrl: editingCard.imageUrl || ''
                 } : undefined}
@@ -350,45 +344,49 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
                       </div>
                     )}
 
-                    {card.restaurantData && (
-                      <div className="space-y-3">
-                        <div className="bg-blue-50 p-3 rounded-lg">
-                          <h4 className="text-sm font-semibold text-blue-900 mb-1">
-                            {card.restaurantData.itemName}
-                          </h4>
-                          {card.restaurantData.description && (
-                            <p className="text-sm text-blue-800">{card.restaurantData.description}</p>
-                          )}
-                        </div>
+                    {card.restaurantData && (() => {
+                      // Type assertion for display - backend already filtered invalid fields
+                      const data = card.restaurantData as any;
+                      return (
+                        <div className="space-y-3">
+                          <div className="bg-blue-50 p-3 rounded-lg">
+                            <h4 className="text-sm font-semibold text-blue-900 mb-1">
+                              {data.itemName}
+                            </h4>
+                            {data.description && (
+                              <p className="text-sm text-blue-800">{data.description}</p>
+                            )}
+                          </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                          {card.restaurantData.ingredients && (
-                            <div>
-                              <span className="font-medium text-gray-700">Ingredients:</span>
-                              <span className="text-gray-600 ml-1">{card.restaurantData.ingredients.join(', ')}</span>
-                            </div>
-                          )}
-                          {card.restaurantData.region && (
-                            <div>
-                              <span className="font-medium text-gray-700">Region:</span>
-                              <span className="text-gray-600 ml-1">{card.restaurantData.region}</span>
-                            </div>
-                          )}
-                          {card.restaurantData.abv && (
-                            <div>
-                              <span className="font-medium text-gray-700">ABV:</span>
-                              <span className="text-gray-600 ml-1">{card.restaurantData.abv}%</span>
-                            </div>
-                          )}
-                          {card.restaurantData.tastingNotes && (
-                            <div>
-                              <span className="font-medium text-gray-700">Tasting Notes:</span>
-                              <span className="text-gray-600 ml-1">{card.restaurantData.tastingNotes.join(', ')}</span>
-                            </div>
-                          )}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                            {data.ingredients && (
+                              <div>
+                                <span className="font-medium text-gray-700">Ingredients:</span>
+                                <span className="text-gray-600 ml-1">{data.ingredients.join(', ')}</span>
+                              </div>
+                            )}
+                            {data.region && (
+                              <div>
+                                <span className="font-medium text-gray-700">Region:</span>
+                                <span className="text-gray-600 ml-1">{data.region}</span>
+                              </div>
+                            )}
+                            {data.abv && (
+                              <div>
+                                <span className="font-medium text-gray-700">ABV:</span>
+                                <span className="text-gray-600 ml-1">{data.abv}%</span>
+                              </div>
+                            )}
+                            {data.tastingNotes && (
+                              <div>
+                                <span className="font-medium text-gray-700">Tasting Notes:</span>
+                                <span className="text-gray-600 ml-1">{data.tastingNotes.join(', ')}</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 ))}
               </div>
