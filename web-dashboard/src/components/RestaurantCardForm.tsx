@@ -365,7 +365,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
       </div>
 
       {/* Ingredients & Allergens */}
-      {category !== 'maki' && (
+      {category === 'wine' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -392,7 +392,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
       )}
 
       {/* Origin Information */}
-      {category !== 'maki' && (
+      {category === 'wine' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -537,7 +537,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
       )}
 
       {/* Tasting & Service */}
-      {category !== 'maki' && (
+      {category === 'wine' && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -578,7 +578,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
       )}
 
       {/* Price Point & Special Notes */}
-      {category !== 'maki' && (
+      {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -608,7 +608,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
             />
           </div>
         </div>
-      )}
+      }
 
       {/* Form Actions */}
       <div className="flex justify-end space-x-2">

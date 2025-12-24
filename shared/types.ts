@@ -93,10 +93,9 @@ type AlcoholicFields = {
 };
 
 // Discriminated union cases
-export type FoodCardData = BaseRestaurantCardData &
-  FoodBeverageSharedFields & {
-    category: 'food';
-  };
+export type FoodCardData = BaseRestaurantCardData & {
+  category: 'food';
+};
 
 export type WineCardData = BaseRestaurantCardData &
   FoodBeverageSharedFields &
@@ -107,27 +106,23 @@ export type WineCardData = BaseRestaurantCardData &
   };
 
 export type BeerCardData = BaseRestaurantCardData &
-  FoodBeverageSharedFields &
   AlcoholicFields & {
     category: 'beer';
   };
 
 export type CocktailCardData = BaseRestaurantCardData &
-  FoodBeverageSharedFields &
   AlcoholicFields & {
     category: 'cocktail';
   };
 
 export type SpiritCardData = BaseRestaurantCardData &
-  FoodBeverageSharedFields &
   AlcoholicFields & {
     category: 'spirit';
   };
 
-export type NonAlcoholicCardData = BaseRestaurantCardData &
-  FoodBeverageSharedFields & {
-    category: 'non-alcoholic';
-  };
+export type NonAlcoholicCardData = BaseRestaurantCardData & {
+  category: 'non-alcoholic';
+};
 
 export type MakiCardData = BaseRestaurantCardData & {
   category: 'maki';
