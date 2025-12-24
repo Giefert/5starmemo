@@ -3,7 +3,7 @@
 import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { deckApi } from '@/lib/api';
-import { Deck, Card, RestaurantCardDataV2 } from '../../../../../../shared/types';
+import { Deck, Card, RestaurantCardData } from '../../../../../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft, Plus, Edit, Trash2 } from 'lucide-react';
@@ -77,7 +77,7 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
     }
   };
 
-  const handleCardSubmit = async (data: { restaurantData: RestaurantCardDataV2; imageUrl?: string }) => {
+  const handleCardSubmit = async (data: { restaurantData: RestaurantCardData; imageUrl?: string }) => {
     try {
       if (editingCard) {
         const updatedCard = await deckApi.updateCard(editingCard.id, {

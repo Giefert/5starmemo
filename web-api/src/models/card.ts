@@ -3,13 +3,13 @@ import {
   Card,
   CreateCardInput,
   UpdateCardInput,
-  RestaurantCardDataV2,
   RestaurantCardData,
+  RestaurantCardDataV1,
   migrateToV2
 } from '../../../shared/types';
 
 // Helper function to safely parse restaurant data and migrate to V2
-function parseRestaurantData(data: any): RestaurantCardDataV2 | undefined {
+function parseRestaurantData(data: any): RestaurantCardData | undefined {
   if (!data) return undefined;
 
   let parsed: any;
@@ -25,7 +25,7 @@ function parseRestaurantData(data: any): RestaurantCardDataV2 | undefined {
 
   // Migrate V1 format to V2 (strips category-incompatible fields)
   if (parsed && parsed.category) {
-    return migrateToV2(parsed as RestaurantCardData);
+    return migrateToV2(parsed as RestaurantCardDataV1);
   }
 
   return undefined;

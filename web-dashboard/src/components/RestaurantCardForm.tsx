@@ -4,8 +4,8 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  RestaurantCardDataV2,
   RestaurantCardData,
+  RestaurantCardDataV1,
   RestaurantCategory,
   PricePoint,
   migrateToV2
@@ -14,10 +14,10 @@ import { getImageUrl } from '@/lib/utils';
 import { ImagePreview } from '@/components/ui/ImagePreview';
 
 interface RestaurantCardFormProps {
-  onSubmit: (data: { restaurantData: RestaurantCardDataV2; imageUrl?: string }) => Promise<void>;
+  onSubmit: (data: { restaurantData: RestaurantCardData; imageUrl?: string }) => Promise<void>;
   onCancel: () => void;
   initialData?: {
-    restaurantData?: RestaurantCardDataV2;
+    restaurantData?: RestaurantCardData;
     imageUrl?: string;
   };
   isEditing?: boolean;
