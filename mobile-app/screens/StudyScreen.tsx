@@ -269,9 +269,8 @@ const styles = StyleSheet.create({
   },
   cardArea: {
     flex: 1,
-    justifyContent: 'center',
     paddingHorizontal: 16, // Breathing room for the card
-    paddingBottom: 20,
+    paddingVertical: 40, // Equal spacing top and bottom
   },
   gradingZone: {
     paddingBottom: 20,

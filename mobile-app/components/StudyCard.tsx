@@ -20,38 +20,38 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
       onPress={() => onFlip?.()}
       activeOpacity={0.7}
     >
-
-      {/* 1. Reserved Square Image Space */}
-      {!isFlipped && (
-        <View style={styles.imagePlaceholder}>
-        {imageUrl ? (
-          <Image
-            source={{ uri: imageUrl }}
-            style={styles.cardImage}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={styles.emptyImageState}>
-            <Text style={styles.emptyImageText}>No Image</Text>
-          </View>
-        )}
-        </View>
-      )}
-
+      {/* 1. Title Section - Always at top with padding */}
       <View style={styles.contentPadding}>
-        {/* 2. Question / Title */}
         <View style={styles.headerContainer}>
           <Text style={styles.mainTitle}>
             {card.restaurantData?.itemName}
           </Text>
         </View>
-
-        {/* 3. Divider */}
         <View style={styles.divider} />
+      </View>
 
-        {/* 4. Answer / Details */}
-        {isFlipped && card.restaurantData && (
-          <View style={styles.detailsContainer}>
+      {/* 2. Image or Details - Fills remaining space */}
+      {!isFlipped ? (
+        // Image goes to bottom edge when not flipped
+        <View style={styles.imagePlaceholder}>
+          {imageUrl ? (
+            <Image
+              source={{ uri: imageUrl }}
+              style={styles.cardImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={styles.emptyImageState}>
+              <Text style={styles.emptyImageText}>No Image</Text>
+            </View>
+          )}
+        </View>
+      ) : (
+        // Details with padding when flipped - min height matches image square
+        card.restaurantData && (
+          <View style={styles.detailsMinHeight}>
+            <View style={styles.contentPadding}>
+              <View style={styles.detailsContainer}>
             {/* Food/Beverage fields (not shown for maki) */}
             {!isMakiCard(card.restaurantData) && (
               <>
@@ -140,9 +140,11 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                 )}
               </>
             )}
+            </View>
+            </View>
           </View>
-        )}
-      </View>
+        )
+      )}
     </TouchableOpacity>
   );
 };
@@ -158,6 +160,7 @@ const styles = StyleSheet.create({
     elevation: 4,
     overflow: 'hidden', // Ensures image stays within rounded corners
     width: '100%',
+    maxHeight: '100%', // Prevents overlap with rating buttons below
   },
   // The Reserved Square
   imagePlaceholder: {
@@ -166,6 +169,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0F0F0', // Placeholder color
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  detailsMinHeight: {
+    width: '100%',
+    aspectRatio: 1, // Minimum height matches image square, grows if content is taller
   },
   cardImage: {
     width: '100%',
