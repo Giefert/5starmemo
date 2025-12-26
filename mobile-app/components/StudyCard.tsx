@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { StudyCardData, isMakiCard } from '../types/shared';
+import { adjustUrlForPlatform } from '../utils/imageUrl';
 
 interface StudyCardProps {
   cardData: StudyCardData;
@@ -11,8 +12,8 @@ interface StudyCardProps {
 export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFlip }) => {
   const { card } = cardData;
 
-  // Get image URL from card (not from restaurantData)
-  const imageUrl = card.imageUrl;
+  // Get image URL from card and adjust for platform (Android emulator needs 10.0.2.2)
+  const imageUrl = adjustUrlForPlatform(card.imageUrl);
 
   return (
     <TouchableOpacity

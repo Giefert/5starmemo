@@ -53,6 +53,7 @@ services:
       DB_NAME: 5starmemo
       DB_USER: postgres
       DB_PASSWORD: password
+      WEB_API_URL: http://localhost:3001
     ports:
       - "3002:3002"
     depends_on:
