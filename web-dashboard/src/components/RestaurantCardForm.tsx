@@ -35,7 +35,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
   // Restaurant-specific fields
   const [itemName, setItemName] = useState(initData?.itemName || '');
   const [category, setCategory] = useState<RestaurantCategory>(
-    initData?.category || 'food'
+    initData?.category || 'maki'
   );
   const [description, setDescription] = useState(initData?.description || '');
   const [ingredients, setIngredients] = useState<string[]>(
@@ -237,13 +237,11 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
 
   const categoryOptions = [
     { value: 'maki', label: 'Maki' },
-    { value: 'food', label: 'Food' },
+    { value: 'sake', label: 'Sake' },
     { value: 'wine', label: 'Wine' },
-    { value: 'beer', label: 'Beer' },
     { value: 'cocktail', label: 'Cocktail' },
     { value: 'spirit', label: 'Spirit' },
-    { value: 'sake', label: 'Sake' },
-    { value: 'non-alcoholic', label: 'Non-Alcoholic' },
+    { value: 'beer', label: 'Beer' },
   ];
 
   const pricePointOptions = [

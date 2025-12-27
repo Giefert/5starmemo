@@ -13,17 +13,20 @@ COMMENT ON COLUMN cards.restaurant_data IS 'JSON data for restaurant-specific ca
 -- Example of restaurant_data structure (for documentation):
 /*
 {
-  "itemName": "Ribeye Steak",
-  "category": "food",
-  "description": "Prime cut ribeye steak grilled to perfection",
-  "ingredients": ["beef", "salt", "pepper", "garlic"],
-  "allergens": ["none"],
-  "region": "Texas",
-  "producer": "Local Ranch",
-  "tastingNotes": ["juicy", "tender", "smoky"],
-  "servingTemp": "Medium rare",
-  "foodPairings": ["red wine", "roasted vegetables"],
-  "pricePoint": "premium",
-  "specialNotes": "Dry aged 28 days"
+  "itemName": "Château Margaux 2015",
+  "category": "wine",
+  "description": "Elegant Bordeaux with rich tannins and complex fruit notes",
+  "ingredients": ["Cabernet Sauvignon", "Merlot", "Cabernet Franc"],
+  "allergens": ["sulfites"],
+  "region": "Bordeaux, France",
+  "producer": "Château Margaux",
+  "vintage": 2015,
+  "abv": 13.5,
+  "grapeVarieties": ["Cabernet Sauvignon", "Merlot"],
+  "tastingNotes": ["blackcurrant", "cedar", "tobacco"],
+  "servingTemp": "16-18°C",
+  "foodPairings": ["grilled lamb", "aged cheese"],
+  "pricePoint": "luxury",
+  "specialNotes": "Limited vintage"
 }
 */

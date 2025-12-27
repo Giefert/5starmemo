@@ -64,7 +64,7 @@ export interface Card {
 }
 
 // Helper types for discriminated union
-export type RestaurantCategory = 'food' | 'wine' | 'beer' | 'cocktail' | 'spirit' | 'non-alcoholic' | 'maki' | 'sake';
+export type RestaurantCategory = 'wine' | 'beer' | 'cocktail' | 'spirit' | 'maki' | 'sake';
 export type PricePoint = 'budget' | 'mid-range' | 'premium' | 'luxury';
 
 // V2: Discriminated Union Architecture
@@ -93,10 +93,6 @@ type AlcoholicFields = {
 };
 
 // Discriminated union cases
-export type FoodCardData = BaseRestaurantCardData & {
-  category: 'food';
-};
-
 export type WineCardData = BaseRestaurantCardData &
   FoodBeverageSharedFields &
   AlcoholicFields & {
@@ -119,10 +115,6 @@ export type SpiritCardData = BaseRestaurantCardData &
   AlcoholicFields & {
     category: 'spirit';
   };
-
-export type NonAlcoholicCardData = BaseRestaurantCardData & {
-  category: 'non-alcoholic';
-};
 
 export type MakiCardData = BaseRestaurantCardData & {
   category: 'maki';
@@ -163,12 +155,10 @@ export type SakeCardData = BaseRestaurantCardData &
  * ```
  */
 export type RestaurantCardData =
-  | FoodCardData
   | WineCardData
   | BeerCardData
   | CocktailCardData
   | SpiritCardData
-  | NonAlcoholicCardData
   | MakiCardData
   | SakeCardData;
 
@@ -185,7 +175,7 @@ export type RestaurantCardDataV2 = RestaurantCardData;
  */
 export interface RestaurantCardDataV1 {
   itemName: string;
-  category: 'food' | 'wine' | 'beer' | 'cocktail' | 'spirit' | 'non-alcoholic' | 'maki' | 'sake';
+  category: 'wine' | 'beer' | 'cocktail' | 'spirit' | 'maki' | 'sake';
   description?: string;
   ingredients?: string[];
   allergens?: string[];
@@ -334,10 +324,6 @@ export function isWineCard(data: RestaurantCardData): data is WineCardData {
   return data.category === 'wine';
 }
 
-export function isFoodCard(data: RestaurantCardData): data is FoodCardData {
-  return data.category === 'food';
-}
-
 export function isBeerCard(data: RestaurantCardData): data is BeerCardData {
   return data.category === 'beer';
 }
@@ -348,10 +334,6 @@ export function isCocktailCard(data: RestaurantCardData): data is CocktailCardDa
 
 export function isSpiritCard(data: RestaurantCardData): data is SpiritCardData {
   return data.category === 'spirit';
-}
-
-export function isNonAlcoholicCard(data: RestaurantCardData): data is NonAlcoholicCardData {
-  return data.category === 'non-alcoholic';
 }
 
 export function isSakeCard(data: RestaurantCardData): data is SakeCardData {
@@ -428,20 +410,6 @@ export function migrateToV2(v1: RestaurantCardDataV1): RestaurantCardData {
         ...foodBeverageShared,
         category: 'spirit',
         abv: v1.abv,
-      };
-
-    case 'non-alcoholic':
-      return {
-        ...base,
-        ...foodBeverageShared,
-        category: 'non-alcoholic',
-      };
-
-    case 'food':
-      return {
-        ...base,
-        ...foodBeverageShared,
-        category: 'food',
       };
 
     case 'sake':

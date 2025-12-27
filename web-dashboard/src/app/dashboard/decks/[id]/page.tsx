@@ -302,7 +302,6 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
                         <span className="text-sm text-gray-500">Card {index + 1}</span>
                         {card.restaurantData && (
                           <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                            card.restaurantData.category === 'food' ? 'bg-green-100 text-green-800' :
                             card.restaurantData.category === 'wine' ? 'bg-purple-100 text-purple-800' :
                             card.restaurantData.category === 'beer' ? 'bg-amber-100 text-amber-800' :
                             card.restaurantData.category === 'cocktail' ? 'bg-pink-100 text-pink-800' :
