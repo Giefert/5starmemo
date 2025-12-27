@@ -65,7 +65,7 @@ export interface Card {
 
 // Helper types for discriminated union
 export type RestaurantCategory = 'wine' | 'beer' | 'cocktail' | 'spirit' | 'maki' | 'sake';
-export type PricePoint = 'budget' | 'mid-range' | 'premium' | 'luxury';
+export type PricePoint = 'not-specified' | 'budget' | 'mid-range' | 'premium' | 'luxury';
 
 // V2: Discriminated Union Architecture
 // Base fields that apply to ALL categories
@@ -109,6 +109,8 @@ export type BeerCardData = BaseRestaurantCardData &
 export type CocktailCardData = BaseRestaurantCardData &
   AlcoholicFields & {
     category: 'cocktail';
+    alcohol?: string[];
+    other?: string[];
   };
 
 export type SpiritCardData = BaseRestaurantCardData &

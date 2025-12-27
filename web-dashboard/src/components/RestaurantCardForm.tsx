@@ -73,8 +73,14 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
   const [foodPairingsRaw, setFoodPairingsRaw] = useState(
     initData?.foodPairings?.join(', ') || ''
   );
+  const [alcoholRaw, setAlcoholRaw] = useState(
+    initData?.alcohol?.join(', ') || ''
+  );
+  const [otherRaw, setOtherRaw] = useState(
+    initData?.other?.join(', ') || ''
+  );
   const [pricePoint, setPricePoint] = useState<PricePoint>(
-    initData?.pricePoint || 'mid-range'
+    initData?.pricePoint || 'not-specified'
   );
   const [specialNotes, setSpecialNotes] = useState(initData?.specialNotes || '');
 
@@ -85,6 +91,14 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
   const [paper, setPaper] = useState(initData?.paper || '');
   const [gluten, setGluten] = useState<'yes' | 'no' | 'optional' | undefined>(
     initData?.gluten || undefined
+  );
+
+  // Cocktail-specific fields
+  const [alcohol, setAlcohol] = useState<string[]>(
+    initData?.alcohol || []
+  );
+  const [other, setOther] = useState<string[]>(
+    initData?.other || []
   );
 
   // Image fields
@@ -210,6 +224,9 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
         sauce: sauce.trim() || undefined,
         paper: paper.trim() || undefined,
         gluten: gluten || undefined,
+        // Cocktail-specific fields
+        alcohol: alcohol.length > 0 ? alcohol : undefined,
+        other: other.length > 0 ? other : undefined,
       };
 
       // Migrate to V2: strips fields incompatible with selected category
@@ -245,6 +262,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
   ];
 
   const pricePointOptions = [
+    { value: 'not-specified', label: 'Not specified' },
     { value: 'budget', label: 'Budget' },
     { value: 'mid-range', label: 'Mid-Range' },
     { value: 'premium', label: 'Premium' },
@@ -536,6 +554,33 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
                 </option>
               ))}
             </select>
+          </div>
+        </div>
+      )}
+
+      {/* Cocktail-specific fields */}
+      {category === 'cocktail' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Alcohol
+            </label>
+            <Input
+              value={alcoholRaw}
+              onChange={(e) => handleRawArrayInput(e.target.value, setAlcoholRaw, setAlcohol)}
+              placeholder="vodka, tequila, vermouth"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Other
+            </label>
+            <Input
+              value={otherRaw}
+              onChange={(e) => handleRawArrayInput(e.target.value, setOtherRaw, setOther)}
+              placeholder="simple syrup, cranberry juice"
+            />
           </div>
         </div>
       )}
