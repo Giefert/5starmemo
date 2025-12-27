@@ -64,7 +64,7 @@ export interface Card {
 }
 
 // Helper types for discriminated union
-export type RestaurantCategory = 'food' | 'wine' | 'beer' | 'cocktail' | 'spirit' | 'non-alcoholic' | 'maki';
+export type RestaurantCategory = 'food' | 'wine' | 'beer' | 'cocktail' | 'spirit' | 'non-alcoholic' | 'maki' | 'sake';
 export type PricePoint = 'budget' | 'mid-range' | 'premium' | 'luxury';
 
 // V2: Discriminated Union Architecture
@@ -133,6 +133,14 @@ export type MakiCardData = BaseRestaurantCardData & {
   gluten?: 'yes' | 'no' | 'optional';
 };
 
+export type SakeCardData = BaseRestaurantCardData &
+  FoodBeverageSharedFields &
+  AlcoholicFields & {
+    category: 'sake';
+    vintage?: number;
+    riceVariety?: string;
+  };
+
 /**
  * Restaurant card data using discriminated union pattern based on category.
  *
@@ -161,7 +169,8 @@ export type RestaurantCardData =
   | CocktailCardData
   | SpiritCardData
   | NonAlcoholicCardData
-  | MakiCardData;
+  | MakiCardData
+  | SakeCardData;
 
 // Alias for backward compatibility
 export type RestaurantCardDataV2 = RestaurantCardData;
@@ -176,7 +185,7 @@ export type RestaurantCardDataV2 = RestaurantCardData;
  */
 export interface RestaurantCardDataV1 {
   itemName: string;
-  category: 'food' | 'wine' | 'beer' | 'cocktail' | 'spirit' | 'non-alcoholic' | 'maki';
+  category: 'food' | 'wine' | 'beer' | 'cocktail' | 'spirit' | 'non-alcoholic' | 'maki' | 'sake';
   description?: string;
   ingredients?: string[];
   allergens?: string[];
@@ -195,6 +204,7 @@ export interface RestaurantCardDataV1 {
   sauce?: string;
   paper?: string;
   gluten?: 'yes' | 'no' | 'optional';
+  riceVariety?: string;
 }
 
 export interface CreateCardInput {
@@ -344,10 +354,14 @@ export function isNonAlcoholicCard(data: RestaurantCardData): data is NonAlcohol
   return data.category === 'non-alcoholic';
 }
 
+export function isSakeCard(data: RestaurantCardData): data is SakeCardData {
+  return data.category === 'sake';
+}
+
 export function isAlcoholicCard(
   data: RestaurantCardData
-): data is WineCardData | BeerCardData | CocktailCardData | SpiritCardData {
-  return ['wine', 'beer', 'cocktail', 'spirit'].includes(data.category);
+): data is WineCardData | BeerCardData | CocktailCardData | SpiritCardData | SakeCardData {
+  return ['wine', 'beer', 'cocktail', 'spirit', 'sake'].includes(data.category);
 }
 
 // Migration helper: convert V1 to V2 (strips invalid category-specific fields)
@@ -428,6 +442,16 @@ export function migrateToV2(v1: RestaurantCardDataV1): RestaurantCardData {
         ...base,
         ...foodBeverageShared,
         category: 'food',
+      };
+
+    case 'sake':
+      return {
+        ...base,
+        ...foodBeverageShared,
+        category: 'sake',
+        abv: v1.abv,
+        vintage: v1.vintage,
+        riceVariety: v1.riceVariety,
       };
   }
 }

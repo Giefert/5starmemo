@@ -51,6 +51,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
   const [grapeVarieties, setGrapeVarieties] = useState<string[]>(
     initData?.grapeVarieties || []
   );
+  const [riceVariety, setRiceVariety] = useState(initData?.riceVariety || '');
   const [tastingNotes, setTastingNotes] = useState<string[]>(
     initData?.tastingNotes || []
   );
@@ -197,6 +198,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
         vintage: vintage ? parseInt(vintage) : undefined,
         abv: abv ? parseFloat(abv) : undefined,
         grapeVarieties: grapeVarieties.length > 0 ? grapeVarieties : undefined,
+        riceVariety: riceVariety.trim() || undefined,
         tastingNotes: tastingNotes.length > 0 ? tastingNotes : undefined,
         servingTemp: servingTemp.trim() || undefined,
         foodPairings: foodPairings.length > 0 ? foodPairings : undefined,
@@ -240,6 +242,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
     { value: 'beer', label: 'Beer' },
     { value: 'cocktail', label: 'Cocktail' },
     { value: 'spirit', label: 'Spirit' },
+    { value: 'sake', label: 'Sake' },
     { value: 'non-alcoholic', label: 'Non-Alcoholic' },
   ];
 
@@ -257,7 +260,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
     { value: 'optional', label: 'Optional' },
   ];
 
-  const isAlcoholic = ['wine', 'beer', 'cocktail', 'spirit'].includes(category);
+  const isAlcoholic = ['wine', 'beer', 'cocktail', 'spirit', 'sake'].includes(category);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 p-6 border border-gray-200 rounded-lg bg-gray-50">
@@ -364,35 +367,8 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
         )}
       </div>
 
-      {/* Ingredients & Allergens */}
-      {category === 'wine' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Ingredients
-            </label>
-            <Input
-              value={ingredientsRaw}
-              onChange={(e) => handleRawArrayInput(e.target.value, setIngredientsRaw, setIngredients)}
-              placeholder="beef, garlic, rosemary (comma separated)"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Allergens
-            </label>
-            <Input
-              value={allergensRaw}
-              onChange={(e) => handleRawArrayInput(e.target.value, setAllergensRaw, setAllergens)}
-              placeholder="dairy, gluten, nuts (comma separated)"
-            />
-          </div>
-        </div>
-      )}
-
       {/* Origin Information */}
-      {category === 'wine' && (
+      {(category === 'wine' || category === 'sake') && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -401,18 +377,18 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
             <Input
               value={region}
               onChange={(e) => setRegion(e.target.value)}
-              placeholder="e.g., Tuscany, Scotland, Local Farm"
+              placeholder={category === 'sake' ? "e.g., Niigata, Yamagata, Hyogo" : "e.g., Tuscany, Scotland, Local Farm"}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Producer/Source
-            </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+              Producer
+              </label>
             <Input
               value={producer}
               onChange={(e) => setProducer(e.target.value)}
-              placeholder="e.g., Château Margaux, Highland Distillery"
+              placeholder={category === 'sake' ? "e.g., Dassai, Masumi, Hakkaisan" : "e.g., Château Margaux, Highland Distillery"}
             />
           </div>
         </div>
@@ -436,7 +412,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
             />
           </div>
 
-          {category === 'wine' && (
+          {(category === 'wine' || category === 'sake') && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Vintage
@@ -461,6 +437,19 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
                 value={grapeVarieties.join(', ')}
                 onChange={(e) => handleArrayInput(e.target.value, setGrapeVarieties)}
                 placeholder="Chardonnay, Pinot Noir (comma separated)"
+              />
+            </div>
+          )}
+
+          {category === 'sake' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Rice Variety
+              </label>
+              <Input
+                value={riceVariety}
+                onChange={(e) => setRiceVariety(e.target.value)}
+                placeholder="e.g., Yamada Nishiki, Gohyakumangoku"
               />
             </div>
           )}
@@ -537,7 +526,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
       )}
 
       {/* Tasting & Service */}
-      {category === 'wine' && (
+      {(category === 'wine' || category === 'sake') && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -547,7 +536,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
               <Input
                 value={tastingNotesRaw}
                 onChange={(e) => handleRawArrayInput(e.target.value, setTastingNotesRaw, setTastingNotes)}
-                placeholder="fruity, oaky, smooth (comma separated)"
+                placeholder={category === 'sake' ? "fruity, dry, umami, cereal (comma separated)" : "fruity, oaky, smooth (comma separated)"}
               />
             </div>
 
@@ -571,7 +560,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
             <Input
               value={foodPairingsRaw}
               onChange={(e) => handleRawArrayInput(e.target.value, setFoodPairingsRaw, setFoodPairings)}
-              placeholder="grilled salmon, aged cheese, dark chocolate (comma separated)"
+              placeholder={category === 'sake' ? "sashimi, tempura, yakitori, grilled fish (comma separated)" : "grilled salmon, aged cheese, dark chocolate (comma separated)"}
             />
           </div>
         </>
