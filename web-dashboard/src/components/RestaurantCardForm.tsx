@@ -547,7 +547,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
               <Input
                 value={servingTemp}
                 onChange={(e) => setServingTemp(e.target.value)}
-                placeholder="e.g., 55-60°F, Room temperature"
+                placeholder={category === 'sake' ? "e.g., 5-15°C (chilled), 40-45°C (warm)" : "e.g., 7-18°C, Room temperature"}
               />
             </div>
           </div>
