@@ -133,9 +133,9 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>GLUTEN</Text>
                     <Text style={styles.valueText}>
-                      {card.restaurantData.gluten === 'yes' ? 'Contains Gluten' :
-                       card.restaurantData.gluten === 'no' ? 'Gluten-Free' :
-                       'Gluten Optional'}
+                      {card.restaurantData.gluten === 'yes' ? 'Yes' :
+                       card.restaurantData.gluten === 'no' ? 'No' :
+                       'Optional'}
                     </Text>
                   </View>
                 )}
