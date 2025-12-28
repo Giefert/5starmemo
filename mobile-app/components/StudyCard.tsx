@@ -1,6 +1,15 @@
 import React from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
-import { StudyCardData, isMakiCard } from '../types/shared';
+import {
+  StudyCardData,
+  isMakiCard,
+  isSakeCard,
+  isWineCard,
+  isBeerCard,
+  isCocktailCard,
+  isSpiritCard,
+  isSauceCard
+} from '../types/shared';
 import { adjustUrlForPlatform } from '../utils/imageUrl';
 
 interface StudyCardProps {
@@ -53,16 +62,78 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
           <View style={styles.detailsMinHeight}>
             <View style={styles.contentPadding}>
               <View style={styles.detailsContainer}>
-            {/* Food/Beverage fields (not shown for maki) */}
-            {!isMakiCard(card.restaurantData) && (
+            {/* Sake-specific fields */}
+            {isSakeCard(card.restaurantData) && (
               <>
+                {/* Region/Origin */}
+                {card.restaurantData.region && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>REGION/ORIGIN</Text>
+                    <Text style={styles.valueText}>
+                      {card.restaurantData.region}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Producer */}
+                {card.restaurantData.producer && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>PRODUCER</Text>
+                    <Text style={styles.valueText}>
+                      {card.restaurantData.producer}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Rice Variety */}
+                {card.restaurantData.riceVariety && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>RICE VARIETY</Text>
+                    <Text style={styles.valueText}>
+                      {card.restaurantData.riceVariety}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Vintage */}
+                {card.restaurantData.vintage && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>VINTAGE</Text>
+                    <Text style={styles.valueText}>
+                      {card.restaurantData.vintage}
+                    </Text>
+                  </View>
+                )}
+
                 {/* Tasting Notes */}
-                {card.restaurantData.tastingNotes && (
+                {card.restaurantData.tastingNotes && card.restaurantData.tastingNotes.length > 0 && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>TASTING NOTES</Text>
                     <Text style={styles.valueText}>
                       {card.restaurantData.tastingNotes.join(', ')}
                     </Text>
+                  </View>
+                )}
+
+                {/* Serving Temperature */}
+                {card.restaurantData.servingTemp && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>SERVING TEMPERATURE</Text>
+                    <Text style={styles.valueText}>
+                      {card.restaurantData.servingTemp}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Food Pairings */}
+                {card.restaurantData.foodPairings && card.restaurantData.foodPairings.length > 0 && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>FOOD PAIRINGS</Text>
+                    <View style={styles.ingredientList}>
+                      {card.restaurantData.foodPairings.map((pairing, i) => (
+                        <Text key={i} style={styles.ingredientItem}>• {pairing}</Text>
+                      ))}
+                    </View>
                   </View>
                 )}
 
@@ -78,12 +149,200 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                   </View>
                 )}
 
-                {/* Allergens - Redesigned as Integrated Warning */}
-                {card.restaurantData.allergens && (
+                {/* Allergens */}
+                {card.restaurantData.allergens && card.restaurantData.allergens.length > 0 && (
                   <View style={styles.allergenContainer}>
                     <Text style={styles.warningIcon}>⚠️</Text>
                     <Text style={styles.allergenText}>
                       Contains: <Text style={styles.allergenBold}>{card.restaurantData.allergens.join(', ')}</Text>
+                    </Text>
+                  </View>
+                )}
+
+                {/* ABV */}
+                {card.restaurantData.abv !== undefined && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>ABV</Text>
+                    <Text style={styles.valueText}>
+                      {card.restaurantData.abv}%
+                    </Text>
+                  </View>
+                )}
+              </>
+            )}
+
+            {/* Wine-specific fields */}
+            {isWineCard(card.restaurantData) && (
+              <>
+                {/* Region */}
+                {card.restaurantData.region && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>REGION</Text>
+                    <Text style={styles.valueText}>
+                      {card.restaurantData.region}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Producer */}
+                {card.restaurantData.producer && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>PRODUCER</Text>
+                    <Text style={styles.valueText}>
+                      {card.restaurantData.producer}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Vintage */}
+                {card.restaurantData.vintage && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>VINTAGE</Text>
+                    <Text style={styles.valueText}>
+                      {card.restaurantData.vintage}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Grape Varieties */}
+                {card.restaurantData.grapeVarieties && card.restaurantData.grapeVarieties.length > 0 && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>GRAPE VARIETIES</Text>
+                    <Text style={styles.valueText}>
+                      {card.restaurantData.grapeVarieties.join(', ')}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Tasting Notes */}
+                {card.restaurantData.tastingNotes && card.restaurantData.tastingNotes.length > 0 && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>TASTING NOTES</Text>
+                    <Text style={styles.valueText}>
+                      {card.restaurantData.tastingNotes.join(', ')}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Serving Temperature */}
+                {card.restaurantData.servingTemp && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>SERVING TEMPERATURE</Text>
+                    <Text style={styles.valueText}>
+                      {card.restaurantData.servingTemp}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Food Pairings */}
+                {card.restaurantData.foodPairings && card.restaurantData.foodPairings.length > 0 && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>FOOD PAIRINGS</Text>
+                    <View style={styles.ingredientList}>
+                      {card.restaurantData.foodPairings.map((pairing, i) => (
+                        <Text key={i} style={styles.ingredientItem}>• {pairing}</Text>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* Ingredients */}
+                {card.restaurantData.ingredients && card.restaurantData.ingredients.length > 0 && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>INGREDIENTS</Text>
+                    <View style={styles.ingredientList}>
+                      {card.restaurantData.ingredients.map((ing, i) => (
+                        <Text key={i} style={styles.ingredientItem}>• {ing}</Text>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* Allergens */}
+                {card.restaurantData.allergens && card.restaurantData.allergens.length > 0 && (
+                  <View style={styles.allergenContainer}>
+                    <Text style={styles.warningIcon}>⚠️</Text>
+                    <Text style={styles.allergenText}>
+                      Contains: <Text style={styles.allergenBold}>{card.restaurantData.allergens.join(', ')}</Text>
+                    </Text>
+                  </View>
+                )}
+
+                {/* ABV */}
+                {card.restaurantData.abv !== undefined && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>ABV</Text>
+                    <Text style={styles.valueText}>
+                      {card.restaurantData.abv}%
+                    </Text>
+                  </View>
+                )}
+              </>
+            )}
+
+            {/* Beer-specific fields */}
+            {isBeerCard(card.restaurantData) && (
+              <>
+                {/* ABV */}
+                {card.restaurantData.abv !== undefined && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>ABV</Text>
+                    <Text style={styles.valueText}>
+                      {card.restaurantData.abv}%
+                    </Text>
+                  </View>
+                )}
+              </>
+            )}
+
+            {/* Cocktail-specific fields */}
+            {isCocktailCard(card.restaurantData) && (
+              <>
+                {/* Alcohol */}
+                {card.restaurantData.alcohol && card.restaurantData.alcohol.length > 0 && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>ALCOHOL</Text>
+                    <View style={styles.ingredientList}>
+                      {card.restaurantData.alcohol.map((alc, i) => (
+                        <Text key={i} style={styles.ingredientItem}>{alc}</Text>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* Other Ingredients */}
+                {card.restaurantData.other && card.restaurantData.other.length > 0 && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>OTHER INGREDIENTS</Text>
+                    <View style={styles.ingredientList}>
+                      {card.restaurantData.other.map((item, i) => (
+                        <Text key={i} style={styles.ingredientItem}>{item}</Text>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* ABV */}
+                {card.restaurantData.abv !== undefined && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>ABV</Text>
+                    <Text style={styles.valueText}>
+                      {card.restaurantData.abv}%
+                    </Text>
+                  </View>
+                )}
+              </>
+            )}
+
+            {/* Spirit-specific fields */}
+            {isSpiritCard(card.restaurantData) && (
+              <>
+                {/* ABV */}
+                {card.restaurantData.abv !== undefined && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>ABV</Text>
+                    <Text style={styles.valueText}>
+                      {card.restaurantData.abv}%
                     </Text>
                   </View>
                 )}
@@ -137,6 +396,23 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                        card.restaurantData.gluten === 'no' ? 'No' :
                        'Optional'}
                     </Text>
+                  </View>
+                )}
+              </>
+            )}
+
+            {/* Sauce-specific fields */}
+            {isSauceCard(card.restaurantData) && (
+              <>
+                {/* Ingredients */}
+                {card.restaurantData.ingredients && card.restaurantData.ingredients.length > 0 && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>INGREDIENTS</Text>
+                    <View style={styles.ingredientList}>
+                      {card.restaurantData.ingredients.map((ing, i) => (
+                        <Text key={i} style={styles.ingredientItem}>{ing}</Text>
+                      ))}
+                    </View>
                   </View>
                 )}
               </>

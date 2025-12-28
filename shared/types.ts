@@ -55,6 +55,8 @@ export interface UpdateDeckInput extends Partial<CreateDeckInput> {}
 export interface Card {
   id: string;
   deckId: string;
+  front?: string;
+  back?: string;
   imageUrl?: string;
   order: number;
   createdAt: Date;
@@ -64,7 +66,7 @@ export interface Card {
 }
 
 // Helper types for discriminated union
-export type RestaurantCategory = 'wine' | 'beer' | 'cocktail' | 'spirit' | 'maki' | 'sake';
+export type RestaurantCategory = 'wine' | 'beer' | 'cocktail' | 'spirit' | 'maki' | 'sake' | 'sauce';
 export type PricePoint = 'not-specified' | 'budget' | 'mid-range' | 'premium' | 'luxury';
 
 // V2: Discriminated Union Architecture
@@ -135,6 +137,11 @@ export type SakeCardData = BaseRestaurantCardData &
     riceVariety?: string;
   };
 
+export type SauceCardData = BaseRestaurantCardData & {
+  category: 'sauce';
+  ingredients?: string[];
+};
+
 /**
  * Restaurant card data using discriminated union pattern based on category.
  *
@@ -162,7 +169,8 @@ export type RestaurantCardData =
   | CocktailCardData
   | SpiritCardData
   | MakiCardData
-  | SakeCardData;
+  | SakeCardData
+  | SauceCardData;
 
 // Alias for backward compatibility
 export type RestaurantCardDataV2 = RestaurantCardData;
@@ -177,7 +185,7 @@ export type RestaurantCardDataV2 = RestaurantCardData;
  */
 export interface RestaurantCardDataV1 {
   itemName: string;
-  category: 'wine' | 'beer' | 'cocktail' | 'spirit' | 'maki' | 'sake';
+  category: 'wine' | 'beer' | 'cocktail' | 'spirit' | 'maki' | 'sake' | 'sauce';
   description?: string;
   ingredients?: string[];
   allergens?: string[];
@@ -189,7 +197,7 @@ export interface RestaurantCardDataV1 {
   tastingNotes?: string[];
   servingTemp?: string;
   foodPairings?: string[];
-  pricePoint?: 'budget' | 'mid-range' | 'premium' | 'luxury';
+  pricePoint?: 'not-specified' | 'budget' | 'mid-range' | 'premium' | 'luxury';
   specialNotes?: string;
   topping?: string;
   base?: string;
@@ -197,9 +205,13 @@ export interface RestaurantCardDataV1 {
   paper?: string;
   gluten?: 'yes' | 'no' | 'optional';
   riceVariety?: string;
+  alcohol?: string[];
+  other?: string[];
 }
 
 export interface CreateCardInput {
+  front?: string;
+  back?: string;
   imageUrl?: string;
   order?: number;
   restaurantData?: RestaurantCardData;
@@ -342,6 +354,10 @@ export function isSakeCard(data: RestaurantCardData): data is SakeCardData {
   return data.category === 'sake';
 }
 
+export function isSauceCard(data: RestaurantCardData): data is SauceCardData {
+  return data.category === 'sauce';
+}
+
 export function isAlcoholicCard(
   data: RestaurantCardData
 ): data is WineCardData | BeerCardData | CocktailCardData | SpiritCardData | SakeCardData {
@@ -401,9 +417,10 @@ export function migrateToV2(v1: RestaurantCardDataV1): RestaurantCardData {
     case 'cocktail':
       return {
         ...base,
-        ...foodBeverageShared,
         category: 'cocktail',
         abv: v1.abv,
+        alcohol: v1.alcohol,
+        other: v1.other,
       };
 
     case 'spirit':
@@ -422,6 +439,13 @@ export function migrateToV2(v1: RestaurantCardDataV1): RestaurantCardData {
         abv: v1.abv,
         vintage: v1.vintage,
         riceVariety: v1.riceVariety,
+      };
+
+    case 'sauce':
+      return {
+        ...base,
+        category: 'sauce',
+        ingredients: v1.ingredients,
       };
   }
 }

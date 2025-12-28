@@ -254,6 +254,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
 
   const categoryOptions = [
     { value: 'maki', label: 'Maki' },
+    { value: 'sauce', label: 'Sauce' },
     { value: 'sake', label: 'Sake' },
     { value: 'wine', label: 'Wine' },
     { value: 'cocktail', label: 'Cocktail' },
@@ -582,6 +583,20 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
               placeholder="simple syrup, cranberry juice"
             />
           </div>
+        </div>
+      )}
+
+      {/* Sauce-specific fields */}
+      {category === 'sauce' && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Ingredients
+          </label>
+          <Input
+            value={ingredientsRaw}
+            onChange={(e) => handleRawArrayInput(e.target.value, setIngredientsRaw, setIngredients)}
+            placeholder="tomatoes, garlic, basil (comma separated)"
+          />
         </div>
       )}
 
