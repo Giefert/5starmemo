@@ -51,6 +51,16 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
   const [grapeVarieties, setGrapeVarieties] = useState<string[]>(
     initData?.grapeVarieties || []
   );
+  const [appellation, setAppellation] = useState(initData?.appellation || '');
+  const [bodyLevel, setBodyLevel] = useState<number | undefined>(
+    initData?.bodyLevel
+  );
+  const [sweetnessLevel, setSweetnessLevel] = useState<number | undefined>(
+    initData?.sweetnessLevel
+  );
+  const [acidityLevel, setAcidityLevel] = useState<number | undefined>(
+    initData?.acidityLevel
+  );
   const [riceVariety, setRiceVariety] = useState(initData?.riceVariety || '');
   const [tastingNotes, setTastingNotes] = useState<string[]>(
     initData?.tastingNotes || []
@@ -212,6 +222,10 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
         vintage: vintage ? parseInt(vintage) : undefined,
         abv: abv ? parseFloat(abv) : undefined,
         grapeVarieties: grapeVarieties.length > 0 ? grapeVarieties : undefined,
+        appellation: appellation.trim() || undefined,
+        bodyLevel: bodyLevel,
+        sweetnessLevel: sweetnessLevel,
+        acidityLevel: acidityLevel,
         riceVariety: riceVariety.trim() || undefined,
         tastingNotes: tastingNotes.length > 0 ? tastingNotes : undefined,
         servingTemp: servingTemp.trim() || undefined,
@@ -490,6 +504,20 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
         </div>
       )}
 
+      {/* Wine-specific appellation field */}
+      {category === 'wine' && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Appellation
+          </label>
+          <Input
+            value={appellation}
+            onChange={(e) => setAppellation(e.target.value)}
+            placeholder="e.g., Napa Valley, Bordeaux AOC, Chianti Classico DOCG"
+          />
+        </div>
+      )}
+
       {/* Maki-specific fields */}
       {category === 'maki' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -626,6 +654,117 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
               />
             </div>
           </div>
+
+          {/* Wine Characteristic Meters */}
+          {category === 'wine' && (
+            <div className="space-y-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="text-sm font-semibold text-gray-700 mb-3">
+                Wine Characteristics (Optional)
+              </div>
+
+              {/* Body Level: Light to Bold */}
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500 min-w-[40px]">Light</span>
+                  <div className="flex gap-3 flex-1 justify-center">
+                    {[1, 2, 3, 4, 5].map((level) => (
+                      <label key={level} className="flex items-center cursor-pointer">
+                        <input
+                          type="radio"
+                          name="bodyLevel"
+                          value={level}
+                          checked={bodyLevel === level}
+                          onChange={() => setBodyLevel(level)}
+                          className="w-4 h-4 text-blue-600 cursor-pointer"
+                        />
+                        <span className="ml-1 text-xs text-gray-600">{level}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <span className="text-xs text-gray-500 min-w-[40px] text-right">Bold</span>
+                  <div className="ml-2 w-10">
+                    {bodyLevel && (
+                      <button
+                        type="button"
+                        onClick={() => setBodyLevel(undefined)}
+                        className="text-xs text-gray-400 hover:text-gray-600"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Sweetness Level: Dry to Sweet */}
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500 min-w-[40px]">Dry</span>
+                  <div className="flex gap-3 flex-1 justify-center">
+                    {[1, 2, 3, 4, 5].map((level) => (
+                      <label key={level} className="flex items-center cursor-pointer">
+                        <input
+                          type="radio"
+                          name="sweetnessLevel"
+                          value={level}
+                          checked={sweetnessLevel === level}
+                          onChange={() => setSweetnessLevel(level)}
+                          className="w-4 h-4 text-blue-600 cursor-pointer"
+                        />
+                        <span className="ml-1 text-xs text-gray-600">{level}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <span className="text-xs text-gray-500 min-w-[40px] text-right">Sweet</span>
+                  <div className="ml-2 w-10">
+                    {sweetnessLevel && (
+                      <button
+                        type="button"
+                        onClick={() => setSweetnessLevel(undefined)}
+                        className="text-xs text-gray-400 hover:text-gray-600"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Acidity Level: Soft to Acidic */}
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500 min-w-[40px]">Soft</span>
+                  <div className="flex gap-3 flex-1 justify-center">
+                    {[1, 2, 3, 4, 5].map((level) => (
+                      <label key={level} className="flex items-center cursor-pointer">
+                        <input
+                          type="radio"
+                          name="acidityLevel"
+                          value={level}
+                          checked={acidityLevel === level}
+                          onChange={() => setAcidityLevel(level)}
+                          className="w-4 h-4 text-blue-600 cursor-pointer"
+                        />
+                        <span className="ml-1 text-xs text-gray-600">{level}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <span className="text-xs text-gray-500 min-w-[40px] text-right">Acidic</span>
+                  <div className="ml-2 w-10">
+                    {acidityLevel && (
+                      <button
+                        type="button"
+                        onClick={() => setAcidityLevel(undefined)}
+                        className="text-xs text-gray-400 hover:text-gray-600"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Food Pairings */}
           <div>

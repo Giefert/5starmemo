@@ -18,6 +18,31 @@ interface StudyCardProps {
   onFlip?: () => void;
 }
 
+// Helper component to render wine characteristic meter bars
+const WineMeterBar: React.FC<{
+  level: number;
+  leftLabel: string;
+  rightLabel: string;
+}> = ({ level, leftLabel, rightLabel }) => {
+  return (
+    <View style={styles.meterRow}>
+      <Text style={styles.meterEndLabel}>{leftLabel}</Text>
+      <View style={styles.meterBarContainer}>
+        {[1, 2, 3, 4, 5].map((position) => (
+          <View
+            key={position}
+            style={[
+              styles.meterSegment,
+              position === level && styles.meterSegmentFilled
+            ]}
+          />
+        ))}
+      </View>
+      <Text style={styles.meterEndLabel}>{rightLabel}</Text>
+    </View>
+  );
+};
+
 export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFlip }) => {
   const { card } = cardData;
 
@@ -174,37 +199,32 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
             {/* Wine-specific fields */}
             {isWineCard(card.restaurantData) && (
               <>
-                {/* Region */}
-                {card.restaurantData.region && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>REGION</Text>
-                    <Text style={styles.valueText}>
-                      {card.restaurantData.region}
-                    </Text>
+                {/* Appellation & Vintage Row - FIRST */}
+                {(card.restaurantData.appellation || card.restaurantData.vintage) && (
+                  <View style={styles.rowContainer}>
+                    {/* Appellation - Left */}
+                    {card.restaurantData.appellation && (
+                      <View style={styles.columnBlock}>
+                        <Text style={styles.label}>APPELLATION</Text>
+                        <Text style={styles.valueText}>
+                          {card.restaurantData.appellation}
+                        </Text>
+                      </View>
+                    )}
+
+                    {/* Vintage - Right */}
+                    {card.restaurantData.vintage && (
+                      <View style={styles.columnBlock}>
+                        <Text style={styles.label}>VINTAGE</Text>
+                        <Text style={styles.valueText}>
+                          {card.restaurantData.vintage}
+                        </Text>
+                      </View>
+                    )}
                   </View>
                 )}
 
-                {/* Producer */}
-                {card.restaurantData.producer && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>PRODUCER</Text>
-                    <Text style={styles.valueText}>
-                      {card.restaurantData.producer}
-                    </Text>
-                  </View>
-                )}
-
-                {/* Vintage */}
-                {card.restaurantData.vintage && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>VINTAGE</Text>
-                    <Text style={styles.valueText}>
-                      {card.restaurantData.vintage}
-                    </Text>
-                  </View>
-                )}
-
-                {/* Grape Varieties */}
+                {/* Grape Varieties - SECOND */}
                 {card.restaurantData.grapeVarieties && card.restaurantData.grapeVarieties.length > 0 && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>GRAPE VARIETIES</Text>
@@ -214,12 +234,32 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                   </View>
                 )}
 
-                {/* Tasting Notes */}
+                {/* Tasting Notes - THIRD */}
                 {card.restaurantData.tastingNotes && card.restaurantData.tastingNotes.length > 0 && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>TASTING NOTES</Text>
                     <Text style={styles.valueText}>
                       {card.restaurantData.tastingNotes.join(', ')}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Region - FOURTH */}
+                {card.restaurantData.region && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>REGION</Text>
+                    <Text style={styles.valueText}>
+                      {card.restaurantData.region}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Producer - FIFTH */}
+                {card.restaurantData.producer && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>PRODUCER</Text>
+                    <Text style={styles.valueText}>
+                      {card.restaurantData.producer}
                     </Text>
                   </View>
                 )}
@@ -231,18 +271,6 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                     <Text style={styles.valueText}>
                       {card.restaurantData.servingTemp}
                     </Text>
-                  </View>
-                )}
-
-                {/* Food Pairings */}
-                {card.restaurantData.foodPairings && card.restaurantData.foodPairings.length > 0 && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>FOOD PAIRINGS</Text>
-                    <View style={styles.ingredientList}>
-                      {card.restaurantData.foodPairings.map((pairing, i) => (
-                        <Text key={i} style={styles.ingredientItem}>• {pairing}</Text>
-                      ))}
-                    </View>
                   </View>
                 )}
 
@@ -268,6 +296,18 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                   </View>
                 )}
 
+                {/* Food Pairings */}
+                {card.restaurantData.foodPairings && card.restaurantData.foodPairings.length > 0 && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>FOOD PAIRINGS</Text>
+                    <View style={styles.ingredientList}>
+                      {card.restaurantData.foodPairings.map((pairing, i) => (
+                        <Text key={i} style={styles.ingredientItem}>• {pairing}</Text>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
                 {/* ABV */}
                 {card.restaurantData.abv !== undefined && (
                   <View style={styles.detailBlock}>
@@ -275,6 +315,35 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                     <Text style={styles.valueText}>
                       {card.restaurantData.abv}%
                     </Text>
+                  </View>
+                )}
+
+                {/* Wine Characteristic Meters - At the very bottom */}
+                {(card.restaurantData.bodyLevel ||
+                  card.restaurantData.sweetnessLevel ||
+                  card.restaurantData.acidityLevel) && (
+                  <View style={styles.meterSection}>
+                    {card.restaurantData.bodyLevel && (
+                      <WineMeterBar
+                        level={card.restaurantData.bodyLevel}
+                        leftLabel="Light"
+                        rightLabel="Bold"
+                      />
+                    )}
+                    {card.restaurantData.sweetnessLevel && (
+                      <WineMeterBar
+                        level={card.restaurantData.sweetnessLevel}
+                        leftLabel="Dry"
+                        rightLabel="Sweet"
+                      />
+                    )}
+                    {card.restaurantData.acidityLevel && (
+                      <WineMeterBar
+                        level={card.restaurantData.acidityLevel}
+                        leftLabel="Soft"
+                        rightLabel="Acidic"
+                      />
+                    )}
                   </View>
                 )}
               </>
@@ -491,6 +560,14 @@ const styles = StyleSheet.create({
   detailBlock: {
     marginBottom: 4,
   },
+  rowContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 4,
+  },
+  columnBlock: {
+    flex: 1,
+  },
   label: {
     fontSize: 11,
     fontWeight: '700',
@@ -536,5 +613,37 @@ const styles = StyleSheet.create({
     fontSize: 18,
     textAlign: 'center',
     color: '#4B5563',
-  }
+  },
+  // Wine Meter Styles
+  meterSection: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+    gap: 6,
+  },
+  meterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  meterEndLabel: {
+    fontSize: 10,
+    color: '#6B7280',
+    minWidth: 32,
+  },
+  meterBarContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    height: 8,
+    gap: 2,
+  },
+  meterSegment: {
+    flex: 1,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 2,
+  },
+  meterSegmentFilled: {
+    backgroundColor: '#9CA3AF',
+  },
 });

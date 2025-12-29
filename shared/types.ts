@@ -101,6 +101,10 @@ export type WineCardData = BaseRestaurantCardData &
     category: 'wine';
     vintage?: number;
     grapeVarieties?: string[];
+    appellation?: string;
+    bodyLevel?: number;      // 1 = Light, 5 = Bold
+    sweetnessLevel?: number; // 1 = Dry, 5 = Sweet
+    acidityLevel?: number;   // 1 = Soft, 5 = Acidic
   };
 
 export type BeerCardData = BaseRestaurantCardData &
@@ -194,6 +198,10 @@ export interface RestaurantCardDataV1 {
   vintage?: number;
   abv?: number;
   grapeVarieties?: string[];
+  appellation?: string;
+  bodyLevel?: number;
+  sweetnessLevel?: number;
+  acidityLevel?: number;
   tastingNotes?: string[];
   servingTemp?: string;
   foodPairings?: string[];
@@ -404,6 +412,10 @@ export function migrateToV2(v1: RestaurantCardDataV1): RestaurantCardData {
         abv: v1.abv,
         vintage: v1.vintage,
         grapeVarieties: v1.grapeVarieties,
+        appellation: v1.appellation,
+        bodyLevel: v1.bodyLevel,
+        sweetnessLevel: v1.sweetnessLevel,
+        acidityLevel: v1.acidityLevel,
       };
 
     case 'beer':
