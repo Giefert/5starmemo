@@ -428,6 +428,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
 
 const styles = StyleSheet.create({
   cardContainer: {
+    flex: 1, // Expand to fill cardArea
     backgroundColor: '#FFFFFF',
     borderRadius: 24, // Softer, modern corners
     shadowColor: '#000',
@@ -437,19 +438,18 @@ const styles = StyleSheet.create({
     elevation: 4,
     overflow: 'hidden', // Ensures image stays within rounded corners
     width: '100%',
-    maxHeight: '100%', // Prevents overlap with rating buttons below
   },
-  // The Reserved Square
+  // Image container - expands to fill available space
   imagePlaceholder: {
+    flex: 1, // Grow to fill remaining space after title
     width: '100%',
-    aspectRatio: 1, // Forces a perfect square
     backgroundColor: '#F0F0F0', // Placeholder color
     justifyContent: 'center',
     alignItems: 'center',
   },
   detailsMinHeight: {
+    flex: 1, // Grow to fill remaining space after title
     width: '100%',
-    aspectRatio: 1, // Minimum height matches image square, grows if content is taller
   },
   cardImage: {
     width: '100%',
@@ -463,11 +463,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   contentPadding: {
-    padding: 24,
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 16,
   },
   headerContainer: {
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   mainTitle: {
     fontSize: 28,
@@ -481,7 +483,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0F0F0',
     width: '40%',
     alignSelf: 'center',
-    marginBottom: 20,
+    marginBottom: 12,
   },
   detailsContainer: {
     gap: 20, // Clean spacing between sections
