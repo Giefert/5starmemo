@@ -110,6 +110,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
   const [other, setOther] = useState<string[]>(
     initData?.other || []
   );
+  const [garnish, setGarnish] = useState(initData?.garnish || '');
 
   // Image fields
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -241,6 +242,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
         // Cocktail-specific fields
         alcohol: alcohol.length > 0 ? alcohol : undefined,
         other: other.length > 0 ? other : undefined,
+        garnish: garnish.trim() || undefined,
       };
 
       // Migrate to V2: strips fields incompatible with selected category
@@ -609,6 +611,17 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
               value={otherRaw}
               onChange={(e) => handleRawArrayInput(e.target.value, setOtherRaw, setOther)}
               placeholder="simple syrup, cranberry juice"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Garnish
+            </label>
+            <Input
+              value={garnish}
+              onChange={(e) => setGarnish(e.target.value)}
+              placeholder="e.g., lime wedge, mint sprig, olive"
             />
           </div>
         </div>

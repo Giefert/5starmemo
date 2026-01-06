@@ -117,6 +117,7 @@ export type CocktailCardData = BaseRestaurantCardData &
     category: 'cocktail';
     alcohol?: string[];
     other?: string[];
+    garnish?: string;
   };
 
 export type SpiritCardData = BaseRestaurantCardData &
@@ -215,6 +216,7 @@ export interface RestaurantCardDataV1 {
   riceVariety?: string;
   alcohol?: string[];
   other?: string[];
+  garnish?: string;
 }
 
 export interface CreateCardInput {
@@ -433,6 +435,7 @@ export function migrateToV2(v1: RestaurantCardDataV1): RestaurantCardData {
         abv: v1.abv,
         alcohol: v1.alcohol,
         other: v1.other,
+        garnish: v1.garnish,
       };
 
     case 'spirit':
