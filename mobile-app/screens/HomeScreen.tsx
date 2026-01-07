@@ -9,6 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 import { Deck } from '../types/shared';
 import apiService from '../services/api';
@@ -18,7 +19,8 @@ import { StudyCompletedScreen } from './StudyCompletedScreen';
 type ScreenState = 'home' | 'study' | 'completed';
 
 export const HomeScreen: React.FC = () => {
-  const insets = useSafeAreaInsets()
+  const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   const [decks, setDecks] = useState<Deck[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [screenState, setScreenState] = useState<ScreenState>('home');
@@ -28,11 +30,28 @@ export const HomeScreen: React.FC = () => {
     correct: number;
     total: number;
   } | null>(null);
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
 
   useEffect(() => {
     loadData();
   }, []);
+
+  // Hide tab bar during study sessions
+  useEffect(() => {
+    const shouldHideTabs = screenState === 'study' || screenState === 'completed';
+    navigation.setOptions({
+      tabBarStyle: shouldHideTabs
+        ? { display: 'none' }
+        : {
+            backgroundColor: '#fff',
+            borderTopWidth: 1,
+            borderTopColor: '#E5E5EA',
+            height: 60 + insets.bottom,
+            paddingBottom: insets.bottom,
+            paddingTop: 8,
+          },
+    });
+  }, [screenState, navigation, insets.bottom]);
 
   const loadData = async () => {
     try {
@@ -55,8 +74,9 @@ export const HomeScreen: React.FC = () => {
         console.error('Network error code:', error.code);
       }
       if (error && typeof error === 'object' && 'response' in error) {
-        console.error('API response status:', error.response?.status);
-        console.error('API response data:', error.response?.data);
+        const axiosError = error as any;
+        console.error('API response status:', axiosError.response?.status);
+        console.error('API response data:', axiosError.response?.data);
       }
       
       // Handle authentication errors by logging out
@@ -87,9 +107,12 @@ export const HomeScreen: React.FC = () => {
           default:
             alertMessage = `Network error (${error.code}): ${error instanceof Error ? error.message : 'Unknown error'}`;
         }
-      } else if (error && typeof error === 'object' && 'response' in error && error.response?.status) {
-        alertTitle = 'Server Error';
-        alertMessage = `Server returned error ${error.response.status}. Please try again later.`;
+      } else if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as any;
+        if (axiosError.response?.status) {
+          alertTitle = 'Server Error';
+          alertMessage = `Server returned error ${axiosError.response.status}. Please try again later.`;
+        }
       } else {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
         alertMessage = `Failed to load study data.\n\nError: ${errorMessage}`;
@@ -109,17 +132,6 @@ export const HomeScreen: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Logout', style: 'destructive', onPress: logout },
-      ]
-    );
   };
 
   const handleStartStudy = (deck: Deck) => {
@@ -178,51 +190,49 @@ export const HomeScreen: React.FC = () => {
   }
 
   return (
-    <ScrollView style={styles.container}>
-        <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <Text style={styles.greeting}>Hello, {user?.username}!</Text>
-        <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
+    <View style={styles.container}>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
+        <Text style={styles.title}>Study</Text>
       </View>
-
-      <View style={styles.decksContainer}>
-        <Text style={styles.sectionTitle}>Available Decks</Text>
-        {decks.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyStateText}>No decks available yet</Text>
-            <Text style={styles.emptyStateSubtext}>
-              Ask your instructor to create some study decks!
-            </Text>
-          </View>
-        ) : (
-          decks.map((deck) => (
-            <TouchableOpacity
-              key={deck.id}
-              style={styles.deckCard}
-              onPress={() => handleStartStudy(deck)}
-            >
-              <View style={styles.deckInfo}>
-                <View style={styles.deckTitleRow}>
-                  <Text style={styles.deckTitle}>{deck.title}</Text>
-                  {deck.isFeatured && (
-                    <View style={styles.featuredBadge}>
-                      <Text style={styles.featuredText}>Featured</Text>
-                    </View>
+      <ScrollView>
+        <View style={styles.decksContainer}>
+          <Text style={styles.sectionTitle}>Available Decks</Text>
+          {decks.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>No decks available yet</Text>
+              <Text style={styles.emptyStateSubtext}>
+                Ask your instructor to create some study decks!
+              </Text>
+            </View>
+          ) : (
+            decks.map((deck) => (
+              <TouchableOpacity
+                key={deck.id}
+                style={styles.deckCard}
+                onPress={() => handleStartStudy(deck)}
+              >
+                <View style={styles.deckInfo}>
+                  <View style={styles.deckTitleRow}>
+                    <Text style={styles.deckTitle}>{deck.title}</Text>
+                    {deck.isFeatured && (
+                      <View style={styles.featuredBadge}>
+                        <Text style={styles.featuredText}>Featured</Text>
+                      </View>
+                    )}
+                  </View>
+                  {deck.description && (
+                    <Text style={styles.deckDescription}>{deck.description}</Text>
                   )}
+                  <Text style={styles.deckStats}>
+                    {deck.cardCount || 0} cards • {deck.newCards || 0} new • {deck.reviewCards || 0} review
+                  </Text>
                 </View>
-                {deck.description && (
-                  <Text style={styles.deckDescription}>{deck.description}</Text>
-                )}
-                <Text style={styles.deckStats}>
-                  {deck.cardCount || 0} cards • {deck.newCards || 0} new • {deck.reviewCards || 0} review
-                </Text>
-              </View>
-            </TouchableOpacity>
-          ))
-        )}
-      </View>
-    </ScrollView>
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
+      </ScrollView>
+    </View>
   );
 };
 
@@ -243,31 +253,16 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     paddingHorizontal: 20,
     paddingBottom: 16,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: '#e0e0e0',
   },
-  greeting: {
-    fontSize: 24,
+  title: {
+    fontSize: 32,
     fontWeight: 'bold',
-    color: '#1a1a1a',
-  },
-  logoutButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#007AFF',
-  },
-  logoutText: {
-    color: '#007AFF',
-    fontSize: 14,
-    fontWeight: '600',
+    color: '#333',
   },
   sectionTitle: {
     fontSize: 20,
