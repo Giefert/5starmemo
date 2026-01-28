@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
@@ -17,6 +17,9 @@ interface RichTextEditorProps {
 }
 
 export function RichTextEditor({ value, onChange, placeholder, className }: RichTextEditorProps) {
+  // Force re-render on selection change so toolbar buttons reflect current formatting
+  const [, setSelectionKey] = useState(0);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -44,6 +47,10 @@ export function RichTextEditor({ value, onChange, placeholder, className }: Rich
     },
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML());
+    },
+    onSelectionUpdate: () => {
+      // Trigger re-render to update toolbar button states
+      setSelectionKey((k) => k + 1);
     },
   });
 
