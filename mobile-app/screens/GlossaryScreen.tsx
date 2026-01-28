@@ -9,15 +9,39 @@ import {
   ActivityIndicator,
   RefreshControl,
   ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import RenderHtml from 'react-native-render-html';
 import apiService from '../services/api';
 import { GlossaryCategory, GlossaryTermSummary, GlossaryTerm } from '../types/shared';
+
+// Strip HTML tags for plain text preview
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+}
+
+// Clean up HTML from TipTap - remove empty paragraphs and normalize list structure
+function cleanHtml(html: string): string {
+  return html
+    // Remove empty paragraphs
+    .replace(/<p><\/p>/g, '')
+    .replace(/<p>\s*<\/p>/g, '')
+    .replace(/<p><br\s*\/?><\/p>/g, '')
+    // Remove breaks right before list items
+    .replace(/<br\s*\/?>\s*<li>/g, '<li>')
+    // Remove paragraphs wrapping list item content (TipTap sometimes does this)
+    .replace(/<li><p>(.*?)<\/p><\/li>/g, '<li>$1</li>')
+    // Remove extra whitespace between tags
+    .replace(/>\s+</g, '><')
+    .trim();
+}
 
 type ViewState = 'list' | 'detail';
 
 export default function GlossaryScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
 
   // Data state
   const [categories, setCategories] = useState<GlossaryCategory[]>([]);
@@ -161,7 +185,7 @@ export default function GlossaryScreen() {
         )}
       </View>
       <Text style={styles.termDefinition} numberOfLines={2}>
-        {item.definition}
+        {stripHtml(item.definition)}
       </Text>
       {item.linkedCardCount > 0 && (
         <Text style={styles.termMeta}>
@@ -199,7 +223,34 @@ export default function GlossaryScreen() {
                 </Text>
               </View>
             )}
-            <Text style={styles.detailDefinition}>{selectedTerm.definition}</Text>
+            <RenderHtml
+              contentWidth={width - 40}
+              source={{ html: cleanHtml(selectedTerm.definition) }}
+              baseStyle={styles.detailDefinition}
+              tagsStyles={{
+                p: { marginVertical: 4 },
+                ul: { marginVertical: 8 },
+                li: { marginVertical: 4 },
+                strong: { fontWeight: '600' },
+                em: { fontStyle: 'italic' },
+                u: { textDecorationLine: 'underline' },
+                h1: { fontSize: 24, fontWeight: 'bold', marginVertical: 8 },
+                h2: { fontSize: 20, fontWeight: 'bold', marginVertical: 6 },
+                h3: { fontSize: 18, fontWeight: '600', marginVertical: 4 },
+              }}
+              renderersProps={{
+                ul: {
+                  markerBoxStyle: {
+                    top: 4,
+                  },
+                },
+                ol: {
+                  markerBoxStyle: {
+                    top: 4,
+                  },
+                },
+              }}
+            />
 
             {selectedTerm.linkedCards && selectedTerm.linkedCards.length > 0 && (
               <View style={styles.linkedCardsSection}>
