@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -30,6 +31,7 @@ export const HomeScreen: React.FC = () => {
     correct: number;
     total: number;
   } | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const { logout } = useAuth();
 
   useEffect(() => {
@@ -55,7 +57,7 @@ export const HomeScreen: React.FC = () => {
 
   const loadData = async () => {
     try {
-      setIsLoading(true);
+      if (!isRefreshing) setIsLoading(true);
       console.log('Loading study data...');
       const decksData = await apiService.getAvailableDecks();
       console.log('Data loaded successfully:', { decksData });
@@ -131,7 +133,13 @@ export const HomeScreen: React.FC = () => {
       );
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
+  };
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    loadData();
   };
 
   const handleStartStudy = (deck: Deck) => {
@@ -180,7 +188,7 @@ export const HomeScreen: React.FC = () => {
     );
   }
 
-  if (isLoading) {
+  if (isLoading && !isRefreshing) {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#007AFF" />
@@ -194,7 +202,11 @@ export const HomeScreen: React.FC = () => {
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <Text style={styles.title}>Study</Text>
       </View>
-      <ScrollView>
+      <ScrollView
+        refreshControl={
+          <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
+        }
+      >
         <View style={styles.decksContainer}>
           <Text style={styles.sectionTitle}>Available Decks</Text>
           {decks.length === 0 ? (
