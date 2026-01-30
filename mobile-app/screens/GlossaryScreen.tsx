@@ -30,8 +30,11 @@ function cleanHtml(html: string): string {
     .replace(/<p><br\s*\/?><\/p>/g, '')
     // Remove breaks right before list items
     .replace(/<br\s*\/?>\s*<li>/g, '<li>')
-    // Remove paragraphs wrapping list item content (TipTap sometimes does this)
-    .replace(/<li><p>(.*?)<\/p><\/li>/g, '<li>$1</li>')
+    // Remove paragraphs wrapping list item content (TipTap wraps content in <p> tags)
+    // Using separate replacements for opening and closing tags is more reliable
+    // than trying to match the full pattern with nested HTML content
+    .replace(/<li>\s*<p[^>]*>/g, '<li>')
+    .replace(/<\/p>\s*<\/li>/g, '</li>')
     // Remove extra whitespace between tags
     .replace(/>\s+</g, '><')
     .trim();
@@ -229,8 +232,8 @@ export default function GlossaryScreen() {
               baseStyle={styles.detailDefinition}
               tagsStyles={{
                 p: { marginVertical: 4 },
-                ul: { marginVertical: 8 },
-                li: { marginVertical: 4 },
+                ul: { marginVertical: 8, paddingLeft: 0 },
+                li: { marginVertical: 0, paddingVertical: 2 },
                 strong: { fontWeight: '600' },
                 em: { fontStyle: 'italic' },
                 u: { textDecorationLine: 'underline' },
@@ -241,12 +244,14 @@ export default function GlossaryScreen() {
               renderersProps={{
                 ul: {
                   markerBoxStyle: {
-                    top: 4,
+                    paddingTop: 2,
+                    paddingRight: 8,
                   },
                 },
                 ol: {
                   markerBoxStyle: {
-                    top: 4,
+                    paddingTop: 2,
+                    paddingRight: 8,
                   },
                 },
               }}
