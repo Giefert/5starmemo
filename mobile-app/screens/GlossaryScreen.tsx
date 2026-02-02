@@ -21,13 +21,13 @@ function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
 }
 
-// Clean up HTML from TipTap - remove empty paragraphs and normalize list structure
+// Clean up HTML from TipTap - preserve line breaks and normalize list structure
 function cleanHtml(html: string): string {
   return html
-    // Remove empty paragraphs
-    .replace(/<p><\/p>/g, '')
-    .replace(/<p>\s*<\/p>/g, '')
-    .replace(/<p><br\s*\/?><\/p>/g, '')
+    // Convert empty paragraphs to non-breaking space paragraphs to preserve line spacing
+    .replace(/<p><\/p>/g, '<p>&nbsp;</p>')
+    .replace(/<p>\s*<\/p>/g, '<p>&nbsp;</p>')
+    .replace(/<p><br\s*\/?><\/p>/g, '<p>&nbsp;</p>')
     // Remove breaks right before list items
     .replace(/<br\s*\/?>\s*<li>/g, '<li>')
     // Remove paragraphs wrapping list item content (TipTap wraps content in <p> tags)
