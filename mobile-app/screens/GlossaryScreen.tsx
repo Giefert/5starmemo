@@ -237,9 +237,9 @@ export default function GlossaryScreen() {
                 strong: { fontWeight: '600' },
                 em: { fontStyle: 'italic' },
                 u: { textDecorationLine: 'underline' },
-                h1: { fontSize: 24, fontWeight: 'bold', marginVertical: 8 },
-                h2: { fontSize: 20, fontWeight: 'bold', marginVertical: 6 },
-                h3: { fontSize: 18, fontWeight: '600', marginVertical: 4 },
+                h1: { fontSize: 31, fontWeight: 'bold', marginVertical: 8, lineHeight: 40 },
+                h2: { fontSize: 25, fontWeight: 'bold', marginVertical: 6, lineHeight: 32 },
+                h3: { fontSize: 20, fontWeight: '600', marginVertical: 4, lineHeight: 28 },
               }}
               renderersProps={{
                 ul: {
