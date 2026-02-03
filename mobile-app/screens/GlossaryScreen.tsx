@@ -12,18 +12,38 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import RenderHtml from 'react-native-render-html';
+import RenderHtml, {
+  HTMLElementModel,
+  HTMLContentModel,
+} from 'react-native-render-html';
 import apiService from '../services/api';
 import { GlossaryCategory, GlossaryTermSummary, GlossaryTerm } from '../types/shared';
+
+// Custom element model to ensure span is treated as textual/phrasing content
+const customHTMLElementModels = {
+  span: HTMLElementModel.fromCustomModel({
+    tagName: 'span',
+    contentModel: HTMLContentModel.textual,
+  }),
+};
 
 // Strip HTML tags for plain text preview
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
 }
 
+// Convert inline font-size styles to classes for reliable rendering
+function convertFontSizeToClass(html: string): string {
+  // Map pixel sizes to class names
+  return html
+    .replace(/style="[^"]*font-size:\s*32px[^"]*"/g, 'class="font-largest"')
+    .replace(/style="[^"]*font-size:\s*24px[^"]*"/g, 'class="font-larger"')
+    .replace(/style="[^"]*font-size:\s*20px[^"]*"/g, 'class="font-large"');
+}
+
 // Clean up HTML from TipTap - preserve line breaks and normalize list structure
 function cleanHtml(html: string): string {
-  return html
+  let cleaned = html
     // Convert empty paragraphs to non-breaking space paragraphs to preserve line spacing
     .replace(/<p><\/p>/g, '<p>&nbsp;</p>')
     .replace(/<p>\s*<\/p>/g, '<p>&nbsp;</p>')
@@ -38,6 +58,9 @@ function cleanHtml(html: string): string {
     // Remove extra whitespace between tags
     .replace(/>\s+</g, '><')
     .trim();
+  
+  // Convert inline font-size styles to classes
+  return convertFontSizeToClass(cleaned);
 }
 
 type ViewState = 'list' | 'detail';
@@ -230,6 +253,8 @@ export default function GlossaryScreen() {
               contentWidth={width - 40}
               source={{ html: cleanHtml(selectedTerm.definition) }}
               baseStyle={styles.detailDefinition}
+              enableExperimentalMarginCollapsing={true}
+              customHTMLElementModels={customHTMLElementModels}
               tagsStyles={{
                 p: { marginVertical: 4 },
                 ul: { marginVertical: 8, paddingLeft: 0 },
@@ -237,9 +262,15 @@ export default function GlossaryScreen() {
                 strong: { fontWeight: '600' },
                 em: { fontStyle: 'italic' },
                 u: { textDecorationLine: 'underline' },
+                // Keep heading support for backwards compatibility with existing content
                 h1: { fontSize: 31, fontWeight: 'bold', marginVertical: 8, lineHeight: 40 },
                 h2: { fontSize: 25, fontWeight: 'bold', marginVertical: 6, lineHeight: 32 },
                 h3: { fontSize: 20, fontWeight: '600', marginVertical: 4, lineHeight: 28 },
+              }}
+              classesStyles={{
+                'font-large': { fontSize: 20 },
+                'font-larger': { fontSize: 24 },
+                'font-largest': { fontSize: 32 },
               }}
               renderersProps={{
                 ul: {

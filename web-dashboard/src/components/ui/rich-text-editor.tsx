@@ -5,9 +5,64 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import { TextStyle } from '@tiptap/extension-text-style';
+import { Extension } from '@tiptap/core';
 import Placeholder from '@tiptap/extension-placeholder';
 import { Bold, Italic, Underline as UnderlineIcon, List } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+// Custom FontSize extension for inline font-size styling
+const FontSize = Extension.create({
+  name: 'fontSize',
+
+  addOptions() {
+    return {
+      types: ['textStyle'],
+    };
+  },
+
+  addGlobalAttributes() {
+    return [
+      {
+        types: this.options.types,
+        attributes: {
+          fontSize: {
+            default: null,
+            parseHTML: element => element.style.fontSize?.replace(/['"]+/g, '') || null,
+            renderHTML: attributes => {
+              if (!attributes.fontSize) {
+                return {};
+              }
+              return {
+                style: `font-size: ${attributes.fontSize}`,
+              };
+            },
+          },
+        },
+      },
+    ];
+  },
+
+  addCommands() {
+    return {
+      setFontSize: (fontSize: string) => ({ chain }) => {
+        return chain().setMark('textStyle', { fontSize }).run();
+      },
+      unsetFontSize: () => ({ chain }) => {
+        return chain().setMark('textStyle', { fontSize: null }).removeEmptyTextStyle().run();
+      },
+    };
+  },
+});
+
+// Extend TipTap's Commands interface
+declare module '@tiptap/core' {
+  interface Commands<ReturnType> {
+    fontSize: {
+      setFontSize: (fontSize: string) => ReturnType;
+      unsetFontSize: () => ReturnType;
+    };
+  }
+}
 
 interface RichTextEditorProps {
   value: string;
@@ -15,6 +70,13 @@ interface RichTextEditorProps {
   placeholder?: string;
   className?: string;
 }
+
+const FONT_SIZES = [
+  { label: 'Normal', value: '' },
+  { label: 'Large', value: '20px' },
+  { label: 'Larger', value: '24px' },
+  { label: 'Largest', value: '32px' },
+];
 
 export function RichTextEditor({ value, onChange, placeholder, className }: RichTextEditorProps) {
   // Force re-render on selection change so toolbar buttons reflect current formatting
@@ -28,12 +90,11 @@ export function RichTextEditor({ value, onChange, placeholder, className }: Rich
             class: 'list-disc pl-4',
           },
         },
-        heading: {
-          levels: [1, 2, 3],
-        },
+        heading: false, // Disable headings since we use inline font sizes
       }),
       Underline,
       TextStyle,
+      FontSize,
       Placeholder.configure({
         placeholder: placeholder || 'Start typing...',
       }),
@@ -60,6 +121,13 @@ export function RichTextEditor({ value, onChange, placeholder, className }: Rich
       editor.commands.setContent(value);
     }
   }, [editor, value]);
+
+  // Get the current font size from the selection
+  const getCurrentFontSize = () => {
+    if (!editor) return '';
+    const attrs = editor.getAttributes('textStyle');
+    return attrs.fontSize || '';
+  };
 
   if (!editor) {
     return (
@@ -118,24 +186,21 @@ export function RichTextEditor({ value, onChange, placeholder, className }: Rich
         <select
           className="text-sm border border-gray-300 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
           onChange={(e) => {
-            const level = parseInt(e.target.value);
-            if (level === 0) {
-              editor.chain().focus().setParagraph().run();
+            const size = e.target.value;
+            if (size === '') {
+              editor.chain().focus().unsetFontSize().run();
             } else {
-              editor.chain().focus().toggleHeading({ level: level as 1 | 2 | 3 }).run();
+              editor.chain().focus().setFontSize(size).run();
             }
           }}
-          value={
-            editor.isActive('heading', { level: 1 }) ? '1' :
-            editor.isActive('heading', { level: 2 }) ? '2' :
-            editor.isActive('heading', { level: 3 }) ? '3' : '0'
-          }
+          value={getCurrentFontSize()}
           title="Font Size"
         >
-          <option value="0">Normal</option>
-          <option value="3">Large</option>
-          <option value="2">Larger</option>
-          <option value="1">Largest</option>
+          {FONT_SIZES.map((size) => (
+            <option key={size.value} value={size.value}>
+              {size.label}
+            </option>
+          ))}
         </select>
       </div>
 
