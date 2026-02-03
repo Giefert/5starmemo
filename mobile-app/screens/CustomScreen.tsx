@@ -2,17 +2,17 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-export default function ProfileScreen() {
+export default function CustomScreen() {
   const insets = useSafeAreaInsets();
 
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <Text style={styles.title}>Profile</Text>
+        <Text style={styles.title}>Custom</Text>
       </View>
       <View style={styles.content}>
         <Text style={styles.placeholder}>
-          Your stats and progress will appear here
+          Create a custom study session here
         </Text>
       </View>
     </View>
