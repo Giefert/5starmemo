@@ -18,6 +18,21 @@ interface StudyCardProps {
   onFlip?: () => void;
 }
 
+// Helper to render text with *highlighted* terms
+const HighlightedText: React.FC<{ text: string; style: any; key?: React.Key }> = ({ text, style }) => {
+  const parts = text.split(/\*(.*?)\*/g);
+  if (parts.length === 1) return <Text style={style}>{text}</Text>;
+  return (
+    <Text style={style}>
+      {parts.map((part, i) =>
+        i % 2 === 1
+          ? <Text key={i} style={styles.highlight}>{part}</Text>
+          : part
+      )}
+    </Text>
+  );
+};
+
 // Helper component to render wine characteristic meter bars
 const WineMeterBar: React.FC<{
   level: number;
@@ -94,9 +109,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                 {card.restaurantData.tastingNotes && card.restaurantData.tastingNotes.length > 0 && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>TASTING NOTES</Text>
-                    <Text style={styles.valueText}>
-                      {card.restaurantData.tastingNotes.join(', ')}
-                    </Text>
+                    <HighlightedText text={card.restaurantData.tastingNotes.join(', ')} style={styles.valueText} />
                   </View>
                 )}
 
@@ -104,9 +117,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                 {card.restaurantData.riceVariety && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>RICE VARIETY</Text>
-                    <Text style={styles.valueText}>
-                      {card.restaurantData.riceVariety}
-                    </Text>
+                    <HighlightedText text={card.restaurantData.riceVariety} style={styles.valueText} />
                   </View>
                 )}
 
@@ -114,9 +125,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                 {card.restaurantData.region && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>REGION/ORIGIN</Text>
-                    <Text style={styles.valueText}>
-                      {card.restaurantData.region}
-                    </Text>
+                    <HighlightedText text={card.restaurantData.region} style={styles.valueText} />
                   </View>
                 )}
 
@@ -124,9 +133,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                 {card.restaurantData.producer && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>PRODUCER</Text>
-                    <Text style={styles.valueText}>
-                      {card.restaurantData.producer}
-                    </Text>
+                    <HighlightedText text={card.restaurantData.producer} style={styles.valueText} />
                   </View>
                 )}
 
@@ -134,9 +141,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                 {card.restaurantData.vintage && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>VINTAGE</Text>
-                    <Text style={styles.valueText}>
-                      {card.restaurantData.vintage}
-                    </Text>
+                    <HighlightedText text={card.restaurantData.vintage} style={styles.valueText} />
                   </View>
                 )}
 
@@ -144,9 +149,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                 {card.restaurantData.servingTemp && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>SERVING TEMPERATURE</Text>
-                    <Text style={styles.valueText}>
-                      {card.restaurantData.servingTemp}
-                    </Text>
+                    <HighlightedText text={card.restaurantData.servingTemp} style={styles.valueText} />
                   </View>
                 )}
 
@@ -156,7 +159,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                     <Text style={styles.label}>FOOD PAIRINGS</Text>
                     <View style={styles.ingredientList}>
                       {card.restaurantData.foodPairings.map((pairing, i) => (
-                        <Text key={i} style={styles.ingredientItem}>• {pairing}</Text>
+                        <HighlightedText key={i} text={`• ${pairing}`} style={styles.ingredientItem} />
                       ))}
                     </View>
                   </View>
@@ -168,7 +171,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                     <Text style={styles.label}>INGREDIENTS</Text>
                     <View style={styles.ingredientList}>
                       {card.restaurantData.ingredients.map((ing, i) => (
-                        <Text key={i} style={styles.ingredientItem}>• {ing}</Text>
+                        <HighlightedText key={i} text={`• ${ing}`} style={styles.ingredientItem} />
                       ))}
                     </View>
                   </View>
@@ -179,7 +182,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                   <View style={styles.allergenContainer}>
                     <Text style={styles.warningIcon}>⚠️</Text>
                     <Text style={styles.allergenText}>
-                      Contains: <Text style={styles.allergenBold}>{card.restaurantData.allergens.join(', ')}</Text>
+                      Contains: <HighlightedText text={card.restaurantData.allergens.join(', ')} style={styles.allergenBold} />
                     </Text>
                   </View>
                 )}
@@ -203,9 +206,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                 {card.restaurantData.tastingNotes && card.restaurantData.tastingNotes.length > 0 && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>TASTING NOTES</Text>
-                    <Text style={styles.valueText}>
-                      {card.restaurantData.tastingNotes.join(', ')}
-                    </Text>
+                    <HighlightedText text={card.restaurantData.tastingNotes.join(', ')} style={styles.valueText} />
                   </View>
                 )}
 
@@ -216,9 +217,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                     {card.restaurantData.appellation && (
                       <View style={styles.columnBlock}>
                         <Text style={styles.label}>APPELLATION</Text>
-                        <Text style={styles.valueText}>
-                          {card.restaurantData.appellation}
-                        </Text>
+                        <HighlightedText text={card.restaurantData.appellation} style={styles.valueText} />
                       </View>
                     )}
 
@@ -226,9 +225,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                     {card.restaurantData.vintage && (
                       <View style={styles.columnBlock}>
                         <Text style={styles.label}>VINTAGE</Text>
-                        <Text style={styles.valueText}>
-                          {card.restaurantData.vintage}
-                        </Text>
+                        <HighlightedText text={card.restaurantData.vintage} style={styles.valueText} />
                       </View>
                     )}
                   </View>
@@ -238,9 +235,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                 {card.restaurantData.grapeVarieties && card.restaurantData.grapeVarieties.length > 0 && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>GRAPE VARIETIES</Text>
-                    <Text style={styles.valueText}>
-                      {card.restaurantData.grapeVarieties.join(', ')}
-                    </Text>
+                    <HighlightedText text={card.restaurantData.grapeVarieties.join(', ')} style={styles.valueText} />
                   </View>
                 )}
 
@@ -248,9 +243,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                 {card.restaurantData.region && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>REGION</Text>
-                    <Text style={styles.valueText}>
-                      {card.restaurantData.region}
-                    </Text>
+                    <HighlightedText text={card.restaurantData.region} style={styles.valueText} />
                   </View>
                 )}
 
@@ -258,9 +251,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                 {card.restaurantData.producer && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>PRODUCER</Text>
-                    <Text style={styles.valueText}>
-                      {card.restaurantData.producer}
-                    </Text>
+                    <HighlightedText text={card.restaurantData.producer} style={styles.valueText} />
                   </View>
                 )}
 
@@ -268,9 +259,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                 {card.restaurantData.servingTemp && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>SERVING TEMPERATURE</Text>
-                    <Text style={styles.valueText}>
-                      {card.restaurantData.servingTemp}
-                    </Text>
+                    <HighlightedText text={card.restaurantData.servingTemp} style={styles.valueText} />
                   </View>
                 )}
 
@@ -280,7 +269,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                     <Text style={styles.label}>INGREDIENTS</Text>
                     <View style={styles.ingredientList}>
                       {card.restaurantData.ingredients.map((ing, i) => (
-                        <Text key={i} style={styles.ingredientItem}>• {ing}</Text>
+                        <HighlightedText key={i} text={`• ${ing}`} style={styles.ingredientItem} />
                       ))}
                     </View>
                   </View>
@@ -291,7 +280,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                   <View style={styles.allergenContainer}>
                     <Text style={styles.warningIcon}>⚠️</Text>
                     <Text style={styles.allergenText}>
-                      Contains: <Text style={styles.allergenBold}>{card.restaurantData.allergens.join(', ')}</Text>
+                      Contains: <HighlightedText text={card.restaurantData.allergens.join(', ')} style={styles.allergenBold} />
                     </Text>
                   </View>
                 )}
@@ -302,7 +291,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                     <Text style={styles.label}>FOOD PAIRINGS</Text>
                     <View style={styles.ingredientList}>
                       {card.restaurantData.foodPairings.map((pairing, i) => (
-                        <Text key={i} style={styles.ingredientItem}>• {pairing}</Text>
+                        <HighlightedText key={i} text={`• ${pairing}`} style={styles.ingredientItem} />
                       ))}
                     </View>
                   </View>
@@ -373,7 +362,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                     <Text style={styles.label}>ALCOHOL</Text>
                     <View style={styles.ingredientList}>
                       {card.restaurantData.alcohol.map((alc, i) => (
-                        <Text key={i} style={styles.ingredientItem}>{alc}</Text>
+                        <HighlightedText key={i} text={alc} style={styles.ingredientItem} />
                       ))}
                     </View>
                   </View>
@@ -385,7 +374,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                     <Text style={styles.label}>OTHER INGREDIENTS</Text>
                     <View style={styles.ingredientList}>
                       {card.restaurantData.other.map((item, i) => (
-                        <Text key={i} style={styles.ingredientItem}>{item}</Text>
+                        <HighlightedText key={i} text={item} style={styles.ingredientItem} />
                       ))}
                     </View>
                   </View>
@@ -395,9 +384,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                 {card.restaurantData.garnish && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>GARNISH</Text>
-                    <Text style={styles.valueText}>
-                      {card.restaurantData.garnish}
-                    </Text>
+                    <HighlightedText text={card.restaurantData.garnish} style={styles.valueText} />
                   </View>
                 )}
 
@@ -434,36 +421,28 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                 {card.restaurantData.topping && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>TOPPING</Text>
-                    <Text style={styles.valueText}>
-                      {card.restaurantData.topping}
-                    </Text>
+                    <HighlightedText text={card.restaurantData.topping} style={styles.valueText} />
                   </View>
                 )}
 
                 {card.restaurantData.base && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>BASE</Text>
-                    <Text style={styles.valueText}>
-                      {card.restaurantData.base}
-                    </Text>
+                    <HighlightedText text={card.restaurantData.base} style={styles.valueText} />
                   </View>
                 )}
 
                 {card.restaurantData.sauce && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>SAUCE</Text>
-                    <Text style={styles.valueText}>
-                      {card.restaurantData.sauce}
-                    </Text>
+                    <HighlightedText text={card.restaurantData.sauce} style={styles.valueText} />
                   </View>
                 )}
 
                 {card.restaurantData.paper && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>PAPER</Text>
-                    <Text style={styles.valueText}>
-                      {card.restaurantData.paper}
-                    </Text>
+                    <HighlightedText text={card.restaurantData.paper} style={styles.valueText} />
                   </View>
                 )}
 
@@ -489,7 +468,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                     <Text style={styles.label}>INGREDIENTS</Text>
                     <View style={styles.ingredientList}>
                       {card.restaurantData.ingredients.map((ing, i) => (
-                        <Text key={i} style={styles.ingredientItem}>{ing}</Text>
+                        <HighlightedText key={i} text={ing} style={styles.ingredientItem} />
                       ))}
                     </View>
                   </View>
@@ -655,5 +634,8 @@ const styles = StyleSheet.create({
   },
   meterSegmentFilled: {
     backgroundColor: '#9CA3AF',
+  },
+  highlight: {
+    backgroundColor: '#FDE68A',
   },
 });
