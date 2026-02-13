@@ -10,6 +10,7 @@ import rateLimit from 'express-rate-limit';
 import authRoutes from './routes/auth';
 import deckRoutes from './routes/decks';
 import uploadRoutes from './routes/upload';
+import glossaryRoutes from './routes/glossary';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -64,6 +65,7 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/decks', deckRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/glossary', glossaryRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

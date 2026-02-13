@@ -6,10 +6,9 @@ import { deckApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft } from 'lucide-react';
-import ProtectedRoute from '@/components/ProtectedRoute';
 import Link from 'next/link';
 
-function NewDeckContent() {
+export default function NewDeckPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [isPublic, setIsPublic] = useState(false);
@@ -41,8 +40,7 @@ function NewDeckContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-3xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+    <div className="max-w-3xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
           <Link href="/dashboard" className="inline-flex items-center text-blue-600 hover:text-blue-500 mb-4">
@@ -145,15 +143,6 @@ function NewDeckContent() {
             </div>
           </form>
         </div>
-      </div>
     </div>
-  );
-}
-
-export default function NewDeckPage() {
-  return (
-    <ProtectedRoute>
-      <NewDeckContent />
-    </ProtectedRoute>
   );
 }

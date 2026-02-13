@@ -7,13 +7,12 @@ import { Deck, Card, RestaurantCardData } from '../../../../../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft, Plus, Edit, Trash2 } from 'lucide-react';
-import ProtectedRoute from '@/components/ProtectedRoute';
 import { RestaurantCardForm } from '@/components/RestaurantCardForm';
 import Link from 'next/link';
 import { getImageUrl } from '@/lib/utils';
 import { ImagePreview } from '@/components/ui/ImagePreview';
 
-function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
+export default function EditDeckPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const [deck, setDeck] = useState<Deck | null>(null);
   const [title, setTitle] = useState('');
@@ -154,8 +153,7 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+    <div className="max-w-4xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
           <Link href="/dashboard" className="inline-flex items-center text-blue-600 hover:text-blue-500 mb-4">
@@ -392,15 +390,6 @@ function EditDeckContent({ params }: { params: Promise<{ id: string }> }) {
             )}
           </div>
         </div>
-      </div>
     </div>
-  );
-}
-
-export default function EditDeckPage({ params }: { params: Promise<{ id: string }> }) {
-  return (
-    <ProtectedRoute>
-      <EditDeckContent params={params} />
-    </ProtectedRoute>
   );
 }

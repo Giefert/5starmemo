@@ -1,16 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/context/AuthContext';
 import { deckApi } from '@/lib/api';
 import { Deck } from '../../../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Plus, BookOpen, Users, BarChart3 } from 'lucide-react';
-import ProtectedRoute from '@/components/ProtectedRoute';
 import Link from 'next/link';
 
-function DashboardContent() {
-  const { user, logout } = useAuth();
+export default function DashboardPage() {
   const [decks, setDecks] = useState<Deck[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -32,7 +29,7 @@ function DashboardContent() {
 
   const handleDeleteDeck = async (deckId: string) => {
     if (!confirm('Are you sure you want to delete this deck?')) return;
-    
+
     try {
       await deckApi.delete(deckId);
       setDecks(decks.filter(deck => deck.id !== deckId));
@@ -50,23 +47,7 @@ function DashboardContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">5StarMemo Management</h1>
-              <p className="text-gray-600">Welcome back, {user?.username}</p>
-            </div>
-            <Button onClick={logout} variant="outline">
-              Sign Out
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+    <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white overflow-hidden shadow rounded-lg">
@@ -204,15 +185,6 @@ function DashboardContent() {
             )}
           </div>
         </div>
-      </main>
-    </div>
-  );
-}
-
-export default function DashboardPage() {
-  return (
-    <ProtectedRoute>
-      <DashboardContent />
-    </ProtectedRoute>
+    </main>
   );
 }

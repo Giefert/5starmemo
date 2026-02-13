@@ -339,6 +339,101 @@ export interface StudyCardData {
   isNew: boolean;
 }
 
+// ============================================
+// Glossary Types
+// ============================================
+
+export interface GlossaryCategory {
+  id: string;
+  name: string;
+  description?: string;
+  color?: string;
+  displayOrder: number;
+  createdBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+  termCount?: number; // Optional count for list views
+}
+
+export interface CreateGlossaryCategoryInput {
+  name: string;
+  description?: string;
+  color?: string;
+  displayOrder?: number;
+}
+
+export interface UpdateGlossaryCategoryInput extends Partial<CreateGlossaryCategoryInput> {}
+
+export interface GlossaryTerm {
+  id: string;
+  term: string;
+  definition: string;
+  categoryId?: string;
+  category?: GlossaryCategory; // Populated in joined queries
+  createdBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+  linkedCards?: GlossaryTermCard[]; // Populated when fetching term details
+  linkedCardCount?: number; // For list views
+}
+
+export interface CreateGlossaryTermInput {
+  term: string;
+  definition: string;
+  categoryId?: string;
+}
+
+export interface UpdateGlossaryTermInput extends Partial<CreateGlossaryTermInput> {}
+
+export interface GlossaryTermCard {
+  id: string;
+  termId: string;
+  cardId: string;
+  matchField?: string;
+  matchContext?: string;
+  createdAt: Date;
+  card?: Card; // Populated in joined queries
+}
+
+export interface LinkTermToCardInput {
+  termId: string;
+  cardId: string;
+  matchField?: string;
+  matchContext?: string;
+}
+
+// Auto-suggestion types for term-card linking
+export interface CardMatchSuggestion {
+  cardId: string;
+  card: Card;
+  matchField: string;
+  matchContext: string;
+  matchScore: number; // 0-100, higher = better match
+}
+
+export interface TermSuggestionResponse {
+  suggestions: CardMatchSuggestion[];
+  totalMatches: number;
+}
+
+// Mobile-specific simplified types
+export interface GlossaryTermSummary {
+  id: string;
+  term: string;
+  definition: string;
+  categoryId?: string;
+  categoryName?: string;
+  categoryColor?: string;
+  linkedCardCount: number;
+}
+
+export interface GlossaryBrowseFilters {
+  categoryId?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
 // Type guards for RestaurantCardData discriminated union
 export function isMakiCard(data: RestaurantCardData): data is MakiCardData {
   return data.category === 'maki';

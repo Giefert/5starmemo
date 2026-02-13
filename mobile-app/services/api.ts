@@ -1,6 +1,17 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
-import { LoginInput, ApiResponse, AuthResponse, Deck, StudyStats, StudySession, ReviewInput } from '../types/shared';
+import {
+  LoginInput,
+  ApiResponse,
+  AuthResponse,
+  Deck,
+  StudyStats,
+  StudySession,
+  ReviewInput,
+  GlossaryCategory,
+  GlossaryTermSummary,
+  GlossaryTerm
+} from '../types/shared';
 
 import { Platform } from 'react-native';
 
@@ -197,6 +208,63 @@ class ApiService {
     }
     
     throw new Error(response.data.error || 'Failed to fetch recent sessions');
+  }
+
+  // Glossary methods
+  async getGlossaryCategories(): Promise<GlossaryCategory[]> {
+    const headers = await this.getAuthHeaders();
+    const response = await axios.get<ApiResponse<GlossaryCategory[]>>(
+      `${API_BASE_URL}/glossary/categories`,
+      { headers }
+    );
+
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+
+    throw new Error(response.data.error || 'Failed to fetch glossary categories');
+  }
+
+  async getGlossaryTerms(options?: {
+    categoryId?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{ terms: GlossaryTermSummary[]; total: number }> {
+    const headers = await this.getAuthHeaders();
+    const params = new URLSearchParams();
+    if (options?.categoryId) params.append('categoryId', options.categoryId);
+    if (options?.search) params.append('search', options.search);
+    if (options?.page) params.append('page', options.page.toString());
+    if (options?.limit) params.append('limit', options.limit.toString());
+
+    const response = await axios.get<any>(
+      `${API_BASE_URL}/glossary/terms?${params.toString()}`,
+      { headers }
+    );
+
+    if (response.data.success && response.data.data) {
+      return {
+        terms: response.data.data,
+        total: response.data.pagination?.total || response.data.data.length
+      };
+    }
+
+    throw new Error(response.data.error || 'Failed to fetch glossary terms');
+  }
+
+  async getGlossaryTerm(id: string): Promise<GlossaryTerm> {
+    const headers = await this.getAuthHeaders();
+    const response = await axios.get<ApiResponse<GlossaryTerm>>(
+      `${API_BASE_URL}/glossary/terms/${id}`,
+      { headers }
+    );
+
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+
+    throw new Error(response.data.error || 'Failed to fetch glossary term');
   }
 
   isAuthenticated(): boolean {
