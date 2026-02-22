@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { glossaryApi } from '@/lib/api';
-import { GlossaryTerm, GlossaryCategory } from '../../../../../shared/types';
+import { GlossaryTerm, GlossaryCategory, GlossarySection } from '../../../../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Search, BookOpen, Tag, Trash2, Edit } from 'lucide-react';
@@ -12,19 +12,20 @@ export default function GlossaryPage() {
   const [terms, setTerms] = useState<GlossaryTerm[]>([]);
   const [categories, setCategories] = useState<GlossaryCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
+  const [selectedSection, setSelectedSection] = useState<GlossarySection | undefined>();
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
     loadData();
-  }, [selectedCategory]);
+  }, [selectedCategory, selectedSection]);
 
   const loadData = async () => {
     try {
       setIsLoading(true);
       const [termsData, categoriesData] = await Promise.all([
-        glossaryApi.getTerms(selectedCategory),
+        glossaryApi.getTerms(selectedCategory, selectedSection),
         glossaryApi.getCategories()
       ]);
       setTerms(termsData);
@@ -123,6 +124,15 @@ export default function GlossaryPage() {
               </div>
             </div>
             <select
+              value={selectedSection || ''}
+              onChange={(e) => setSelectedSection((e.target.value || undefined) as GlossarySection | undefined)}
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Sections</option>
+              <option value="glossary">Glossary</option>
+              <option value="encyclopedia">Encyclopedia</option>
+            </select>
+            <select
               value={selectedCategory || ''}
               onChange={(e) => setSelectedCategory(e.target.value || undefined)}
               className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -162,6 +172,13 @@ export default function GlossaryPage() {
                         >
                           {term.term}
                         </Link>
+                        <span className={`px-2 py-0.5 text-xs rounded-full ${
+                          term.section === 'encyclopedia'
+                            ? 'bg-purple-100 text-purple-700'
+                            : 'bg-blue-100 text-blue-700'
+                        }`}>
+                          {term.section === 'encyclopedia' ? 'Encyclopedia' : 'Glossary'}
+                        </span>
                         {term.category && (
                           <span
                             className="px-2 py-0.5 text-xs rounded-full"

@@ -211,10 +211,15 @@ class ApiService {
   }
 
   // Glossary methods
-  async getGlossaryCategories(): Promise<GlossaryCategory[]> {
+  async getGlossaryCategories(section?: string): Promise<GlossaryCategory[]> {
     const headers = await this.getAuthHeaders();
+    const params = new URLSearchParams();
+    if (section) params.append('section', section);
+    const url = params.toString()
+      ? `${API_BASE_URL}/glossary/categories?${params.toString()}`
+      : `${API_BASE_URL}/glossary/categories`;
     const response = await axios.get<ApiResponse<GlossaryCategory[]>>(
-      `${API_BASE_URL}/glossary/categories`,
+      url,
       { headers }
     );
 
@@ -227,6 +232,7 @@ class ApiService {
 
   async getGlossaryTerms(options?: {
     categoryId?: string;
+    section?: string;
     search?: string;
     page?: number;
     limit?: number;
@@ -234,6 +240,7 @@ class ApiService {
     const headers = await this.getAuthHeaders();
     const params = new URLSearchParams();
     if (options?.categoryId) params.append('categoryId', options.categoryId);
+    if (options?.section) params.append('section', options.section);
     if (options?.search) params.append('search', options.search);
     if (options?.page) params.append('page', options.page.toString());
     if (options?.limit) params.append('limit', options.limit.toString());

@@ -14,7 +14,8 @@ import {
   UpdateGlossaryCategoryInput,
   CreateGlossaryTermInput,
   UpdateGlossaryTermInput,
-  TermSuggestionResponse
+  TermSuggestionResponse,
+  GlossarySection
 } from '../../../shared/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
@@ -133,8 +134,10 @@ export const glossaryApi = {
   },
 
   // Terms
-  getTerms: async (categoryId?: string): Promise<GlossaryTerm[]> => {
-    const params = categoryId ? { categoryId } : {};
+  getTerms: async (categoryId?: string, section?: string): Promise<GlossaryTerm[]> => {
+    const params: Record<string, string> = {};
+    if (categoryId) params.categoryId = categoryId;
+    if (section) params.section = section;
     const response = await api.get<ApiResponse<GlossaryTerm[]>>('/glossary/terms', { params });
     return response.data.data!;
   },

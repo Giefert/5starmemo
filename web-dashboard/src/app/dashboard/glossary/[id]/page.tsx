@@ -7,6 +7,7 @@ import { glossaryApi } from '@/lib/api';
 import {
   GlossaryTerm,
   GlossaryCategory,
+  GlossarySection,
   CardMatchSuggestion,
   GlossaryTermCard
 } from '../../../../../../shared/types';
@@ -23,6 +24,7 @@ export default function TermEditorPage({ params }: { params: Promise<{ id: strin
   // Form state
   const [term, setTerm] = useState('');
   const [definition, setDefinition] = useState('');
+  const [section, setSection] = useState<GlossarySection>('glossary');
   const [categoryId, setCategoryId] = useState<string | undefined>();
   const [categories, setCategories] = useState<GlossaryCategory[]>([]);
 
@@ -71,6 +73,7 @@ export default function TermEditorPage({ params }: { params: Promise<{ id: strin
       setExistingTerm(data);
       setTerm(data.term);
       setDefinition(data.definition);
+      setSection(data.section || 'glossary');
       setCategoryId(data.categoryId);
       setLinkedCards(data.linkedCards || []);
     } catch (err: any) {
@@ -114,10 +117,10 @@ export default function TermEditorPage({ params }: { params: Promise<{ id: strin
 
     try {
       if (isNew) {
-        const created = await glossaryApi.createTerm({ term, definition, categoryId });
+        const created = await glossaryApi.createTerm({ term, definition, section, categoryId });
         router.push(`/dashboard/glossary/${created.id}`);
       } else {
-        await glossaryApi.updateTerm(resolvedParams.id, { term, definition, categoryId });
+        await glossaryApi.updateTerm(resolvedParams.id, { term, definition, section, categoryId });
         setSuccessMessage('Term saved!');
         setTimeout(() => setSuccessMessage(''), 3000);
       }
@@ -223,18 +226,31 @@ export default function TermEditorPage({ params }: { params: Promise<{ id: strin
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Category</label>
-              <select
-                value={categoryId || ''}
-                onChange={(e) => setCategoryId(e.target.value || undefined)}
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              >
-                <option value="">No Category</option>
-                {categories.map(cat => (
-                  <option key={cat.id} value={cat.id}>{cat.name}</option>
-                ))}
-              </select>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Section</label>
+                <select
+                  value={section}
+                  onChange={(e) => setSection(e.target.value as GlossarySection)}
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="glossary">Glossary</option>
+                  <option value="encyclopedia">Encyclopedia</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Category</label>
+                <select
+                  value={categoryId || ''}
+                  onChange={(e) => setCategoryId(e.target.value || undefined)}
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="">No Category</option>
+                  {categories.map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="flex justify-end">

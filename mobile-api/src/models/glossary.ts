@@ -16,16 +16,22 @@ function parseRestaurantData(data: any) {
 
 export class GlossaryModel {
   // Get all categories for browsing
-  static async getCategories(): Promise<GlossaryCategory[]> {
+  static async getCategories(section?: string): Promise<GlossaryCategory[]> {
+    const values: any[] = [];
+    let joinCondition = 'gt.category_id = gc.id';
+    if (section) {
+      values.push(section);
+      joinCondition += ` AND gt.section = $1`;
+    }
     const query = `
       SELECT gc.*,
              COUNT(gt.id)::int as term_count
       FROM glossary_categories gc
-      LEFT JOIN glossary_terms gt ON gt.category_id = gc.id
+      LEFT JOIN glossary_terms gt ON ${joinCondition}
       GROUP BY gc.id
       ORDER BY gc.display_order ASC, gc.name ASC
     `;
-    const result = await pool.query(query);
+    const result = await pool.query(query, values);
     return result.rows.map(row => ({
       id: row.id,
       name: row.name,
@@ -43,15 +49,22 @@ export class GlossaryModel {
   static async getTerms(options: {
     categoryId?: string;
     search?: string;
+    section?: string;
     page?: number;
     limit?: number;
   }): Promise<{ terms: GlossaryTermSummary[]; total: number }> {
-    const { categoryId, search, page = 1, limit = 50 } = options;
+    const { categoryId, search, section, page = 1, limit = 50 } = options;
     const offset = (page - 1) * limit;
 
     let whereClause = '';
     const values: any[] = [];
     let paramCount = 1;
+
+    if (section) {
+      whereClause += ` AND gt.section = $${paramCount}`;
+      values.push(section);
+      paramCount++;
+    }
 
     if (categoryId) {
       whereClause += ` AND gt.category_id = $${paramCount}`;
@@ -79,7 +92,7 @@ export class GlossaryModel {
 
     // Data query
     const dataQuery = `
-      SELECT gt.id, gt.term, gt.definition, gt.category_id,
+      SELECT gt.id, gt.term, gt.definition, gt.section, gt.category_id,
              gc.name as category_name, gc.color as category_color,
              COUNT(gtc.id)::int as linked_card_count
       FROM glossary_terms gt
@@ -97,6 +110,7 @@ export class GlossaryModel {
       id: row.id,
       term: row.term,
       definition: row.definition,
+      section: row.section,
       categoryId: row.category_id,
       categoryName: row.category_name,
       categoryColor: row.category_color,
@@ -141,6 +155,7 @@ export class GlossaryModel {
       id: row.id,
       term: row.term,
       definition: row.definition,
+      section: row.section || 'glossary',
       categoryId: row.category_id,
       category: row.category_name ? {
         id: row.category_id,

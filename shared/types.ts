@@ -343,6 +343,8 @@ export interface StudyCardData {
 // Glossary Types
 // ============================================
 
+export type GlossarySection = 'glossary' | 'encyclopedia';
+
 export interface GlossaryCategory {
   id: string;
   name: string;
@@ -368,6 +370,7 @@ export interface GlossaryTerm {
   id: string;
   term: string;
   definition: string;
+  section: GlossarySection;
   categoryId?: string;
   category?: GlossaryCategory; // Populated in joined queries
   createdBy: string;
@@ -380,6 +383,7 @@ export interface GlossaryTerm {
 export interface CreateGlossaryTermInput {
   term: string;
   definition: string;
+  section?: GlossarySection;
   categoryId?: string;
 }
 
@@ -421,6 +425,7 @@ export interface GlossaryTermSummary {
   id: string;
   term: string;
   definition: string;
+  section: GlossarySection;
   categoryId?: string;
   categoryName?: string;
   categoryColor?: string;

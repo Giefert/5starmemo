@@ -17,7 +17,7 @@ import RenderHtml, {
   HTMLContentModel,
 } from 'react-native-render-html';
 import apiService from '../services/api';
-import { GlossaryCategory, GlossaryTermSummary, GlossaryTerm } from '../types/shared';
+import { GlossaryCategory, GlossaryTermSummary, GlossaryTerm, GlossarySection } from '../types/shared';
 
 // Custom element model to ensure span is treated as textual/phrasing content
 const customHTMLElementModels = {
@@ -74,6 +74,9 @@ export default function GlossaryScreen() {
   const [terms, setTerms] = useState<GlossaryTermSummary[]>([]);
   const [selectedTerm, setSelectedTerm] = useState<GlossaryTerm | null>(null);
 
+  // Section state
+  const [activeSection, setActiveSection] = useState<GlossarySection>('glossary');
+
   // Filter state
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
   const [searchQuery, setSearchQuery] = useState('');
@@ -96,15 +99,16 @@ export default function GlossaryScreen() {
 
   useEffect(() => {
     loadData();
-  }, [selectedCategory, debouncedSearch]);
+  }, [activeSection, selectedCategory, debouncedSearch]);
 
   const loadData = useCallback(async () => {
     try {
       if (!isRefreshing) setIsLoading(true);
 
       const [categoriesData, termsData] = await Promise.all([
-        apiService.getGlossaryCategories(),
+        apiService.getGlossaryCategories(activeSection),
         apiService.getGlossaryTerms({
+          section: activeSection,
           categoryId: selectedCategory,
           search: debouncedSearch || undefined,
           limit: 100
@@ -120,7 +124,15 @@ export default function GlossaryScreen() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [selectedCategory, debouncedSearch, isRefreshing]);
+  }, [activeSection, selectedCategory, debouncedSearch, isRefreshing]);
+
+  const handleSectionChange = (newSection: GlossarySection) => {
+    if (newSection === activeSection) return;
+    setActiveSection(newSection);
+    setSelectedCategory(undefined);
+    setSearchQuery('');
+    setDebouncedSearch('');
+  };
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -318,7 +330,35 @@ export default function GlossaryScreen() {
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <Text style={styles.title}>Glossary</Text>
+        <Text style={styles.title}>Reference</Text>
+      </View>
+
+      {/* Section Tabs */}
+      <View style={styles.sectionTabContainer}>
+        <TouchableOpacity
+          style={[
+            styles.sectionTab,
+            activeSection === 'glossary' && styles.sectionTabActive
+          ]}
+          onPress={() => handleSectionChange('glossary')}
+        >
+          <Text style={[
+            styles.sectionTabText,
+            activeSection === 'glossary' && styles.sectionTabTextActive
+          ]}>Glossary</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.sectionTab,
+            activeSection === 'encyclopedia' && styles.sectionTabActive
+          ]}
+          onPress={() => handleSectionChange('encyclopedia')}
+        >
+          <Text style={[
+            styles.sectionTabText,
+            activeSection === 'encyclopedia' && styles.sectionTabTextActive
+          ]}>Encyclopedia</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Search Bar and Category Filters */}
@@ -405,6 +445,31 @@ const styles = StyleSheet.create({
   backButtonText: {
     color: '#007AFF',
     fontSize: 16,
+  },
+  sectionTabContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 0,
+  },
+  sectionTab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 8,
+    backgroundColor: '#f0f0f0',
+  },
+  sectionTabActive: {
+    backgroundColor: '#007AFF',
+  },
+  sectionTabText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#666',
+  },
+  sectionTabTextActive: {
+    color: '#fff',
   },
   filtersContainer: {
     backgroundColor: '#fff',

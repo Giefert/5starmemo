@@ -135,11 +135,12 @@ router.delete('/categories/:id',
 // TERM ROUTES
 // ============================================
 
-// Get all terms (with optional category filter)
+// Get all terms (with optional category/section filter)
 router.get('/terms', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const categoryId = req.query.categoryId as string | undefined;
-    const terms = await GlossaryTermModel.findAll(req.user!.id, categoryId);
+    const section = req.query.section as string | undefined;
+    const terms = await GlossaryTermModel.findAll(req.user!.id, categoryId, section);
     const response: ApiResponse = {
       success: true,
       data: terms,
@@ -187,6 +188,7 @@ router.post('/terms',
   [
     body('term').trim().isLength({ min: 1, max: 200 }),
     body('definition').trim().isLength({ min: 1, max: 5000 }),
+    body('section').optional().isIn(['glossary', 'encyclopedia']),
     body('categoryId').optional().isUUID()
   ],
   async (req: AuthenticatedRequest, res: Response) => {
@@ -219,6 +221,7 @@ router.put('/terms/:id',
     param('id').isUUID(),
     body('term').optional().trim().isLength({ min: 1, max: 200 }),
     body('definition').optional().trim().isLength({ min: 1, max: 5000 }),
+    body('section').optional().isIn(['glossary', 'encyclopedia']),
     body('categoryId').optional()
   ],
   async (req: AuthenticatedRequest, res: Response) => {

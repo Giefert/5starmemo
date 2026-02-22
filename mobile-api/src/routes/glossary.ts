@@ -11,9 +11,14 @@ router.use(authenticateToken);
 router.use(requireStudent);
 
 // Get all categories
-router.get('/categories', async (req: AuthenticatedRequest, res: Response) => {
+router.get('/categories',
+  [
+    query('section').optional().isIn(['glossary', 'encyclopedia'])
+  ],
+  async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const categories = await GlossaryModel.getCategories();
+    const section = req.query.section as string | undefined;
+    const categories = await GlossaryModel.getCategories(section);
     const response: ApiResponse = {
       success: true,
       data: categories,
@@ -30,6 +35,7 @@ router.get('/categories', async (req: AuthenticatedRequest, res: Response) => {
 router.get('/terms',
   [
     query('categoryId').optional().isUUID(),
+    query('section').optional().isIn(['glossary', 'encyclopedia']),
     query('search').optional().trim().isLength({ max: 200 }),
     query('page').optional().isInt({ min: 1 }),
     query('limit').optional().isInt({ min: 1, max: 100 })
@@ -50,6 +56,7 @@ router.get('/terms',
 
       const result = await GlossaryModel.getTerms({
         categoryId: req.query.categoryId as string,
+        section: req.query.section as string,
         search: req.query.search as string,
         page,
         limit

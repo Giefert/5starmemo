@@ -22,7 +22,7 @@ function parseRestaurantData(data: any) {
 }
 
 export class GlossaryTermModel {
-  static async findAll(userId: string, categoryId?: string): Promise<GlossaryTerm[]> {
+  static async findAll(userId: string, categoryId?: string, section?: string): Promise<GlossaryTerm[]> {
     let query = `
       SELECT gt.*,
              gc.name as category_name,
@@ -34,6 +34,11 @@ export class GlossaryTermModel {
       WHERE gt.created_by = $1
     `;
     const values: any[] = [userId];
+
+    if (section) {
+      values.push(section);
+      query += ` AND gt.section = $${values.length}`;
+    }
 
     if (categoryId) {
       values.push(categoryId);
@@ -104,11 +109,11 @@ export class GlossaryTermModel {
 
   static async create(data: CreateGlossaryTermInput, userId: string): Promise<GlossaryTerm> {
     const query = `
-      INSERT INTO glossary_terms (term, definition, category_id, created_by)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO glossary_terms (term, definition, section, category_id, created_by)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING *
     `;
-    const values = [data.term, data.definition, data.categoryId || null, userId];
+    const values = [data.term, data.definition, data.section || 'glossary', data.categoryId || null, userId];
     const result = await pool.query(query, values);
     return this.mapRow(result.rows[0]);
   }
@@ -126,6 +131,11 @@ export class GlossaryTermModel {
     if (data.definition !== undefined) {
       setClause.push(`definition = $${paramCount}`);
       values.push(data.definition);
+      paramCount++;
+    }
+    if (data.section !== undefined) {
+      setClause.push(`section = $${paramCount}`);
+      values.push(data.section);
       paramCount++;
     }
     if (data.categoryId !== undefined) {
@@ -323,6 +333,7 @@ export class GlossaryTermModel {
       id: row.id,
       term: row.term,
       definition: row.definition,
+      section: row.section || 'glossary',
       categoryId: row.category_id,
       category: row.category_name ? {
         id: row.category_id,
