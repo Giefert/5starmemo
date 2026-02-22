@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import RenderHtml, {
   HTMLElementModel,
   HTMLContentModel,
@@ -88,6 +89,9 @@ export default function GlossaryScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [error, setError] = useState('');
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+  const [isFilterVisible, setIsFilterVisible] = useState(false);
+  const searchInputRef = useRef<TextInput>(null);
 
   // Debounce search
   useEffect(() => {
@@ -132,6 +136,8 @@ export default function GlossaryScreen() {
     setSelectedCategory(undefined);
     setSearchQuery('');
     setDebouncedSearch('');
+    setIsSearchExpanded(false);
+    setIsFilterVisible(false);
   };
 
   const handleRefresh = () => {
@@ -361,19 +367,49 @@ export default function GlossaryScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Search Bar and Category Filters */}
+      {/* Search & Filter Controls */}
       <View style={styles.filtersContainer}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search terms..."
-          placeholderTextColor="#999"
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          returnKeyType="search"
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-        {categories.length > 0 && renderCategoryFilters()}
+        <View style={styles.filterToolbar}>
+          <TouchableOpacity
+            style={[styles.toolbarButton, isSearchExpanded && styles.toolbarButtonActive]}
+            onPress={() => {
+              if (isSearchExpanded) {
+                setIsSearchExpanded(false);
+                setSearchQuery('');
+              } else {
+                setIsSearchExpanded(true);
+                setTimeout(() => searchInputRef.current?.focus(), 100);
+              }
+            }}
+          >
+            <Ionicons name="search" size={18} color={isSearchExpanded ? '#fff' : '#666'} />
+          </TouchableOpacity>
+          {categories.length > 0 && (
+            <TouchableOpacity
+              style={[styles.toolbarButton, isFilterVisible && styles.toolbarButtonActive]}
+              onPress={() => setIsFilterVisible(!isFilterVisible)}
+            >
+              <Ionicons name="filter" size={16} color={isFilterVisible ? '#fff' : '#666'} style={{ marginRight: 4 }} />
+              <Text style={[styles.filterButtonText, isFilterVisible && styles.filterButtonTextActive]}>
+                Filter{selectedCategory ? ' (1)' : ''}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        {isSearchExpanded && (
+          <TextInput
+            ref={searchInputRef}
+            style={styles.searchInput}
+            placeholder="Search terms..."
+            placeholderTextColor="#999"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            returnKeyType="search"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        )}
+        {isFilterVisible && categories.length > 0 && renderCategoryFilters()}
       </View>
 
       {/* Error Message */}
@@ -478,6 +514,30 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
   },
+  filterToolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  toolbarButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
+  },
+  toolbarButtonActive: {
+    backgroundColor: '#007AFF',
+  },
+  filterButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#666',
+  },
+  filterButtonTextActive: {
+    color: '#fff',
+  },
   searchInput: {
     backgroundColor: '#f0f0f0',
     borderRadius: 10,
@@ -485,6 +545,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 16,
     color: '#333',
+    marginTop: 10,
   },
   categoryScrollView: {
     marginTop: 10,
