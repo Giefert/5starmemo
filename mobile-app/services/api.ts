@@ -274,6 +274,20 @@ class ApiService {
     throw new Error(response.data.error || 'Failed to fetch glossary term');
   }
 
+  async getTermsForCard(cardId: string): Promise<{ id: string; term: string; definition: string; matchField: string | null; matchContext: string | null }[]> {
+    const headers = await this.getAuthHeaders();
+    const response = await axios.get<ApiResponse<any>>(
+      `${API_BASE_URL}/glossary/cards/${cardId}/terms`,
+      { headers }
+    );
+
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+
+    throw new Error(response.data.error || 'Failed to fetch terms for card');
+  }
+
   isAuthenticated(): boolean {
     return !!this.token;
   }

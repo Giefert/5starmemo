@@ -10,8 +10,11 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { studySessionManager } from '../services/StudySessionManager';
-import { StudyCard } from '../components/StudyCard';
+import { StudyCard, LinkedTerm } from '../components/StudyCard';
+import { SwipeableCard } from '../components/SwipeableCard';
+import { GlossaryTermModal } from '../components/GlossaryTermModal';
 import { RatingButtons } from '../components/RatingButtons';
+import apiService from '../services/api';
 import { StudyCardData } from '../types/shared';
 
 interface StudyScreenProps {
@@ -37,6 +40,8 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showRatingButtons, setShowRatingButtons] = useState(false);
   const [isFlipped, setIsFlipped] = useState(false);
+  const [linkedTerms, setLinkedTerms] = useState<LinkedTerm[]>([]);
+  const [selectedTerm, setSelectedTerm] = useState<LinkedTerm | null>(null);
   const [progress, setProgress] = useState({
     current: 0,
     total: 0,
@@ -47,12 +52,22 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
 
   useEffect(() => {
     startStudySession();
-    
+
     return () => {
       // Clean up session on unmount
       studySessionManager.reset();
     };
   }, [deckId]);
+
+  useEffect(() => {
+    if (currentCard) {
+      apiService.getTermsForCard(currentCard.card.id)
+        .then(setLinkedTerms)
+        .catch(() => setLinkedTerms([]));
+    } else {
+      setLinkedTerms([]);
+    }
+  }, [currentCard]);
 
   const startStudySession = async () => {
     try {
@@ -86,6 +101,14 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
         correct: progressInfo.correct,
         total: progressInfo.total,
       });
+    }
+  };
+
+  const handleSwipe = () => {
+    if (!showRatingButtons) {
+      handleCardFlip();
+    } else {
+      setIsFlipped(prev => !prev);
     }
   };
 
@@ -181,11 +204,15 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
 
         {/* Main Card Zone */}
         <View style={styles.cardArea}>
-          <StudyCard
-            cardData={currentCard}
-            isFlipped={isFlipped}
-            onFlip={handleCardToggle}
-          />
+          <SwipeableCard onSwipe={handleSwipe}>
+            <StudyCard
+              cardData={currentCard}
+              isFlipped={isFlipped}
+              onFlip={handleCardToggle}
+              linkedTerms={linkedTerms}
+              onTermPress={setSelectedTerm}
+            />
+          </SwipeableCard>
         </View>
 
         {/* Bottom Grading Zone */}
@@ -195,6 +222,7 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
               onRating={handleRating}
               disabled={isSubmitting}
             />
+            <Text style={styles.swipeHintText}>SWIPE TO FLIP CARD</Text>
           </View>
         ) : (
           <View style={styles.gradingZone}>
@@ -203,10 +231,15 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
               onPress={handleCardFlip}
               activeOpacity={0.7}
             >
-              <Text style={styles.showAnswerText}>SHOW ANSWER</Text>
+              <Text style={styles.showAnswerText}>SWIPE TO SHOW ANSWER</Text>
             </TouchableOpacity>
           </View>
         )}
+
+        <GlossaryTermModal
+          term={selectedTerm}
+          onDismiss={() => setSelectedTerm(null)}
+        />
 
         {/* Loading Overlay */}
         {isSubmitting && (
@@ -284,6 +317,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#666',
     letterSpacing: 1,
+  },
+  swipeHintText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#9CA3AF',
+    letterSpacing: 1,
+    textAlign: 'center',
+    marginTop: 12,
   },
   loadingContainer: {
     flex: 1,

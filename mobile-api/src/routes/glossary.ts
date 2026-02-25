@@ -112,4 +112,31 @@ router.get('/terms/:id',
   }
 );
 
+// Get glossary terms linked to a specific card
+router.get('/cards/:cardId/terms',
+  [param('cardId').isUUID()],
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid card ID',
+          details: errors.array()
+        });
+      }
+      const terms = await GlossaryModel.getTermsByCardId(req.params.cardId);
+      const response: ApiResponse = {
+        success: true,
+        data: terms,
+        message: 'Linked terms retrieved successfully'
+      };
+      res.json(response);
+    } catch (error) {
+      console.error('Error fetching terms for card:', error);
+      res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+  }
+);
+
 export default router;

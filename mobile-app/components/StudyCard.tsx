@@ -12,10 +12,18 @@ import {
 } from '../types/shared';
 import { adjustUrlForPlatform } from '../utils/imageUrl';
 
+export interface LinkedTerm {
+  id: string;
+  term: string;
+  definition: string;
+}
+
 interface StudyCardProps {
   cardData: StudyCardData;
   isFlipped: boolean;
   onFlip?: () => void;
+  linkedTerms?: LinkedTerm[];
+  onTermPress?: (term: LinkedTerm) => void;
 }
 
 // Helper to render text with *highlighted* terms
@@ -28,6 +36,70 @@ const HighlightedText: React.FC<{ text: string; style: any; key?: React.Key }> =
         i % 2 === 1
           ? <Text key={i} style={styles.highlight}>{part}</Text>
           : part
+      )}
+    </Text>
+  );
+};
+
+// Helper to render text with linked glossary terms as tappable + highlighted
+const LinkedText: React.FC<{
+  text: string;
+  style: any;
+  linkedTerms?: LinkedTerm[];
+  onTermPress?: (term: LinkedTerm) => void;
+}> = ({ text, style, linkedTerms, onTermPress }) => {
+  if (!linkedTerms || linkedTerms.length === 0 || !onTermPress) {
+    return <HighlightedText text={text} style={style} />;
+  }
+
+  // Strip asterisks for matching, but we need to preserve highlight rendering
+  const plainText = text.replace(/\*/g, '');
+
+  // Build segments: find all linked term occurrences (case-insensitive)
+  type Segment = { text: string; term?: LinkedTerm };
+  const segments: Segment[] = [];
+  let remaining = plainText;
+
+  while (remaining.length > 0) {
+    let earliestIdx = remaining.length;
+    let matchedTerm: LinkedTerm | null = null;
+    let matchedLength = 0;
+
+    for (const lt of linkedTerms) {
+      const idx = remaining.toLowerCase().indexOf(lt.term.toLowerCase());
+      if (idx !== -1 && idx < earliestIdx) {
+        earliestIdx = idx;
+        matchedTerm = lt;
+        matchedLength = lt.term.length;
+      }
+    }
+
+    if (!matchedTerm) {
+      segments.push({ text: remaining });
+      break;
+    }
+
+    if (earliestIdx > 0) {
+      segments.push({ text: remaining.substring(0, earliestIdx) });
+    }
+    segments.push({ text: remaining.substring(earliestIdx, earliestIdx + matchedLength), term: matchedTerm });
+    remaining = remaining.substring(earliestIdx + matchedLength);
+  }
+
+  return (
+    <Text style={style}>
+      {segments.map((seg, i) =>
+        seg.term ? (
+          <Text
+            key={i}
+            style={styles.linkedTerm}
+            onPress={() => onTermPress(seg.term!)}
+          >
+            {seg.text}
+          </Text>
+        ) : (
+          <Text key={i}>{seg.text}</Text>
+        )
       )}
     </Text>
   );
@@ -58,7 +130,7 @@ const WineMeterBar: React.FC<{
   );
 };
 
-export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFlip }) => {
+export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFlip, linkedTerms, onTermPress }) => {
   const { card } = cardData;
 
   // Get image URL from card and adjust for platform (Android emulator needs 10.0.2.2)
@@ -109,7 +181,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                 {card.restaurantData.tastingNotes && card.restaurantData.tastingNotes.length > 0 && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>TASTING NOTES</Text>
-                    <HighlightedText text={card.restaurantData.tastingNotes.join(', ')} style={styles.valueText} />
+                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.tastingNotes.join(', ')} style={styles.valueText} />
                   </View>
                 )}
 
@@ -117,7 +189,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                 {card.restaurantData.riceVariety && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>RICE VARIETY</Text>
-                    <HighlightedText text={card.restaurantData.riceVariety} style={styles.valueText} />
+                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.riceVariety} style={styles.valueText} />
                   </View>
                 )}
 
@@ -125,7 +197,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                 {card.restaurantData.region && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>REGION/ORIGIN</Text>
-                    <HighlightedText text={card.restaurantData.region} style={styles.valueText} />
+                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.region} style={styles.valueText} />
                   </View>
                 )}
 
@@ -133,7 +205,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                 {card.restaurantData.producer && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>PRODUCER</Text>
-                    <HighlightedText text={card.restaurantData.producer} style={styles.valueText} />
+                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.producer} style={styles.valueText} />
                   </View>
                 )}
 
@@ -149,7 +221,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                 {card.restaurantData.servingTemp && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>SERVING TEMPERATURE</Text>
-                    <HighlightedText text={card.restaurantData.servingTemp} style={styles.valueText} />
+                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.servingTemp} style={styles.valueText} />
                   </View>
                 )}
 
@@ -182,7 +254,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                   <View style={styles.allergenContainer}>
                     <Text style={styles.warningIcon}>⚠️</Text>
                     <Text style={styles.allergenText}>
-                      Contains: <HighlightedText text={card.restaurantData.allergens.join(', ')} style={styles.allergenBold} />
+                      Contains: <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.allergens.join(', ')} style={styles.allergenBold} />
                     </Text>
                   </View>
                 )}
@@ -206,7 +278,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                 {card.restaurantData.tastingNotes && card.restaurantData.tastingNotes.length > 0 && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>TASTING NOTES</Text>
-                    <HighlightedText text={card.restaurantData.tastingNotes.join(', ')} style={styles.valueText} />
+                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.tastingNotes.join(', ')} style={styles.valueText} />
                   </View>
                 )}
 
@@ -217,7 +289,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                     {card.restaurantData.appellation && (
                       <View style={styles.columnBlock}>
                         <Text style={styles.label}>APPELLATION</Text>
-                        <HighlightedText text={card.restaurantData.appellation} style={styles.valueText} />
+                        <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.appellation} style={styles.valueText} />
                       </View>
                     )}
 
@@ -235,7 +307,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                 {card.restaurantData.grapeVarieties && card.restaurantData.grapeVarieties.length > 0 && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>GRAPE VARIETIES</Text>
-                    <HighlightedText text={card.restaurantData.grapeVarieties.join(', ')} style={styles.valueText} />
+                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.grapeVarieties.join(', ')} style={styles.valueText} />
                   </View>
                 )}
 
@@ -243,7 +315,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                 {card.restaurantData.region && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>REGION</Text>
-                    <HighlightedText text={card.restaurantData.region} style={styles.valueText} />
+                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.region} style={styles.valueText} />
                   </View>
                 )}
 
@@ -251,7 +323,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                 {card.restaurantData.producer && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>PRODUCER</Text>
-                    <HighlightedText text={card.restaurantData.producer} style={styles.valueText} />
+                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.producer} style={styles.valueText} />
                   </View>
                 )}
 
@@ -259,7 +331,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                 {card.restaurantData.servingTemp && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>SERVING TEMPERATURE</Text>
-                    <HighlightedText text={card.restaurantData.servingTemp} style={styles.valueText} />
+                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.servingTemp} style={styles.valueText} />
                   </View>
                 )}
 
@@ -280,7 +352,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                   <View style={styles.allergenContainer}>
                     <Text style={styles.warningIcon}>⚠️</Text>
                     <Text style={styles.allergenText}>
-                      Contains: <HighlightedText text={card.restaurantData.allergens.join(', ')} style={styles.allergenBold} />
+                      Contains: <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.allergens.join(', ')} style={styles.allergenBold} />
                     </Text>
                   </View>
                 )}
@@ -384,7 +456,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                 {card.restaurantData.garnish && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>GARNISH</Text>
-                    <HighlightedText text={card.restaurantData.garnish} style={styles.valueText} />
+                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.garnish} style={styles.valueText} />
                   </View>
                 )}
 
@@ -421,28 +493,28 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                 {card.restaurantData.topping && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>TOPPING</Text>
-                    <HighlightedText text={card.restaurantData.topping} style={styles.valueText} />
+                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.topping} style={styles.valueText} />
                   </View>
                 )}
 
                 {card.restaurantData.base && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>BASE</Text>
-                    <HighlightedText text={card.restaurantData.base} style={styles.valueText} />
+                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.base} style={styles.valueText} />
                   </View>
                 )}
 
                 {card.restaurantData.sauce && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>SAUCE</Text>
-                    <HighlightedText text={card.restaurantData.sauce} style={styles.valueText} />
+                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.sauce} style={styles.valueText} />
                   </View>
                 )}
 
                 {card.restaurantData.paper && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>PAPER</Text>
-                    <HighlightedText text={card.restaurantData.paper} style={styles.valueText} />
+                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.paper} style={styles.valueText} />
                   </View>
                 )}
 
@@ -637,5 +709,10 @@ const styles = StyleSheet.create({
   },
   highlight: {
     backgroundColor: '#FDE68A',
+  },
+  linkedTerm: {
+    textDecorationLine: 'underline',
+    textDecorationColor: '#9CA3AF',
+    color: '#374151',
   },
 });

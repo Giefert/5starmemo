@@ -16,8 +16,9 @@ import { Deck } from '../types/shared';
 import apiService from '../services/api';
 import { StudyScreen } from './StudyScreen';
 import { StudyCompletedScreen } from './StudyCompletedScreen';
+import { BrowseScreen } from './BrowseScreen';
 
-type ScreenState = 'home' | 'study' | 'completed';
+type ScreenState = 'home' | 'study' | 'completed' | 'browse';
 
 export const HomeScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
@@ -40,7 +41,7 @@ export const HomeScreen: React.FC = () => {
 
   // Hide tab bar during study sessions
   useEffect(() => {
-    const shouldHideTabs = screenState === 'study' || screenState === 'completed';
+    const shouldHideTabs = screenState === 'study' || screenState === 'completed' || screenState === 'browse';
     navigation.setOptions({
       tabBarStyle: shouldHideTabs
         ? { display: 'none' }
@@ -142,9 +143,26 @@ export const HomeScreen: React.FC = () => {
     loadData();
   };
 
+  const handleDeckTap = (deck: Deck) => {
+    Alert.alert(
+      deck.title,
+      'What would you like to do?',
+      [
+        { text: 'Study', onPress: () => handleStartStudy(deck) },
+        { text: 'Browse', onPress: () => handleBrowseDeck(deck) },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
+
   const handleStartStudy = (deck: Deck) => {
     setSelectedDeck(deck);
     setScreenState('study');
+  };
+
+  const handleBrowseDeck = (deck: Deck) => {
+    setSelectedDeck(deck);
+    setScreenState('browse');
   };
 
   const handleStudyComplete = (stats: {
@@ -188,6 +206,16 @@ export const HomeScreen: React.FC = () => {
     );
   }
 
+  if (screenState === 'browse' && selectedDeck) {
+    return (
+      <BrowseScreen
+        deckId={selectedDeck.id}
+        deckTitle={selectedDeck.title}
+        onExit={handleBackToHome}
+      />
+    );
+  }
+
   if (isLoading && !isRefreshing) {
     return (
       <View style={styles.centerContainer}>
@@ -221,7 +249,7 @@ export const HomeScreen: React.FC = () => {
               <TouchableOpacity
                 key={deck.id}
                 style={styles.deckCard}
-                onPress={() => handleStartStudy(deck)}
+                onPress={() => handleDeckTap(deck)}
               >
                 <View style={styles.deckInfo}>
                   <View style={styles.deckTitleRow}>

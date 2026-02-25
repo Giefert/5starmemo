@@ -120,6 +120,24 @@ export class GlossaryModel {
     return { terms, total };
   }
 
+  // Get glossary terms linked to a specific card
+  static async getTermsByCardId(cardId: string): Promise<{ id: string; term: string; definition: string; matchField: string | null; matchContext: string | null }[]> {
+    const query = `
+      SELECT gt.id, gt.term, gt.definition, gtc.match_field, gtc.match_context
+      FROM glossary_term_cards gtc
+      JOIN glossary_terms gt ON gt.id = gtc.term_id
+      WHERE gtc.card_id = $1
+    `;
+    const result = await pool.query(query, [cardId]);
+    return result.rows.map(row => ({
+      id: row.id,
+      term: row.term,
+      definition: row.definition,
+      matchField: row.match_field,
+      matchContext: row.match_context
+    }));
+  }
+
   // Get single term with linked cards
   static async getTermById(id: string): Promise<GlossaryTerm | null> {
     const query = `
