@@ -14,7 +14,13 @@ interface GlossaryTermModalProps {
 }
 
 function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 export const GlossaryTermModal: React.FC<GlossaryTermModalProps> = ({ term, onDismiss }) => {
