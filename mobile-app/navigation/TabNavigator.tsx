@@ -51,7 +51,7 @@ export default function TabNavigator() {
         }}
       />
       <Tab.Screen
-        name="Glossary"
+        name="Reference"
         component={GlossaryScreen}
         options={{
           tabBarIcon: ({ color, size }) => (
