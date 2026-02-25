@@ -86,7 +86,6 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({ deckId, deckTitle, o
             <StudyCard
               cardData={selectedCard}
               isFlipped={isFlipped}
-              onFlip={() => setIsFlipped(!isFlipped)}
               linkedTerms={linkedTerms}
               onTermPress={setSelectedTerm}
             />

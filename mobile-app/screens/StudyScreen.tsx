@@ -118,14 +118,6 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
     setShowRatingButtons(true);
   };
 
-  const handleCardToggle = () => {
-    // Toggle between question and answer sides
-    // Only allow after initial answer reveal (rating buttons visible)
-    if (showRatingButtons) {
-      setIsFlipped(prev => !prev);
-    }
-  };
-
   const handleRating = async (rating: 1 | 2 | 3 | 4) => {
     if (isSubmitting) return;
     
@@ -208,7 +200,6 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
             <StudyCard
               cardData={currentCard}
               isFlipped={isFlipped}
-              onFlip={handleCardToggle}
               linkedTerms={linkedTerms}
               onTermPress={setSelectedTerm}
             />

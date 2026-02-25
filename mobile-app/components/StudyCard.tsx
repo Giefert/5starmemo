@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
 import {
   StudyCardData,
   isMakiCard,
@@ -21,7 +21,6 @@ export interface LinkedTerm {
 interface StudyCardProps {
   cardData: StudyCardData;
   isFlipped: boolean;
-  onFlip?: () => void;
   linkedTerms?: LinkedTerm[];
   onTermPress?: (term: LinkedTerm) => void;
 }
@@ -130,17 +129,15 @@ const WineMeterBar: React.FC<{
   );
 };
 
-export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFlip, linkedTerms, onTermPress }) => {
+export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linkedTerms, onTermPress }) => {
   const { card } = cardData;
 
   // Get image URL from card and adjust for platform (Android emulator needs 10.0.2.2)
   const imageUrl = adjustUrlForPlatform(card.imageUrl);
 
   return (
-    <TouchableOpacity
+    <View
       style={styles.cardContainer}
-      onPress={() => onFlip?.()}
-      activeOpacity={0.7}
     >
       {/* 1. Title Section - Always at top with padding */}
       <View style={styles.contentPadding}>
@@ -552,7 +549,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
           </View>
         )
       )}
-    </TouchableOpacity>
+    </View>
   );
 };
 
