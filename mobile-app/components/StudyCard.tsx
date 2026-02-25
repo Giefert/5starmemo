@@ -141,7 +141,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                 {card.restaurantData.vintage && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>VINTAGE</Text>
-                    <HighlightedText text={card.restaurantData.vintage} style={styles.valueText} />
+                    <Text style={styles.valueText}>{card.restaurantData.vintage}</Text>
                   </View>
                 )}
 
@@ -225,7 +225,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, onFli
                     {card.restaurantData.vintage && (
                       <View style={styles.columnBlock}>
                         <Text style={styles.label}>VINTAGE</Text>
-                        <HighlightedText text={card.restaurantData.vintage} style={styles.valueText} />
+                        <Text style={styles.valueText}>{card.restaurantData.vintage}</Text>
                       </View>
                     )}
                   </View>
