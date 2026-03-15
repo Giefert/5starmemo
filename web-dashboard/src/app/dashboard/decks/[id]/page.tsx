@@ -86,6 +86,7 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
         setDeck(prev => prev ? {
           ...prev,
           cards: prev.cards?.map(card => card.id === updatedCard.id ? updatedCard : card)
+            .sort((a, b) => (a.restaurantData?.itemName || '').localeCompare(b.restaurantData?.itemName || ''))
         } : null);
       } else {
         const newCard = await deckApi.addCard(resolvedParams.id, {
@@ -94,7 +95,8 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
         });
         setDeck(prev => prev ? {
           ...prev,
-          cards: [...(prev.cards || []), newCard],
+          cards: [...(prev.cards || []), newCard]
+            .sort((a, b) => (a.restaurantData?.itemName || '').localeCompare(b.restaurantData?.itemName || '')),
           cardCount: (prev.cardCount || 0) + 1
         } : null);
       }
@@ -295,21 +297,10 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
               <div className="space-y-4">
                 {deck.cards.map((card, index) => (
                   <div key={card.id} className="border border-gray-200 rounded-lg p-4">
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-500">Card {index + 1}</span>
-                        {card.restaurantData && (
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                            card.restaurantData.category === 'wine' ? 'bg-purple-100 text-purple-800' :
-                            card.restaurantData.category === 'beer' ? 'bg-amber-100 text-amber-800' :
-                            card.restaurantData.category === 'cocktail' ? 'bg-pink-100 text-pink-800' :
-                            card.restaurantData.category === 'spirit' ? 'bg-orange-100 text-orange-800' :
-                            'bg-blue-100 text-blue-800'
-                          }`}>
-                            {card.restaurantData.category}
-                          </span>
-                        )}
-                      </div>
+                    <div className="flex justify-between items-start mb-1">
+                      <h4 className="text-base font-semibold text-gray-900">
+                        <span className="bg-blue-100 px-1.5 py-0.5 rounded">{card.restaurantData?.itemName || `Card ${index + 1}`}</span>
+                      </h4>
                       <div className="flex space-x-2">
                         <Button
                           size="sm"
@@ -329,57 +320,280 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
                         </Button>
                       </div>
                     </div>
-
-                    {/* Card Image */}
-                    {card.imageUrl && (
-                      <div className="mb-3">
-                        <ImagePreview
-                          src={getImageUrl(card.imageUrl)}
-                          alt={card.restaurantData?.itemName || 'Card image'}
-                          mode="preview"
-                        />
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-sm text-gray-500">Card {index + 1}</span>
+                      {card.restaurantData && (
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          card.restaurantData.category === 'wine' ? 'bg-purple-100 text-purple-800' :
+                          card.restaurantData.category === 'beer' ? 'bg-amber-100 text-amber-800' :
+                          card.restaurantData.category === 'cocktail' ? 'bg-pink-100 text-pink-800' :
+                          card.restaurantData.category === 'spirit' ? 'bg-orange-100 text-orange-800' :
+                          'bg-blue-100 text-blue-800'
+                        }`}>
+                          {card.restaurantData.category}
+                        </span>
+                      )}
+                    </div>
 
                     {card.restaurantData && (() => {
                       // Type assertion for display - backend already filtered invalid fields
                       const data = card.restaurantData as any;
                       return (
-                        <div className="space-y-3">
-                          <div className="bg-blue-50 p-3 rounded-lg">
-                            <h4 className="text-sm font-semibold text-blue-900 mb-1">
-                              {data.itemName}
-                            </h4>
-                            {data.description && (
+                        <div className={card.imageUrl ? "flex gap-4" : "space-y-3"}>
+                          {/* Card Image */}
+                          {card.imageUrl && (
+                            <div className="flex-shrink-0 w-32">
+                              <ImagePreview
+                                src={getImageUrl(card.imageUrl)}
+                                alt={card.restaurantData?.itemName || 'Card image'}
+                                mode="preview"
+                              />
+                            </div>
+                          )}
+                          <div className="flex-1 space-y-3">
+                          {data.description && (
+                            <div className="bg-blue-50 p-3 rounded-lg">
                               <p className="text-sm text-blue-800">{data.description}</p>
+                            </div>
+                          )}
+
+                          <div className={`grid gap-4 text-xs ${data.category === 'sake' ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'}`}>
+                            {data.category === 'sake' ? (
+                              <>
+                                {data.classification && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Classification:</span>
+                                    <span className="text-gray-600 ml-1">{data.classification}</span>
+                                  </div>
+                                )}
+                                {data.riceVariety && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Rice Variety:</span>
+                                    <span className="text-gray-600 ml-1">{data.riceVariety}</span>
+                                  </div>
+                                )}
+                                {data.producer && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Producer:</span>
+                                    <span className="text-gray-600 ml-1">{data.producer}</span>
+                                  </div>
+                                )}
+                                {data.region && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Region:</span>
+                                    <span className="text-gray-600 ml-1">{data.region}</span>
+                                  </div>
+                                )}
+                                {data.tastingNotes && data.tastingNotes.length > 0 && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Tasting Notes:</span>
+                                    <span className="text-gray-600 ml-1">{data.tastingNotes.join(', ')}</span>
+                                  </div>
+                                )}
+                                {data.abv && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">ABV:</span>
+                                    <span className="text-gray-600 ml-1">{data.abv}%</span>
+                                  </div>
+                                )}
+                                {data.pricePoint && data.pricePoint !== 'not-specified' && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Price Point:</span>
+                                    <span className="text-gray-600 ml-1">{data.pricePoint}</span>
+                                  </div>
+                                )}
+                                {data.specialNotes && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Special Notes:</span>
+                                    <span className="text-gray-600 ml-1">{data.specialNotes}</span>
+                                  </div>
+                                )}
+                                {data.allergens && data.allergens.length > 0 && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Allergens:</span>
+                                    <span className="text-gray-600 ml-1">{data.allergens.join(', ')}</span>
+                                  </div>
+                                )}
+                                {data.servingTemp && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Serving Temp:</span>
+                                    <span className="text-gray-600 ml-1">{data.servingTemp}</span>
+                                  </div>
+                                )}
+                                {data.foodPairings && data.foodPairings.length > 0 && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Food Pairings:</span>
+                                    <span className="text-gray-600 ml-1">{data.foodPairings.join(', ')}</span>
+                                  </div>
+                                )}
+                                {data.vintage && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Vintage:</span>
+                                    <span className="text-gray-600 ml-1">{data.vintage}</span>
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                {data.ingredients && data.ingredients.length > 0 && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Ingredients:</span>
+                                    <span className="text-gray-600 ml-1">{data.ingredients.join(', ')}</span>
+                                  </div>
+                                )}
+                                {data.region && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Region:</span>
+                                    <span className="text-gray-600 ml-1">{data.region}</span>
+                                  </div>
+                                )}
+                                {data.abv && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">ABV:</span>
+                                    <span className="text-gray-600 ml-1">{data.abv}%</span>
+                                  </div>
+                                )}
+                                {data.tastingNotes && data.tastingNotes.length > 0 && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Tasting Notes:</span>
+                                    <span className="text-gray-600 ml-1">{data.tastingNotes.join(', ')}</span>
+                                  </div>
+                                )}
+                                {data.pricePoint && data.pricePoint !== 'not-specified' && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Price Point:</span>
+                                    <span className="text-gray-600 ml-1">{data.pricePoint}</span>
+                                  </div>
+                                )}
+                                {data.specialNotes && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Special Notes:</span>
+                                    <span className="text-gray-600 ml-1">{data.specialNotes}</span>
+                                  </div>
+                                )}
+                                {data.producer && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Producer:</span>
+                                    <span className="text-gray-600 ml-1">{data.producer}</span>
+                                  </div>
+                                )}
+                                {data.allergens && data.allergens.length > 0 && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Allergens:</span>
+                                    <span className="text-gray-600 ml-1">{data.allergens.join(', ')}</span>
+                                  </div>
+                                )}
+                                {data.servingTemp && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Serving Temp:</span>
+                                    <span className="text-gray-600 ml-1">{data.servingTemp}</span>
+                                  </div>
+                                )}
+                                {data.foodPairings && data.foodPairings.length > 0 && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Food Pairings:</span>
+                                    <span className="text-gray-600 ml-1">{data.foodPairings.join(', ')}</span>
+                                  </div>
+                                )}
+                                {data.vintage && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Vintage:</span>
+                                    <span className="text-gray-600 ml-1">{data.vintage}</span>
+                                  </div>
+                                )}
+                                {data.grapeVarieties && data.grapeVarieties.length > 0 && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Grape Varieties:</span>
+                                    <span className="text-gray-600 ml-1">{data.grapeVarieties.join(', ')}</span>
+                                  </div>
+                                )}
+                                {data.appellation && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Appellation:</span>
+                                    <span className="text-gray-600 ml-1">{data.appellation}</span>
+                                  </div>
+                                )}
+                                {data.bodyLevel && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Body:</span>
+                                    <span className="text-gray-600 ml-1">{data.bodyLevel}/5</span>
+                                  </div>
+                                )}
+                                {data.sweetnessLevel && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Sweetness:</span>
+                                    <span className="text-gray-600 ml-1">{data.sweetnessLevel}/5</span>
+                                  </div>
+                                )}
+                                {data.acidityLevel && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Acidity:</span>
+                                    <span className="text-gray-600 ml-1">{data.acidityLevel}/5</span>
+                                  </div>
+                                )}
+                                {data.topping && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Topping:</span>
+                                    <span className="text-gray-600 ml-1">{data.topping}</span>
+                                  </div>
+                                )}
+                                {data.base && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Base:</span>
+                                    <span className="text-gray-600 ml-1">{data.base}</span>
+                                  </div>
+                                )}
+                                {data.sauce && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Sauce:</span>
+                                    <span className="text-gray-600 ml-1">{data.sauce}</span>
+                                  </div>
+                                )}
+                                {data.paper && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Paper:</span>
+                                    <span className="text-gray-600 ml-1">{data.paper}</span>
+                                  </div>
+                                )}
+                                {data.gluten && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Gluten:</span>
+                                    <span className="text-gray-600 ml-1">{data.gluten}</span>
+                                  </div>
+                                )}
+                                {data.alcohol && data.alcohol.length > 0 && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Alcohol:</span>
+                                    <span className="text-gray-600 ml-1">{data.alcohol.join(', ')}</span>
+                                  </div>
+                                )}
+                                {data.other && data.other.length > 0 && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Other:</span>
+                                    <span className="text-gray-600 ml-1">{data.other.join(', ')}</span>
+                                  </div>
+                                )}
+                                {data.garnish && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Garnish:</span>
+                                    <span className="text-gray-600 ml-1">{data.garnish}</span>
+                                  </div>
+                                )}
+                                {data.classification && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Classification:</span>
+                                    <span className="text-gray-600 ml-1">{data.classification}</span>
+                                  </div>
+                                )}
+                                {data.riceVariety && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Rice Variety:</span>
+                                    <span className="text-gray-600 ml-1">{data.riceVariety}</span>
+                                  </div>
+                                )}
+                              </>
                             )}
                           </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                            {data.ingredients && (
-                              <div>
-                                <span className="font-medium text-gray-700">Ingredients:</span>
-                                <span className="text-gray-600 ml-1">{data.ingredients.join(', ')}</span>
-                              </div>
-                            )}
-                            {data.region && (
-                              <div>
-                                <span className="font-medium text-gray-700">Region:</span>
-                                <span className="text-gray-600 ml-1">{data.region}</span>
-                              </div>
-                            )}
-                            {data.abv && (
-                              <div>
-                                <span className="font-medium text-gray-700">ABV:</span>
-                                <span className="text-gray-600 ml-1">{data.abv}%</span>
-                              </div>
-                            )}
-                            {data.tastingNotes && (
-                              <div>
-                                <span className="font-medium text-gray-700">Tasting Notes:</span>
-                                <span className="text-gray-600 ml-1">{data.tastingNotes.join(', ')}</span>
-                              </div>
-                            )}
                           </div>
                         </div>
                       );
