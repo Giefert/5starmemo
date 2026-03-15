@@ -67,7 +67,7 @@ export class DeckModel {
       FROM cards c
       LEFT JOIN fsrs_cards fc ON c.id = fc.card_id AND fc.user_id = $2
       WHERE c.deck_id = $1
-      ORDER BY c.card_order ASC, c.created_at ASC
+      ORDER BY c.restaurant_data->>'itemName' ASC, c.created_at ASC
     `;
 
     const result = await pool.query(query, [deckId, userId]);
