@@ -269,16 +269,12 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
           </div>
 
           <div className="p-6">
-            {/* Restaurant Card Form */}
-            {showCardForm && (
+            {/* Restaurant Card Form (add new card only) */}
+            {showCardForm && !editingCard && (
               <RestaurantCardForm
                 onSubmit={handleCardSubmit}
                 onCancel={cancelCardEdit}
-                initialData={editingCard ? {
-                  restaurantData: editingCard.restaurantData,
-                  imageUrl: editingCard.imageUrl || ''
-                } : undefined}
-                isEditing={!!editingCard}
+                isEditing={false}
               />
             )}
 
@@ -297,6 +293,15 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
               <div className="space-y-4">
                 {deck.cards.map((card, index) => (
                   <div key={card.id} className="border border-gray-200 rounded-lg p-4">
+                    {editingCard?.id === card.id && showCardForm ? (
+                      <RestaurantCardForm
+                        onSubmit={handleCardSubmit}
+                        onCancel={cancelCardEdit}
+                        initialData={{ restaurantData: editingCard.restaurantData, imageUrl: editingCard.imageUrl || '' }}
+                        isEditing={true}
+                      />
+                    ) : (
+                    <>
                     <div className="flex justify-between items-start mb-1">
                       <h4 className="text-base font-semibold text-gray-900">
                         <span className="bg-blue-100 px-1.5 py-0.5 rounded">{card.restaurantData?.itemName || `Card ${index + 1}`}</span>
@@ -598,6 +603,8 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
                         </div>
                       );
                     })()}
+                    </>
+                    )}
                   </div>
                 ))}
               </div>
