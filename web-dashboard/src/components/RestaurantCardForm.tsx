@@ -666,9 +666,12 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
             </label>
             <textarea
               value={tastingNotesRaw}
-              onChange={(e) => handleRawArrayInput(e.target.value, setTastingNotesRaw, setTastingNotes)}
+              onChange={(e) => {
+                setTastingNotesRaw(e.target.value);
+                setTastingNotes(e.target.value.trim() ? [e.target.value.trim()] : []);
+              }}
               className="w-full h-20 px-3 py-2 border border-gray-300 rounded-md text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              placeholder={category === 'sake' ? "fruity, dry, umami, cereal (comma separated)" : "fruity, oaky, smooth (comma separated)"}
+              placeholder={category === 'sake' ? "e.g. fruity, dry, umami, cereal" : "e.g. fruity, oaky, smooth"}
             />
           </div>
 
