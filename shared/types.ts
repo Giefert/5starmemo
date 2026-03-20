@@ -138,6 +138,7 @@ export type SakeCardData = BaseRestaurantCardData &
   FoodBeverageSharedFields &
   AlcoholicFields & {
     category: 'sake';
+    classification?: string;
     vintage?: number;
     riceVariety?: string;
   };
@@ -213,6 +214,7 @@ export interface RestaurantCardDataV1 {
   sauce?: string;
   paper?: string;
   gluten?: 'yes' | 'no' | 'optional';
+  classification?: string;
   riceVariety?: string;
   alcohol?: string[];
   other?: string[];
@@ -551,6 +553,7 @@ export function migrateToV2(v1: RestaurantCardDataV1): RestaurantCardData {
         ...base,
         ...foodBeverageShared,
         category: 'sake',
+        classification: v1.classification,
         abv: v1.abv,
         vintage: v1.vintage,
         riceVariety: v1.riceVariety,

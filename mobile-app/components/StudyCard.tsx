@@ -174,6 +174,14 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
             {/* Sake-specific fields */}
             {isSakeCard(card.restaurantData) && (
               <>
+                {/* Classification */}
+                {card.restaurantData.classification && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>CLASSIFICATION</Text>
+                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.classification} style={styles.valueText} />
+                  </View>
+                )}
+
                 {/* Tasting Notes */}
                 {card.restaurantData.tastingNotes && card.restaurantData.tastingNotes.length > 0 && (
                   <View style={styles.detailBlock}>

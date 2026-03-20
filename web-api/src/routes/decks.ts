@@ -207,7 +207,8 @@ router.post('/:id/cards',
     body('order').optional().isInt({ min: 0 }),
     body('restaurantData').optional().isObject(),
     body('restaurantData.itemName').optional().trim().isLength({ min: 1 }),
-    body('restaurantData.category').optional().isIn(['wine', 'beer', 'cocktail', 'spirit', 'maki', 'sake', 'sauce'])
+    body('restaurantData.category').optional().isIn(['wine', 'beer', 'cocktail', 'spirit', 'maki', 'sake', 'sauce']),
+    body('restaurantData.classification').optional().isString()
   ],
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -256,7 +257,8 @@ router.put('/cards/:cardId',
     body('order').optional().isInt({ min: 0 }),
     body('restaurantData').optional().isObject(),
     body('restaurantData.itemName').optional().trim().isLength({ min: 1 }),
-    body('restaurantData.category').optional().isIn(['wine', 'beer', 'cocktail', 'spirit', 'maki', 'sake', 'sauce'])
+    body('restaurantData.category').optional().isIn(['wine', 'beer', 'cocktail', 'spirit', 'maki', 'sake', 'sauce']),
+    body('restaurantData.classification').optional().isString()
   ],
   async (req: AuthenticatedRequest, res: Response) => {
     try {

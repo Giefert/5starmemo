@@ -62,6 +62,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
     initData?.acidityLevel
   );
   const [riceVariety, setRiceVariety] = useState(initData?.riceVariety || '');
+  const [classification, setClassification] = useState(initData?.classification || '');
   const [tastingNotes, setTastingNotes] = useState<string[]>(
     initData?.tastingNotes || []
   );
@@ -227,6 +228,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
         bodyLevel: bodyLevel,
         sweetnessLevel: sweetnessLevel,
         acidityLevel: acidityLevel,
+        classification: classification.trim() || undefined,
         riceVariety: riceVariety.trim() || undefined,
         tastingNotes: tastingNotes.length > 0 ? tastingNotes : undefined,
         servingTemp: servingTemp.trim() || undefined,
@@ -506,19 +508,6 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
         </div>
       )}
 
-      {/* Wine-specific appellation field */}
-      {category === 'wine' && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Appellation
-          </label>
-          <Input
-            value={appellation}
-            onChange={(e) => setAppellation(e.target.value)}
-            placeholder="e.g., Napa Valley, Bordeaux AOC, Chianti Classico DOCG"
-          />
-        </div>
-      )}
 
       {/* Maki-specific fields */}
       {category === 'maki' && (
@@ -644,29 +633,70 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
       {/* Tasting & Service */}
       {(category === 'wine' || category === 'sake') && (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Tasting Notes
-              </label>
-              <Input
-                value={tastingNotesRaw}
-                onChange={(e) => handleRawArrayInput(e.target.value, setTastingNotesRaw, setTastingNotes)}
-                placeholder={category === 'sake' ? "fruity, dry, umami, cereal (comma separated)" : "fruity, oaky, smooth (comma separated)"}
-              />
+          {/* Wine: Appellation + Serving Temperature row */}
+          {category === 'wine' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Appellation
+                </label>
+                <Input
+                  value={appellation}
+                  onChange={(e) => setAppellation(e.target.value)}
+                  placeholder="e.g., Napa Valley, Bordeaux AOC, Chianti Classico DOCG"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Serving Temperature
+                </label>
+                <Input
+                  value={servingTemp}
+                  onChange={(e) => setServingTemp(e.target.value)}
+                  placeholder="e.g., 7-18°C, Room temperature"
+                />
+              </div>
             </div>
+          )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Serving Temperature
-              </label>
-              <Input
-                value={servingTemp}
-                onChange={(e) => setServingTemp(e.target.value)}
-                placeholder={category === 'sake' ? "e.g., 5-15°C (chilled), 40-45°C (warm)" : "e.g., 7-18°C, Room temperature"}
-              />
-            </div>
+          {/* Tasting Notes - full width textarea */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Tasting Notes
+            </label>
+            <textarea
+              value={tastingNotesRaw}
+              onChange={(e) => handleRawArrayInput(e.target.value, setTastingNotesRaw, setTastingNotes)}
+              className="w-full h-20 px-3 py-2 border border-gray-300 rounded-md text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              placeholder={category === 'sake' ? "fruity, dry, umami, cereal (comma separated)" : "fruity, oaky, smooth (comma separated)"}
+            />
           </div>
+
+          {/* Sake: Classification + Serving Temperature row */}
+          {category === 'sake' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Classification
+                </label>
+                <Input
+                  value={classification}
+                  onChange={(e) => setClassification(e.target.value)}
+                  placeholder="e.g., Junmai Daiginjo, Honjozo, Nigori"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Serving Temperature
+                </label>
+                <Input
+                  value={servingTemp}
+                  onChange={(e) => setServingTemp(e.target.value)}
+                  placeholder="e.g., 5-15°C (chilled), 40-45°C (warm)"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Wine Characteristic Meters */}
           {category === 'wine' && (
