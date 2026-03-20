@@ -116,8 +116,10 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
         } : null);
       }
       
+      const cardId = editingCard.id;
       setEditingCard(null);
       setShowCardForm(false);
+      scrollToElement(`card-${cardId}`);
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to save card');
     }
@@ -143,9 +145,17 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
     setShowCardForm(true);
   };
 
+  const scrollToElement = (elementId: string) => {
+    requestAnimationFrame(() => {
+      document.getElementById(elementId)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  };
+
   const cancelCardEdit = () => {
+    const cardId = editingCard?.id;
     setEditingCard(null);
     setShowCardForm(false);
+    if (cardId) scrollToElement(`card-${cardId}`);
   };
 
   if (isLoading) {
@@ -276,7 +286,7 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
               <h2 className="text-lg font-medium text-gray-900">
                 Cards ({deck.cards?.length || 0})
               </h2>
-              <Button onClick={() => setShowCardForm(true)} disabled={showCardForm}>
+              <Button onClick={() => { setShowCardForm(true); scrollToElement('add-card-form'); }} disabled={showCardForm}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Card
               </Button>
@@ -286,11 +296,13 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
           <div className="p-6">
             {/* Restaurant Card Form (add new card only) */}
             {showCardForm && !editingCard && (
+              <div id="add-card-form">
               <RestaurantCardForm
                 onSubmit={handleCardSubmit}
                 onCancel={cancelCardEdit}
                 isEditing={false}
               />
+              </div>
             )}
 
             {/* Cards List */}
@@ -298,7 +310,7 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
               <div className="text-center py-8">
                 <p className="text-gray-500">No cards in this deck yet.</p>
                 {!showCardForm && (
-                  <Button onClick={() => setShowCardForm(true)} className="mt-4">
+                  <Button onClick={() => { setShowCardForm(true); scrollToElement('add-card-form'); }} className="mt-4">
                     <Plus className="h-4 w-4 mr-2" />
                     Add Your First Card
                   </Button>
@@ -307,7 +319,7 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
             ) : (
               <div className="space-y-4">
                 {deck.cards.map((card, index) => (
-                  <div key={card.id} className="border border-gray-200 rounded-lg p-4">
+                  <div key={card.id} id={`card-${card.id}`} className="border border-gray-200 rounded-lg p-4">
                     {editingCard?.id === card.id && showCardForm ? (
                       <RestaurantCardForm
                         onSubmit={handleCardSubmit}
