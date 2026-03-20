@@ -12,6 +12,21 @@ import Link from 'next/link';
 import { getImageUrl } from '@/lib/utils';
 import { ImagePreview } from '@/components/ui/ImagePreview';
 
+// Helper to render text with *highlighted* terms (yellow background)
+function HighlightedText({ text }: { text: string }) {
+  const parts = text.split(/\*(.*?)\*/g);
+  if (parts.length === 1) return <>{text}</>;
+  return (
+    <>
+      {parts.map((part, i) =>
+        i % 2 === 1
+          ? <span key={i} className="bg-amber-200 rounded px-0.5">{part}</span>
+          : part
+      )}
+    </>
+  );
+}
+
 export default function EditDeckPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const [deck, setDeck] = useState<Deck | null>(null);
@@ -392,7 +407,7 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
                                 {data.tastingNotes && data.tastingNotes.length > 0 && (
                                   <div>
                                     <span className="font-medium text-gray-700">Tasting Notes:</span>
-                                    <span className="text-gray-600 ml-1">{data.tastingNotes.join(', ')}</span>
+                                    <span className="text-gray-600 ml-1"><HighlightedText text={data.tastingNotes.join(', ')} /></span>
                                   </div>
                                 )}
                                 {data.abv && (
@@ -461,7 +476,7 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
                                 {data.tastingNotes && data.tastingNotes.length > 0 && (
                                   <div>
                                     <span className="font-medium text-gray-700">Tasting Notes:</span>
-                                    <span className="text-gray-600 ml-1">{data.tastingNotes.join(', ')}</span>
+                                    <span className="text-gray-600 ml-1"><HighlightedText text={data.tastingNotes.join(', ')} /></span>
                                   </div>
                                 )}
                                 {data.pricePoint && data.pricePoint !== 'not-specified' && (
