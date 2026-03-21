@@ -103,6 +103,10 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
           cards: prev.cards?.map(card => card.id === updatedCard.id ? updatedCard : card)
             .sort((a, b) => (a.restaurantData?.itemName || '').localeCompare(b.restaurantData?.itemName || ''))
         } : null);
+        const cardId = editingCard.id;
+        setEditingCard(null);
+        setShowCardForm(false);
+        scrollToElement(`card-${cardId}`);
       } else {
         const newCard = await deckApi.addCard(resolvedParams.id, {
           restaurantData: data.restaurantData,
@@ -114,12 +118,10 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
             .sort((a, b) => (a.restaurantData?.itemName || '').localeCompare(b.restaurantData?.itemName || '')),
           cardCount: (prev.cardCount || 0) + 1
         } : null);
+        setEditingCard(null);
+        setShowCardForm(false);
+        scrollToElement(`card-${newCard.id}`);
       }
-      
-      const cardId = editingCard.id;
-      setEditingCard(null);
-      setShowCardForm(false);
-      scrollToElement(`card-${cardId}`);
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to save card');
     }
