@@ -236,10 +236,10 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
         pricePoint,
         specialNotes: specialNotes.trim() || undefined,
         // Maki-specific fields
-        topping: topping.trim() || undefined,
-        base: base.trim() || undefined,
-        sauce: sauce.trim() || undefined,
-        paper: paper.trim() || undefined,
+        topping: topping.trim() || (category === 'maki' ? 'None' : undefined),
+        base: base.trim() || (category === 'maki' ? 'None' : undefined),
+        sauce: sauce.trim() || (category === 'maki' ? 'None' : undefined),
+        paper: paper.trim() || (category === 'maki' ? 'None' : undefined),
         gluten: gluten || undefined,
         // Cocktail-specific fields
         alcohol: alcohol.length > 0 ? alcohol : undefined,

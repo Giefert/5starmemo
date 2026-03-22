@@ -391,7 +391,7 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
                             </div>
                           )}
 
-                          <div className={`grid gap-4 text-xs ${data.category === 'sake' ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'}`}>
+                          <div className={`grid gap-4 text-xs ${data.category === 'sake' ? 'grid-cols-1' : data.category === 'maki' ? 'grid-cols-2' : 'grid-cols-1 md:grid-cols-2'}`}>
                             {data.category === 'sake' ? (
                               <>
                                 {data.classification && (
@@ -439,7 +439,7 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
                                 {data.specialNotes && (
                                   <div>
                                     <span className="font-medium text-gray-700">Special Notes:</span>
-                                    <span className="text-gray-600 ml-1">{data.specialNotes}</span>
+                                    <span className="text-gray-600 ml-1"><HighlightedText text={data.specialNotes} /></span>
                                   </div>
                                 )}
                                 {data.allergens && data.allergens.length > 0 && (
@@ -464,6 +464,43 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
                                   <div>
                                     <span className="font-medium text-gray-700">Vintage:</span>
                                     <span className="text-gray-600 ml-1">{data.vintage}</span>
+                                  </div>
+                                )}
+                              </>
+                            ) : data.category === 'maki' ? (
+                              <>
+                                <div style={{ gridRow: 1, gridColumn: 1 }}>
+                                  <span className="font-medium text-gray-700">Topping:</span>
+                                  <span className="text-gray-600 ml-1"><HighlightedText text={data.topping || 'None'} /></span>
+                                </div>
+                                <div style={{ gridRow: 1, gridColumn: 2 }}>
+                                  <span className="font-medium text-gray-700">Base:</span>
+                                  <span className="text-gray-600 ml-1"><HighlightedText text={data.base || 'None'} /></span>
+                                </div>
+                                <div style={{ gridRow: 2, gridColumn: 1 }}>
+                                  <span className="font-medium text-gray-700">Sauce:</span>
+                                  <span className="text-gray-600 ml-1"><HighlightedText text={data.sauce || 'None'} /></span>
+                                </div>
+                                <div style={{ gridRow: 2, gridColumn: 2 }}>
+                                  <span className="font-medium text-gray-700">Paper:</span>
+                                  <span className="text-gray-600 ml-1"><HighlightedText text={data.paper || 'None'} /></span>
+                                </div>
+                                {data.gluten && (
+                                  <div style={{ gridRow: 3, gridColumn: 1 }}>
+                                    <span className="font-medium text-gray-700">Gluten:</span>
+                                    <span className="text-gray-600 ml-1 capitalize"><HighlightedText text={data.gluten} /></span>
+                                  </div>
+                                )}
+                                {data.pricePoint && data.pricePoint !== 'not-specified' && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Price Point:</span>
+                                    <span className="text-gray-600 ml-1">{data.pricePoint}</span>
+                                  </div>
+                                )}
+                                {data.specialNotes && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Special Notes:</span>
+                                    <span className="text-gray-600 ml-1"><HighlightedText text={data.specialNotes} /></span>
                                   </div>
                                 )}
                               </>
@@ -502,7 +539,7 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
                                 {data.specialNotes && (
                                   <div>
                                     <span className="font-medium text-gray-700">Special Notes:</span>
-                                    <span className="text-gray-600 ml-1">{data.specialNotes}</span>
+                                    <span className="text-gray-600 ml-1"><HighlightedText text={data.specialNotes} /></span>
                                   </div>
                                 )}
                                 {data.producer && (
@@ -568,31 +605,31 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
                                 {data.topping && (
                                   <div>
                                     <span className="font-medium text-gray-700">Topping:</span>
-                                    <span className="text-gray-600 ml-1">{data.topping}</span>
+                                    <span className="text-gray-600 ml-1"><HighlightedText text={data.topping} /></span>
                                   </div>
                                 )}
                                 {data.base && (
                                   <div>
                                     <span className="font-medium text-gray-700">Base:</span>
-                                    <span className="text-gray-600 ml-1">{data.base}</span>
+                                    <span className="text-gray-600 ml-1"><HighlightedText text={data.base} /></span>
                                   </div>
                                 )}
                                 {data.sauce && (
                                   <div>
                                     <span className="font-medium text-gray-700">Sauce:</span>
-                                    <span className="text-gray-600 ml-1">{data.sauce}</span>
+                                    <span className="text-gray-600 ml-1"><HighlightedText text={data.sauce} /></span>
                                   </div>
                                 )}
                                 {data.paper && (
                                   <div>
                                     <span className="font-medium text-gray-700">Paper:</span>
-                                    <span className="text-gray-600 ml-1">{data.paper}</span>
+                                    <span className="text-gray-600 ml-1"><HighlightedText text={data.paper} /></span>
                                   </div>
                                 )}
                                 {data.gluten && (
                                   <div>
                                     <span className="font-medium text-gray-700">Gluten:</span>
-                                    <span className="text-gray-600 ml-1">{data.gluten}</span>
+                                    <span className="text-gray-600 ml-1 capitalize"><HighlightedText text={data.gluten} /></span>
                                   </div>
                                 )}
                                 {data.alcohol && data.alcohol.length > 0 && (
