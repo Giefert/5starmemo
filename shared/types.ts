@@ -66,7 +66,7 @@ export interface Card {
 }
 
 // Helper types for discriminated union
-export type RestaurantCategory = 'wine' | 'beer' | 'cocktail' | 'spirit' | 'maki' | 'sake' | 'sauce';
+export type RestaurantCategory = 'wine' | 'beer' | 'cocktail' | 'spirit' | 'maki' | 'sake' | 'sauce' | 'fish';
 export type PricePoint = 'not-specified' | 'budget' | 'mid-range' | 'premium' | 'luxury';
 
 // V2: Discriminated Union Architecture
@@ -148,6 +148,12 @@ export type SauceCardData = BaseRestaurantCardData & {
   ingredients?: string[];
 };
 
+export type FishCardData = BaseRestaurantCardData & {
+  category: 'fish';
+  taste?: string;
+  country?: string;
+};
+
 /**
  * Restaurant card data using discriminated union pattern based on category.
  *
@@ -176,7 +182,8 @@ export type RestaurantCardData =
   | SpiritCardData
   | MakiCardData
   | SakeCardData
-  | SauceCardData;
+  | SauceCardData
+  | FishCardData;
 
 // Alias for backward compatibility
 export type RestaurantCardDataV2 = RestaurantCardData;
@@ -191,7 +198,7 @@ export type RestaurantCardDataV2 = RestaurantCardData;
  */
 export interface RestaurantCardDataV1 {
   itemName: string;
-  category: 'wine' | 'beer' | 'cocktail' | 'spirit' | 'maki' | 'sake' | 'sauce';
+  category: 'wine' | 'beer' | 'cocktail' | 'spirit' | 'maki' | 'sake' | 'sauce' | 'fish';
   description?: string;
   ingredients?: string[];
   allergens?: string[];
@@ -219,6 +226,8 @@ export interface RestaurantCardDataV1 {
   alcohol?: string[];
   other?: string[];
   garnish?: string;
+  taste?: string;
+  country?: string;
 }
 
 export interface CreateCardInput {
@@ -470,6 +479,10 @@ export function isSauceCard(data: RestaurantCardData): data is SauceCardData {
   return data.category === 'sauce';
 }
 
+export function isFishCard(data: RestaurantCardData): data is FishCardData {
+  return data.category === 'fish';
+}
+
 export function isAlcoholicCard(
   data: RestaurantCardData
 ): data is WineCardData | BeerCardData | CocktailCardData | SpiritCardData | SakeCardData {
@@ -564,6 +577,14 @@ export function migrateToV2(v1: RestaurantCardDataV1): RestaurantCardData {
         ...base,
         category: 'sauce',
         ingredients: v1.ingredients,
+      };
+
+    case 'fish':
+      return {
+        ...base,
+        category: 'fish',
+        taste: v1.taste,
+        country: v1.country,
       };
   }
 }

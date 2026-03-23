@@ -8,7 +8,8 @@ import {
   isBeerCard,
   isCocktailCard,
   isSpiritCard,
-  isSauceCard
+  isSauceCard,
+  isFishCard
 } from '../types/shared';
 import { adjustUrlForPlatform } from '../utils/imageUrl';
 
@@ -548,6 +549,24 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
                         <HighlightedText key={i} text={ing} style={styles.ingredientItem} />
                       ))}
                     </View>
+                  </View>
+                )}
+              </>
+            )}
+
+            {/* Fish-specific fields */}
+            {isFishCard(card.restaurantData) && (
+              <>
+                {card.restaurantData.taste && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>TASTE</Text>
+                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.taste} style={styles.valueText} />
+                  </View>
+                )}
+                {card.restaurantData.country && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>COUNTRY</Text>
+                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.country} style={styles.valueText} />
                   </View>
                 )}
               </>

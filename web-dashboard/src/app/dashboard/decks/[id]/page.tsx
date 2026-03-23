@@ -362,6 +362,7 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
                           card.restaurantData.category === 'beer' ? 'bg-amber-100 text-amber-800' :
                           card.restaurantData.category === 'cocktail' ? 'bg-pink-100 text-pink-800' :
                           card.restaurantData.category === 'spirit' ? 'bg-orange-100 text-orange-800' :
+                          card.restaurantData.category === 'fish' ? 'bg-cyan-100 text-cyan-800' :
                           'bg-blue-100 text-blue-800'
                         }`}>
                           {card.restaurantData.category}
@@ -489,6 +490,33 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
                                   <div style={{ gridRow: 3, gridColumn: 1 }}>
                                     <span className="font-medium text-gray-700">Gluten:</span>
                                     <span className="text-gray-600 ml-1 capitalize"><HighlightedText text={data.gluten} /></span>
+                                  </div>
+                                )}
+                                {data.pricePoint && data.pricePoint !== 'not-specified' && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Price Point:</span>
+                                    <span className="text-gray-600 ml-1">{data.pricePoint}</span>
+                                  </div>
+                                )}
+                                {data.specialNotes && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Special Notes:</span>
+                                    <span className="text-gray-600 ml-1"><HighlightedText text={data.specialNotes} /></span>
+                                  </div>
+                                )}
+                              </>
+                            ) : data.category === 'fish' ? (
+                              <>
+                                {data.taste && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Taste:</span>
+                                    <span className="text-gray-600 ml-1"><HighlightedText text={data.taste} /></span>
+                                  </div>
+                                )}
+                                {data.country && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Country:</span>
+                                    <span className="text-gray-600 ml-1"><HighlightedText text={data.country} /></span>
                                   </div>
                                 )}
                                 {data.pricePoint && data.pricePoint !== 'not-specified' && (

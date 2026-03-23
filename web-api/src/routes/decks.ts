@@ -3,7 +3,9 @@ import { body, param, validationResult } from 'express-validator';
 import { DeckModel } from '../models/deck';
 import { CardModel } from '../models/card';
 import { authenticateToken, requireManagement, AuthenticatedRequest } from '../middleware/auth';
-import { CreateDeckInput, UpdateDeckInput, CreateCardInput, ApiResponse } from '../../../shared/types';
+import { CreateDeckInput, UpdateDeckInput, CreateCardInput, ApiResponse, RestaurantCategory } from '../../../shared/types';
+
+const VALID_CATEGORIES: RestaurantCategory[] = ['wine', 'beer', 'cocktail', 'spirit', 'maki', 'sake', 'sauce', 'fish'];
 
 const router = Router();
 
@@ -207,7 +209,7 @@ router.post('/:id/cards',
     body('order').optional().isInt({ min: 0 }),
     body('restaurantData').optional().isObject(),
     body('restaurantData.itemName').optional().trim().isLength({ min: 1 }),
-    body('restaurantData.category').optional().isIn(['wine', 'beer', 'cocktail', 'spirit', 'maki', 'sake', 'sauce']),
+    body('restaurantData.category').optional().isIn(VALID_CATEGORIES),
     body('restaurantData.classification').optional().isString()
   ],
   async (req: AuthenticatedRequest, res: Response) => {
@@ -257,7 +259,7 @@ router.put('/cards/:cardId',
     body('order').optional().isInt({ min: 0 }),
     body('restaurantData').optional().isObject(),
     body('restaurantData.itemName').optional().trim().isLength({ min: 1 }),
-    body('restaurantData.category').optional().isIn(['wine', 'beer', 'cocktail', 'spirit', 'maki', 'sake', 'sauce']),
+    body('restaurantData.category').optional().isIn(VALID_CATEGORIES),
     body('restaurantData.classification').optional().isString()
   ],
   async (req: AuthenticatedRequest, res: Response) => {

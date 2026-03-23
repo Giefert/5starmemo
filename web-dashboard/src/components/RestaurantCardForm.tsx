@@ -34,8 +34,8 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
 
   // Restaurant-specific fields
   const [itemName, setItemName] = useState(initData?.itemName || '');
-  const [category, setCategory] = useState<RestaurantCategory>(
-    initData?.category || 'maki'
+  const [category, setCategory] = useState<RestaurantCategory | ''>(
+    initData?.category || ''
   );
   const [description, setDescription] = useState(initData?.description || '');
   const [ingredients, setIngredients] = useState<string[]>(
@@ -112,6 +112,9 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
     initData?.other || []
   );
   const [garnish, setGarnish] = useState(initData?.garnish || '');
+
+  const [taste, setTaste] = useState(initData?.taste || '');
+  const [country, setCountry] = useState(initData?.country || '');
 
   // Image fields
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -190,7 +193,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!itemName.trim()) return;
+    if (!itemName.trim() || !category) return;
 
     setIsSubmitting(true);
     try {
@@ -245,6 +248,8 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
         alcohol: alcohol.length > 0 ? alcohol : undefined,
         other: other.length > 0 ? other : undefined,
         garnish: garnish.trim() || undefined,
+        taste: taste.trim() || undefined,
+        country: country.trim() || undefined,
       };
 
       // Migrate to V2: strips fields incompatible with selected category
@@ -271,6 +276,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
   };
 
   const categoryOptions = [
+    { value: '', label: 'Select category' },
     { value: 'maki', label: 'Maki' },
     { value: 'sauce', label: 'Sauce' },
     { value: 'sake', label: 'Sake' },
@@ -278,6 +284,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
     { value: 'cocktail', label: 'Cocktail' },
     { value: 'spirit', label: 'Spirit' },
     { value: 'beer', label: 'Beer' },
+    { value: 'fish', label: 'Fish' },
   ];
 
   const pricePointOptions = [
@@ -381,7 +388,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
             required
           >
             {categoryOptions.map(option => (
-              <option key={option.value} value={option.value}>
+              <option key={option.value} value={option.value} disabled={option.value === ''}>
                 {option.label}
               </option>
             ))}
@@ -627,6 +634,32 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
             onChange={(e) => handleRawArrayInput(e.target.value, setIngredientsRaw, setIngredients)}
             placeholder="tomatoes, garlic, basil (comma separated)"
           />
+        </div>
+      )}
+
+      {/* Fish-specific fields */}
+      {category === 'fish' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Taste
+            </label>
+            <Input
+              value={taste}
+              onChange={(e) => setTaste(e.target.value)}
+              placeholder="e.g., mild, rich, buttery"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Country
+            </label>
+            <Input
+              value={country}
+              onChange={(e) => setCountry(e.target.value)}
+              placeholder="e.g., Japan, Norway, Scotland"
+            />
+          </div>
         </div>
       )}
 
