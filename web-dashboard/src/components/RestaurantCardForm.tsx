@@ -314,71 +314,6 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Item Name *
-          </label>
-          <Input
-            value={itemName}
-            onChange={(e) => setItemName(e.target.value)}
-            placeholder="e.g., Ribeye Steak, Chardonnay 2020"
-            required
-          />
-        </div>
-
-        {/* Image */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Image Upload (Optional)
-          </label>
-          
-          {/* Show current image status */}
-          {imageUrl && !selectedFile && (
-            <div className="mb-2 text-sm text-gray-600 bg-blue-50 p-2 rounded border">
-              📷 Current image: Saved to card
-              <button
-                type="button"
-                onClick={() => {
-                  setImageUrl('');
-                  setSelectedFile(null);
-                }}
-                className="ml-2 text-red-600 hover:text-red-800 text-xs underline"
-              >
-                Remove current image
-              </button>
-            </div>
-          )}
-          
-          <Input
-            type="file"
-            accept="image/*"
-            onChange={(e) => {
-              const file = e.target.files?.[0] || null;
-              setSelectedFile(file);
-              // Don't automatically clear imageUrl when no file selected
-              // Let user explicitly choose to remove existing image
-            }}
-            className="mb-2"
-          />
-          {(selectedFile || imageUrl) && (
-            <div className="mt-2">
-              {/* Debug info */}
-              <div className="text-xs text-gray-500 mb-1">
-                {selectedFile ? `New file: ${selectedFile.name}` : imageUrl ? `Existing: ${imageUrl}` : 'No image'}
-              </div>
-              <ImagePreview
-                src={selectedFile ? URL.createObjectURL(selectedFile) : getImageUrl(imageUrl)}
-                alt="Card preview"
-                mode="preview"
-                className="max-w-xs"
-                onError={() => {
-                  console.log('❌ Image load error');
-                }}
-              />
-            </div>
-          )}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
             Category *
           </label>
           <select
@@ -411,19 +346,31 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
             ))}
           </select>
         </div>
-      </div>
 
-      {/* Description */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Description
-        </label>
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          className="w-full h-20 px-3 py-2 border border-gray-300 rounded-md text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          placeholder="This field is currently unused."
-        />
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Item Name *
+          </label>
+          <Input
+            value={itemName}
+            onChange={(e) => setItemName(e.target.value)}
+            placeholder="e.g., Ribeye Steak, Chardonnay 2020"
+            required
+          />
+        </div>
+
+        {category === 'sake' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Classification
+            </label>
+            <Input
+              value={classification}
+              onChange={(e) => setClassification(e.target.value)}
+              placeholder="e.g., Junmai Daiginjo, Honjozo, Nigori"
+            />
+          </div>
+        )}
       </div>
 
       {/* Origin Information */}
@@ -708,29 +655,17 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
             />
           </div>
 
-          {/* Sake: Classification + Serving Temperature row */}
+          {/* Sake: Serving Temperature */}
           {category === 'sake' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Classification
-                </label>
-                <Input
-                  value={classification}
-                  onChange={(e) => setClassification(e.target.value)}
-                  placeholder="e.g., Junmai Daiginjo, Honjozo, Nigori"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Serving Temperature
-                </label>
-                <Input
-                  value={servingTemp}
-                  onChange={(e) => setServingTemp(e.target.value)}
-                  placeholder="e.g., 5-15°C (chilled), 40-45°C (warm)"
-                />
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Serving Temperature
+              </label>
+              <Input
+                value={servingTemp}
+                onChange={(e) => setServingTemp(e.target.value)}
+                placeholder="e.g., 5-15°C (chilled), 40-45°C (warm)"
+              />
             </div>
           )}
 
@@ -869,6 +804,72 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
           onChange={(e) => setSpecialNotes(e.target.value)}
           placeholder="Limited availability, seasonal special, etc."
         />
+      </div>
+
+      {/* Description */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Description
+        </label>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          className="w-full h-20 px-3 py-2 border border-gray-300 rounded-md text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          placeholder="This field is currently unused."
+        />
+      </div>
+
+      {/* Image */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Image Upload (Optional)
+        </label>
+
+        {/* Show current image status */}
+        {imageUrl && !selectedFile && (
+          <div className="mb-2 text-sm text-gray-600 bg-blue-50 p-2 rounded border">
+            📷 Current image: Saved to card
+            <button
+              type="button"
+              onClick={() => {
+                setImageUrl('');
+                setSelectedFile(null);
+              }}
+              className="ml-2 text-red-600 hover:text-red-800 text-xs underline"
+            >
+              Remove current image
+            </button>
+          </div>
+        )}
+
+        <Input
+          type="file"
+          accept="image/*"
+          onChange={(e) => {
+            const file = e.target.files?.[0] || null;
+            setSelectedFile(file);
+            // Don't automatically clear imageUrl when no file selected
+            // Let user explicitly choose to remove existing image
+          }}
+          className="mb-2"
+        />
+        {(selectedFile || imageUrl) && (
+          <div className="mt-2">
+            {/* Debug info */}
+            <div className="text-xs text-gray-500 mb-1">
+              {selectedFile ? `New file: ${selectedFile.name}` : imageUrl ? `Existing: ${imageUrl}` : 'No image'}
+            </div>
+            <ImagePreview
+              src={selectedFile ? URL.createObjectURL(selectedFile) : getImageUrl(imageUrl)}
+              alt="Card preview"
+              mode="preview"
+              className="max-w-xs"
+              onError={() => {
+                console.log('❌ Image load error');
+              }}
+            />
+          </div>
+        )}
       </div>
 
       {/* Form Actions */}
