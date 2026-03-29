@@ -392,7 +392,7 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
                             </div>
                           )}
 
-                          <div className={`grid gap-4 text-xs ${data.category === 'sake' ? 'grid-cols-1' : data.category === 'maki' ? 'grid-cols-2' : 'grid-cols-1 md:grid-cols-2'}`}>
+                          <div className={`grid gap-4 text-xs ${data.category === 'sake' ? 'grid-cols-1' : data.category === 'maki' || data.category === 'wine' ? 'grid-cols-2' : 'grid-cols-1 md:grid-cols-2'}`}>
                             {data.category === 'sake' ? (
                               <>
                                 {data.classification && (
@@ -517,6 +517,82 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
                                   <div>
                                     <span className="font-medium text-gray-700">Country:</span>
                                     <span className="text-gray-600 ml-1"><HighlightedText text={data.country} /></span>
+                                  </div>
+                                )}
+                                {data.pricePoint && data.pricePoint !== 'not-specified' && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Price Point:</span>
+                                    <span className="text-gray-600 ml-1">{data.pricePoint}</span>
+                                  </div>
+                                )}
+                                {data.specialNotes && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Special Notes:</span>
+                                    <span className="text-gray-600 ml-1"><HighlightedText text={data.specialNotes} /></span>
+                                  </div>
+                                )}
+                              </>
+                            ) : data.category === 'wine' ? (
+                              <>
+                                <div style={{ gridRow: 1, gridColumn: 1 }}>
+                                  <span className="font-medium text-gray-700">Producer:</span>
+                                  <span className="text-gray-600 ml-1"><HighlightedText text={data.producer || 'None'} /></span>
+                                </div>
+                                <div style={{ gridRow: 1, gridColumn: 2 }}>
+                                  <span className="font-medium text-gray-700">Region:</span>
+                                  <span className="text-gray-600 ml-1"><HighlightedText text={data.region || 'None'} /></span>
+                                </div>
+                                <div style={{ gridRow: 2, gridColumn: 1 }}>
+                                  <span className="font-medium text-gray-700">Appellation:</span>
+                                  <span className="text-gray-600 ml-1"><HighlightedText text={data.appellation || 'None'} /></span>
+                                </div>
+                                <div style={{ gridRow: 2, gridColumn: 2 }}>
+                                  <span className="font-medium text-gray-700">Grape Varieties:</span>
+                                  <span className="text-gray-600 ml-1"><HighlightedText text={data.grapeVarieties?.join(', ') || 'None'} /></span>
+                                </div>
+                                <div style={{ gridRow: 3, gridColumn: 1 }}>
+                                  <span className="font-medium text-gray-700">Vintage:</span>
+                                  <span className="text-gray-600 ml-1">{data.vintage || 'None'}</span>
+                                </div>
+                                <div style={{ gridRow: 3, gridColumn: 2 }}>
+                                  <span className="font-medium text-gray-700">ABV:</span>
+                                  <span className="text-gray-600 ml-1">{data.abv ? `${data.abv}%` : 'None'}</span>
+                                </div>
+                                {(data.sweetnessLevel || data.acidityLevel || data.bodyLevel) && (
+                                  <div style={{ gridRow: 4, gridColumn: '1 / -1' }} className="flex flex-col gap-1.5 mt-1 pt-2 border-t border-gray-100">
+                                    {data.sweetnessLevel && (
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-[10px] text-gray-400 min-w-[32px]">Dry</span>
+                                        <div className="flex flex-1 gap-0.5 h-2">
+                                          {[1, 2, 3, 4, 5].map((pos) => (
+                                            <div key={pos} className={`flex-1 rounded-sm ${pos === data.sweetnessLevel ? 'bg-gray-400' : 'bg-gray-200'}`} />
+                                          ))}
+                                        </div>
+                                        <span className="text-[10px] text-gray-400 min-w-[32px] text-right">Sweet</span>
+                                      </div>
+                                    )}
+                                    {data.acidityLevel && (
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-[10px] text-gray-400 min-w-[32px]">Soft</span>
+                                        <div className="flex flex-1 gap-0.5 h-2">
+                                          {[1, 2, 3, 4, 5].map((pos) => (
+                                            <div key={pos} className={`flex-1 rounded-sm ${pos === data.acidityLevel ? 'bg-gray-400' : 'bg-gray-200'}`} />
+                                          ))}
+                                        </div>
+                                        <span className="text-[10px] text-gray-400 min-w-[32px] text-right">Acidic</span>
+                                      </div>
+                                    )}
+                                    {data.bodyLevel && (
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-[10px] text-gray-400 min-w-[32px]">Light</span>
+                                        <div className="flex flex-1 gap-0.5 h-2">
+                                          {[1, 2, 3, 4, 5].map((pos) => (
+                                            <div key={pos} className={`flex-1 rounded-sm ${pos === data.bodyLevel ? 'bg-gray-400' : 'bg-gray-200'}`} />
+                                          ))}
+                                        </div>
+                                        <span className="text-[10px] text-gray-400 min-w-[32px] text-right">Bold</span>
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                                 {data.pricePoint && data.pricePoint !== 'not-specified' && (

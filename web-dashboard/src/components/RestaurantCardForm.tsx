@@ -676,40 +676,6 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
                 Wine Characteristics (Optional)
               </div>
 
-              {/* Body Level: Light to Bold */}
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500 min-w-[40px]">Light</span>
-                  <div className="flex gap-3 flex-1 justify-center">
-                    {[1, 2, 3, 4, 5].map((level) => (
-                      <label key={level} className="flex items-center cursor-pointer">
-                        <input
-                          type="radio"
-                          name="bodyLevel"
-                          value={level}
-                          checked={bodyLevel === level}
-                          onChange={() => setBodyLevel(level)}
-                          className="w-4 h-4 text-blue-600 cursor-pointer"
-                        />
-                        <span className="ml-1 text-xs text-gray-600">{level}</span>
-                      </label>
-                    ))}
-                  </div>
-                  <span className="text-xs text-gray-500 min-w-[40px] text-right">Bold</span>
-                  <div className="ml-2 w-10">
-                    {bodyLevel && (
-                      <button
-                        type="button"
-                        onClick={() => setBodyLevel(undefined)}
-                        className="text-xs text-gray-400 hover:text-gray-600"
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-
               {/* Sweetness Level: Dry to Sweet */}
               <div>
                 <div className="flex items-center gap-2">
@@ -769,6 +735,40 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
                       <button
                         type="button"
                         onClick={() => setAcidityLevel(undefined)}
+                        className="text-xs text-gray-400 hover:text-gray-600"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Body Level: Light to Bold */}
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500 min-w-[40px]">Light</span>
+                  <div className="flex gap-3 flex-1 justify-center">
+                    {[1, 2, 3, 4, 5].map((level) => (
+                      <label key={level} className="flex items-center cursor-pointer">
+                        <input
+                          type="radio"
+                          name="bodyLevel"
+                          value={level}
+                          checked={bodyLevel === level}
+                          onChange={() => setBodyLevel(level)}
+                          className="w-4 h-4 text-blue-600 cursor-pointer"
+                        />
+                        <span className="ml-1 text-xs text-gray-600">{level}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <span className="text-xs text-gray-500 min-w-[40px] text-right">Bold</span>
+                  <div className="ml-2 w-10">
+                    {bodyLevel && (
+                      <button
+                        type="button"
+                        onClick={() => setBodyLevel(undefined)}
                         className="text-xs text-gray-400 hover:text-gray-600"
                       >
                         Clear
