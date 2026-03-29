@@ -390,13 +390,6 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
                   card.restaurantData.sweetnessLevel ||
                   card.restaurantData.acidityLevel) && (
                   <View style={styles.meterSection}>
-                    {card.restaurantData.bodyLevel && (
-                      <WineMeterBar
-                        level={card.restaurantData.bodyLevel}
-                        leftLabel="Light"
-                        rightLabel="Bold"
-                      />
-                    )}
                     {card.restaurantData.sweetnessLevel && (
                       <WineMeterBar
                         level={card.restaurantData.sweetnessLevel}
@@ -409,6 +402,13 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
                         level={card.restaurantData.acidityLevel}
                         leftLabel="Soft"
                         rightLabel="Acidic"
+                      />
+                    )}
+                    {card.restaurantData.bodyLevel && (
+                      <WineMeterBar
+                        level={card.restaurantData.bodyLevel}
+                        leftLabel="Light"
+                        rightLabel="Bold"
                       />
                     )}
                   </View>
