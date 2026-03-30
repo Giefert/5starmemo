@@ -558,8 +558,14 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
                                   <span className="font-medium text-gray-700">ABV:</span>
                                   <span className="text-gray-600 ml-1">{data.abv ? `${data.abv}%` : 'None'}</span>
                                 </div>
+                                {data.tastingNotes && data.tastingNotes.length > 0 && (
+                                  <div style={{ gridRow: 4, gridColumn: '1 / -1' }}>
+                                    <span className="font-medium text-gray-700">Tasting Notes:</span>
+                                    <span className="text-gray-600 ml-1"><HighlightedText text={data.tastingNotes.join(', ')} /></span>
+                                  </div>
+                                )}
                                 {(data.sweetnessLevel || data.acidityLevel || data.bodyLevel) && (
-                                  <div style={{ gridRow: 4, gridColumn: '1 / -1' }} className="flex flex-col gap-1.5 mt-1 pt-2 border-t border-gray-100">
+                                  <div style={{ gridRow: 5, gridColumn: '1 / -1' }} className="flex flex-col gap-1.5 mt-1 pt-2 border-t border-gray-100">
                                     {data.sweetnessLevel && (
                                       <div className="flex items-center gap-2">
                                         <span className="text-[10px] text-gray-400 min-w-[32px]">Dry</span>
