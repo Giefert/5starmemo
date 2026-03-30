@@ -158,7 +158,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
             <Image
               source={{ uri: imageUrl }}
               style={styles.cardImage}
-              resizeMode="cover"
+              resizeMode="contain"
             />
           ) : (
             <View style={styles.emptyImageState}>
