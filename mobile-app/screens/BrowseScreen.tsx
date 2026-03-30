@@ -133,7 +133,7 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({ deckId, deckTitle, o
                 onPress={() => handleSelectCard(item)}
               >
                 {imageUrl ? (
-                  <Image source={{ uri: imageUrl }} style={styles.thumbnail} />
+                  <Image source={{ uri: imageUrl }} style={styles.thumbnail} resizeMode="contain" />
                 ) : (
                   <View style={[styles.thumbnail, styles.thumbnailPlaceholder]}>
                     <Text style={styles.thumbnailPlaceholderText}>No img</Text>

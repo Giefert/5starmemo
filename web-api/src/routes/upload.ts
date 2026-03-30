@@ -3,6 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
+import sharp from 'sharp';
 import { authenticateToken, requireManagement, AuthenticatedRequest } from '../middleware/auth';
 import { ApiResponse } from '../../../shared/types';
 
@@ -69,6 +70,14 @@ router.post('/image', upload.single('image'), async (req: AuthenticatedRequestWi
         error: 'No image file provided'
       });
     }
+
+    // Resize image to max 1200px on longest side, preserving aspect ratio
+    const filePath = path.join(uploadsDir, req.file.filename);
+    const tempPath = filePath + '.tmp';
+    await sharp(filePath)
+      .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
+      .toFile(tempPath);
+    fs.renameSync(tempPath, filePath);
 
     // Return the relative path that will be stored in database
     const imagePath = `/uploads/images/${req.file.filename}`;

@@ -377,11 +377,12 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
                         <div className={card.imageUrl ? "flex gap-4" : "space-y-3"}>
                           {/* Card Image */}
                           {card.imageUrl && (
-                            <div className="flex-shrink-0 w-32">
-                              <ImagePreview
+                            <div className="flex-shrink-0 w-32 h-40 rounded-md border border-gray-300 overflow-hidden">
+                              <img
                                 src={getImageUrl(card.imageUrl)}
                                 alt={card.restaurantData?.itemName || 'Card image'}
-                                mode="preview"
+                                className="w-full h-full object-contain"
+                                loading="lazy"
                               />
                             </div>
                           )}
