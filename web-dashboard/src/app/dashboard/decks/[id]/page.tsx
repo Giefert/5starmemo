@@ -565,7 +565,7 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
                                     <span className="text-gray-600 ml-1"><HighlightedText text={data.tastingNotes.join(', ')} /></span>
                                   </div>
                                 )}
-                                {(data.sweetnessLevel || data.acidityLevel || data.bodyLevel) && (
+                                {(data.sweetnessLevel || data.acidityLevel || data.bodyLevel || data.tanninLevel) && (
                                   <div style={{ gridRow: 5, gridColumn: '1 / -1' }} className="flex flex-col gap-1.5 mt-1 pt-2 border-t border-gray-100">
                                     {data.sweetnessLevel && (
                                       <div className="flex items-center gap-2">
@@ -598,6 +598,17 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
                                           ))}
                                         </div>
                                         <span className="text-[10px] text-gray-400 min-w-[32px] text-right">Bold</span>
+                                      </div>
+                                    )}
+                                    {data.tanninLevel && (
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-[10px] text-gray-400 min-w-[32px]">Smooth</span>
+                                        <div className="flex flex-1 gap-0.5 h-2">
+                                          {[1, 2, 3, 4, 5].map((pos) => (
+                                            <div key={pos} className={`flex-1 rounded-sm ${pos === data.tanninLevel ? 'bg-gray-400' : 'bg-gray-200'}`} />
+                                          ))}
+                                        </div>
+                                        <span className="text-[10px] text-gray-400 min-w-[32px] text-right">Tannic</span>
                                       </div>
                                     )}
                                   </div>
@@ -711,6 +722,12 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
                                   <div>
                                     <span className="font-medium text-gray-700">Acidity:</span>
                                     <span className="text-gray-600 ml-1">{data.acidityLevel}/5</span>
+                                  </div>
+                                )}
+                                {data.tanninLevel && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Tannin:</span>
+                                    <span className="text-gray-600 ml-1">{data.tanninLevel}/5</span>
                                   </div>
                                 )}
                                 {data.topping && (

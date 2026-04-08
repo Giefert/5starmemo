@@ -13,56 +13,10 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import RenderHtml, {
-  HTMLElementModel,
-  HTMLContentModel,
-} from 'react-native-render-html';
+import RenderHtml from 'react-native-render-html';
 import apiService from '../services/api';
 import { GlossaryCategory, GlossaryTermSummary, GlossaryTerm, GlossarySection } from '../types/shared';
-
-// Custom element model to ensure span is treated as textual/phrasing content
-const customHTMLElementModels = {
-  span: HTMLElementModel.fromCustomModel({
-    tagName: 'span',
-    contentModel: HTMLContentModel.textual,
-  }),
-};
-
-// Strip HTML tags for plain text preview
-function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
-}
-
-// Convert inline font-size styles to classes for reliable rendering
-function convertFontSizeToClass(html: string): string {
-  // Map pixel sizes to class names
-  return html
-    .replace(/style="[^"]*font-size:\s*32px[^"]*"/g, 'class="font-largest"')
-    .replace(/style="[^"]*font-size:\s*24px[^"]*"/g, 'class="font-larger"')
-    .replace(/style="[^"]*font-size:\s*20px[^"]*"/g, 'class="font-large"');
-}
-
-// Clean up HTML from TipTap - preserve line breaks and normalize list structure
-function cleanHtml(html: string): string {
-  let cleaned = html
-    // Convert empty paragraphs to non-breaking space paragraphs to preserve line spacing
-    .replace(/<p><\/p>/g, '<p>&nbsp;</p>')
-    .replace(/<p>\s*<\/p>/g, '<p>&nbsp;</p>')
-    .replace(/<p><br\s*\/?><\/p>/g, '<p>&nbsp;</p>')
-    // Remove breaks right before list items
-    .replace(/<br\s*\/?>\s*<li>/g, '<li>')
-    // Remove paragraphs wrapping list item content (TipTap wraps content in <p> tags)
-    // Using separate replacements for opening and closing tags is more reliable
-    // than trying to match the full pattern with nested HTML content
-    .replace(/<li>\s*<p[^>]*>/g, '<li>')
-    .replace(/<\/p>\s*<\/li>/g, '</li>')
-    // Remove extra whitespace between tags
-    .replace(/>\s+</g, '><')
-    .trim();
-  
-  // Convert inline font-size styles to classes
-  return convertFontSizeToClass(cleaned);
-}
+import { stripHtml, cleanHtml, customHTMLElementModels } from '../utils/html';
 
 type ViewState = 'list' | 'detail';
 

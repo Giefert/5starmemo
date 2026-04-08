@@ -388,7 +388,8 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
                 {/* Wine Characteristic Meters - At the very bottom */}
                 {(card.restaurantData.bodyLevel ||
                   card.restaurantData.sweetnessLevel ||
-                  card.restaurantData.acidityLevel) && (
+                  card.restaurantData.acidityLevel ||
+                  card.restaurantData.tanninLevel) && (
                   <View style={styles.meterSection}>
                     {card.restaurantData.sweetnessLevel && (
                       <WineMeterBar
@@ -409,6 +410,13 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
                         level={card.restaurantData.bodyLevel}
                         leftLabel="Light"
                         rightLabel="Bold"
+                      />
+                    )}
+                    {card.restaurantData.tanninLevel && (
+                      <WineMeterBar
+                        level={card.restaurantData.tanninLevel}
+                        leftLabel="Smooth"
+                        rightLabel="Tannic"
                       />
                     )}
                   </View>
@@ -701,21 +709,21 @@ const styles = StyleSheet.create({
   },
   // Wine Meter Styles
   meterSection: {
-    marginTop: 12,
-    paddingTop: 12,
+    marginTop: 4,
+    paddingTop: 4,
     borderTopWidth: 1,
     borderTopColor: '#F0F0F0',
-    gap: 6,
+    gap: 0,
   },
   meterRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   meterEndLabel: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#6B7280',
-    minWidth: 32,
+    width: 46,
   },
   meterBarContainer: {
     flex: 1,

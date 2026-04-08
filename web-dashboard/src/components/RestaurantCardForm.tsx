@@ -51,6 +51,9 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
   const [grapeVarieties, setGrapeVarieties] = useState<string[]>(
     initData?.grapeVarieties || []
   );
+  const [grapeVarietiesRaw, setGrapeVarietiesRaw] = useState(
+    (initData?.grapeVarieties || []).join(', ')
+  );
   const [appellation, setAppellation] = useState(initData?.appellation || '');
   const [bodyLevel, setBodyLevel] = useState<number | undefined>(
     initData?.bodyLevel
@@ -60,6 +63,9 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
   );
   const [acidityLevel, setAcidityLevel] = useState<number | undefined>(
     initData?.acidityLevel
+  );
+  const [tanninLevel, setTanninLevel] = useState<number | undefined>(
+    initData?.tanninLevel
   );
   const [riceVariety, setRiceVariety] = useState(initData?.riceVariety || '');
   const [classification, setClassification] = useState(initData?.classification || '');
@@ -231,6 +237,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
         bodyLevel: bodyLevel,
         sweetnessLevel: sweetnessLevel,
         acidityLevel: acidityLevel,
+        tanninLevel: tanninLevel,
         classification: classification.trim() || undefined,
         riceVariety: riceVariety.trim() || undefined,
         tastingNotes: tastingNotes.length > 0 ? tastingNotes : undefined,
@@ -440,8 +447,8 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
                 Grape Varieties
               </label>
               <Input
-                value={grapeVarieties.join(', ')}
-                onChange={(e) => handleArrayInput(e.target.value, setGrapeVarieties)}
+                value={grapeVarietiesRaw}
+                onChange={(e) => handleRawArrayInput(e.target.value, setGrapeVarietiesRaw, setGrapeVarieties)}
                 placeholder="Chardonnay, Pinot Noir (comma separated)"
               />
             </div>
@@ -769,6 +776,40 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
                       <button
                         type="button"
                         onClick={() => setBodyLevel(undefined)}
+                        className="text-xs text-gray-400 hover:text-gray-600"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Tannin Level: Smooth to Tannic */}
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500 min-w-[40px]">Smooth</span>
+                  <div className="flex gap-3 flex-1 justify-center">
+                    {[1, 2, 3, 4, 5].map((level) => (
+                      <label key={level} className="flex items-center cursor-pointer">
+                        <input
+                          type="radio"
+                          name="tanninLevel"
+                          value={level}
+                          checked={tanninLevel === level}
+                          onChange={() => setTanninLevel(level)}
+                          className="w-4 h-4 text-blue-600 cursor-pointer"
+                        />
+                        <span className="ml-1 text-xs text-gray-600">{level}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <span className="text-xs text-gray-500 min-w-[40px] text-right">Tannic</span>
+                  <div className="ml-2 w-10">
+                    {tanninLevel && (
+                      <button
+                        type="button"
+                        onClick={() => setTanninLevel(undefined)}
                         className="text-xs text-gray-400 hover:text-gray-600"
                       >
                         Clear

@@ -105,6 +105,7 @@ export type WineCardData = BaseRestaurantCardData &
     bodyLevel?: number;      // 1 = Light, 5 = Bold
     sweetnessLevel?: number; // 1 = Dry, 5 = Sweet
     acidityLevel?: number;   // 1 = Soft, 5 = Acidic
+    tanninLevel?: number;    // 1 = Smooth, 5 = Tannic
   };
 
 export type BeerCardData = BaseRestaurantCardData &
@@ -211,6 +212,7 @@ export interface RestaurantCardDataV1 {
   bodyLevel?: number;
   sweetnessLevel?: number;
   acidityLevel?: number;
+  tanninLevel?: number;
   tastingNotes?: string[];
   servingTemp?: string;
   foodPairings?: string[];
@@ -533,6 +535,7 @@ export function migrateToV2(v1: RestaurantCardDataV1): RestaurantCardData {
         bodyLevel: v1.bodyLevel,
         sweetnessLevel: v1.sweetnessLevel,
         acidityLevel: v1.acidityLevel,
+        tanninLevel: v1.tanninLevel,
       };
 
     case 'beer':

@@ -191,7 +191,7 @@ export default function GlossaryPage() {
                           </span>
                         )}
                       </div>
-                      <p className="text-gray-600 text-sm line-clamp-2">{term.definition}</p>
+                      <div className="text-gray-600 text-sm line-clamp-2" dangerouslySetInnerHTML={{ __html: term.definition }} />
                       <p className="text-gray-400 text-xs mt-1">
                         {term.linkedCardCount || 0} linked cards
                       </p>
