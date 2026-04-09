@@ -170,6 +170,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
         // Details with padding when flipped - min height matches image square
         card.restaurantData && (
           <View style={styles.detailsMinHeight}>
+            <View style={styles.detailsScroll}>
             <View style={styles.contentPadding}>
               <View style={styles.detailsContainer}>
             {/* Sake-specific fields */}
@@ -384,43 +385,6 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
                     </Text>
                   </View>
                 )}
-
-                {/* Wine Characteristic Meters - At the very bottom */}
-                {(card.restaurantData.bodyLevel ||
-                  card.restaurantData.sweetnessLevel ||
-                  card.restaurantData.acidityLevel ||
-                  card.restaurantData.tanninLevel) && (
-                  <View style={styles.meterSection}>
-                    {card.restaurantData.sweetnessLevel && (
-                      <WineMeterBar
-                        level={card.restaurantData.sweetnessLevel}
-                        leftLabel="Dry"
-                        rightLabel="Sweet"
-                      />
-                    )}
-                    {card.restaurantData.acidityLevel && (
-                      <WineMeterBar
-                        level={card.restaurantData.acidityLevel}
-                        leftLabel="Soft"
-                        rightLabel="Acidic"
-                      />
-                    )}
-                    {card.restaurantData.bodyLevel && (
-                      <WineMeterBar
-                        level={card.restaurantData.bodyLevel}
-                        leftLabel="Light"
-                        rightLabel="Bold"
-                      />
-                    )}
-                    {card.restaurantData.tanninLevel && (
-                      <WineMeterBar
-                        level={card.restaurantData.tanninLevel}
-                        leftLabel="Smooth"
-                        rightLabel="Tannic"
-                      />
-                    )}
-                  </View>
-                )}
               </>
             )}
 
@@ -581,6 +545,47 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
             )}
             </View>
             </View>
+            </View>
+
+            {/* Wine Characteristic Meters - Pinned to bottom of card */}
+            {isWineCard(card.restaurantData) &&
+              (card.restaurantData.bodyLevel ||
+                card.restaurantData.sweetnessLevel ||
+                card.restaurantData.acidityLevel ||
+                card.restaurantData.tanninLevel) && (
+                <View style={styles.meterBottomWrapper}>
+                  <View style={styles.meterSection}>
+                    {card.restaurantData.sweetnessLevel && (
+                      <WineMeterBar
+                        level={card.restaurantData.sweetnessLevel}
+                        leftLabel="Dry"
+                        rightLabel="Sweet"
+                      />
+                    )}
+                    {card.restaurantData.acidityLevel && (
+                      <WineMeterBar
+                        level={card.restaurantData.acidityLevel}
+                        leftLabel="Soft"
+                        rightLabel="Acidic"
+                      />
+                    )}
+                    {card.restaurantData.bodyLevel && (
+                      <WineMeterBar
+                        level={card.restaurantData.bodyLevel}
+                        leftLabel="Light"
+                        rightLabel="Bold"
+                      />
+                    )}
+                    {card.restaurantData.tanninLevel && (
+                      <WineMeterBar
+                        level={card.restaurantData.tanninLevel}
+                        leftLabel="Smooth"
+                        rightLabel="Tannic"
+                      />
+                    )}
+                  </View>
+                </View>
+              )}
           </View>
         )
       )}
@@ -612,6 +617,15 @@ const styles = StyleSheet.create({
   detailsMinHeight: {
     flex: 1, // Grow to fill remaining space after title
     width: '100%',
+    flexDirection: 'column',
+  },
+  detailsScroll: {
+    flex: 1, // Take up available space, pushing meters to the bottom
+  },
+  meterBottomWrapper: {
+    paddingHorizontal: 24,
+    paddingBottom: 20,
+    paddingTop: 12,
   },
   cardImage: {
     width: '100%',
