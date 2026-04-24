@@ -15,4 +15,4 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /shared /shared
 USER node
 EXPOSE 3002
-CMD ["node", "dist/src/index.js"]
+CMD ["node", "dist/app/src/index.js"]
