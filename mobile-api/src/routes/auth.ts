@@ -1,13 +1,22 @@
 import { Router, Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
+import rateLimit from 'express-rate-limit';
 import { UserModel } from '../models/user';
 import { comparePassword, generateToken } from '../utils/auth';
+import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
+import pool from '../config/database';
 import { LoginInput, ApiResponse, AuthResponse } from '../../../shared/types';
 
 const router = Router();
 
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  message: { success: false, error: 'Too many login attempts, try again in a minute.' }
+});
+
 // Student login
-router.post('/login',
+router.post('/login', authLimiter,
   [
     body('email').isEmail().normalizeEmail(),
     body('password').notEmpty()
@@ -64,15 +73,18 @@ router.post('/login',
   }
 );
 
-// Get current user profile
-router.get('/profile',
-  async (req: Request, res: Response) => {
-    // This endpoint would be used with authentication middleware
-    // For now, just return a simple response
-    res.json({
-      success: true,
-      message: 'Profile endpoint - requires authentication'
-    });
+// Delete account — Apple App Store requirement
+router.delete('/account', authenticateToken,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+      // ON DELETE CASCADE handles fsrs_cards, study_sessions, card_reviews
+      await pool.query('DELETE FROM users WHERE id = $1', [userId]);
+      res.json({ success: true, message: 'Account deleted' });
+    } catch (error) {
+      console.error('Account deletion error:', error);
+      res.status(500).json({ success: false, error: 'Internal server error' });
+    }
   }
 );
 

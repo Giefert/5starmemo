@@ -1,20 +1,23 @@
-FROM node:18-alpine
-
+FROM node:18-alpine AS deps
 WORKDIR /app
-
-# Copy package files
 COPY web-dashboard/package*.json ./
-
-# Install all dependencies
 RUN npm ci
 
-# Copy shared types first (needed by web-dashboard)
+FROM node:18-alpine AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY shared/ ../shared/
-
-# Copy source code
 COPY web-dashboard/ .
+RUN npm run build
 
+FROM node:18-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+USER nextjs
 EXPOSE 3000
-
-# Use development mode to avoid build issues
-CMD ["npm", "run", "dev"]
+ENV PORT=3000
+CMD ["node", "server.js"]

@@ -1,13 +1,20 @@
 import { Router, Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
+import rateLimit from 'express-rate-limit';
 import { UserModel } from '../models/user';
 import { comparePassword, generateToken } from '../utils/auth';
 import { LoginInput, CreateUserInput, ApiResponse, AuthResponse } from '../../../shared/types';
 
 const router = Router();
 
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  message: { success: false, error: 'Too many login attempts, try again in a minute.' }
+});
+
 // Register new management user
-router.post('/register',
+router.post('/register', authLimiter,
   [
     body('email').isEmail().normalizeEmail(),
     body('username').isLength({ min: 3, max: 30 }).trim(),
@@ -60,7 +67,7 @@ router.post('/register',
 );
 
 // Login
-router.post('/login',
+router.post('/login', authLimiter,
   [
     body('email').isEmail().normalizeEmail(),
     body('password').notEmpty()

@@ -6,16 +6,15 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
-  Image,
   ScrollView,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import apiService from '../services/api';
 import { StudyCardData } from '../types/shared';
 import { StudyCard, LinkedTerm } from '../components/StudyCard';
 import { SwipeableCard } from '../components/SwipeableCard';
 import { GlossaryTermModal } from '../components/GlossaryTermModal';
-import { adjustUrlForPlatform } from '../utils/imageUrl';
 
 interface BrowseScreenProps {
   deckId: string;
@@ -126,14 +125,14 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({ deckId, deckTitle, o
           keyExtractor={(item) => item.card.id}
           contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}
           renderItem={({ item }) => {
-            const imageUrl = adjustUrlForPlatform(item.card.imageUrl);
+            const imageUrl = item.card.imageUrl;
             return (
               <TouchableOpacity
                 style={styles.cardItem}
                 onPress={() => handleSelectCard(item)}
               >
                 {imageUrl ? (
-                  <Image source={{ uri: imageUrl }} style={styles.thumbnail} resizeMode="contain" />
+                  <Image source={{ uri: imageUrl }} style={styles.thumbnail} contentFit="contain" />
                 ) : (
                   <View style={[styles.thumbnail, styles.thumbnailPlaceholder]}>
                     <Text style={styles.thumbnailPlaceholderText}>No img</Text>

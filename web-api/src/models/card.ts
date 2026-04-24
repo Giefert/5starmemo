@@ -4,31 +4,18 @@ import {
   CreateCardInput,
   UpdateCardInput,
   RestaurantCardData,
-  RestaurantCardDataV1,
-  migrateToV2
 } from '../../../shared/types';
 
-// Helper function to safely parse restaurant data and migrate to V2
 function parseRestaurantData(data: any): RestaurantCardData | undefined {
   if (!data) return undefined;
-
-  let parsed: any;
   if (typeof data === 'string') {
     try {
-      parsed = JSON.parse(data);
+      return JSON.parse(data);
     } catch {
       return undefined;
     }
-  } else {
-    parsed = data;
   }
-
-  // Migrate V1 format to V2 (strips category-incompatible fields)
-  if (parsed && parsed.category) {
-    return migrateToV2(parsed as RestaurantCardDataV1);
-  }
-
-  return undefined;
+  return data.category ? data : undefined;
 }
 
 export class CardModel {
@@ -194,77 +181,4 @@ export class CardModel {
     return (result.rowCount || 0) > 0;
   }
 
-  static async reorderCards(deckId: string, cardIds: string[]): Promise<void> {
-    const client = await pool.connect();
-    
-    try {
-      await client.query('BEGIN');
-      
-      for (let i = 0; i < cardIds.length; i++) {
-        await client.query(
-          'UPDATE cards SET card_order = $1 WHERE id = $2 AND deck_id = $3',
-          [i, cardIds[i], deckId]
-        );
-      }
-      
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
-
-  static async bulkCreate(deckId: string, cardsData: CreateCardInput[]): Promise<Card[]> {
-    const client = await pool.connect();
-    const cards: Card[] = [];
-    
-    try {
-      await client.query('BEGIN');
-      
-      for (let i = 0; i < cardsData.length; i++) {
-        const cardData = cardsData[i];
-        const order = cardData.order ?? i;
-        
-        const query = `
-          INSERT INTO cards (deck_id, front, back, image_url, card_order, restaurant_data)
-          VALUES ($1, $2, $3, $4, $5, $6)
-          RETURNING id, deck_id, front, back, image_url, card_order, restaurant_data, created_at, updated_at
-        `;
-
-        const values = [
-          deckId,
-          cardData.front || '',
-          cardData.back || '',
-          cardData.imageUrl || null,
-          order,
-          cardData.restaurantData ? JSON.stringify(cardData.restaurantData) : null
-        ];
-
-        const result = await client.query(query, values);
-        const card = result.rows[0];
-
-        cards.push({
-          id: card.id,
-          deckId: card.deck_id,
-          front: card.front,
-          back: card.back,
-          imageUrl: card.image_url,
-          order: card.card_order,
-          createdAt: card.created_at,
-          updatedAt: card.updated_at,
-          restaurantData: parseRestaurantData(card.restaurant_data)
-        });
-      }
-      
-      await client.query('COMMIT');
-      return cards;
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
 }

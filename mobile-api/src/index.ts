@@ -11,6 +11,7 @@ import authRoutes from './routes/auth';
 import deckRoutes from './routes/decks';
 import progressRoutes from './routes/progress';
 import glossaryRoutes from './routes/glossary';
+import pool from './config/database';
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -18,16 +19,14 @@ const PORT = process.env.PORT || 3002;
 // Security middleware
 app.use(helmet());
 
-// CORS configuration for mobile and web clients
-app.use(cors({
-  origin: [
-    process.env.FRONTEND_URL || 'http://localhost:3000',
-    process.env.MOBILE_APP_URL || 'http://localhost:8081',
-    'http://localhost:19006', // Expo dev server
-    'exp://localhost:19000'   // Expo mobile
-  ],
-  credentials: true
-}));
+// CORS configuration
+const corsOrigins: (string | RegExp)[] = [
+  process.env.FRONTEND_URL || 'http://localhost:3000',
+];
+if (process.env.NODE_ENV !== 'production') {
+  corsOrigins.push(/^http:\/\/localhost:\d+$/, /^exp:\/\/localhost:\d+$/);
+}
+app.use(cors({ origin: corsOrigins, credentials: true }));
 
 // Rate limiting (more lenient for mobile)
 const limiter = rateLimit({
@@ -48,14 +47,13 @@ app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 app.use(morgan('combined'));
 
 // Health check
-app.get('/health', (req, res) => {
-  res.json({
-    success: true,
-    message: '5StarMemo Mobile API is running',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
-    version: '1.0.0'
-  });
+app.get('/health', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ success: true, message: '5StarMemo Mobile API is running' });
+  } catch {
+    res.status(503).json({ success: false, error: 'Database unreachable' });
+  }
 });
 
 // API routes
@@ -86,11 +84,16 @@ app.use((error: any, req: express.Request, res: express.Response, next: express.
 });
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`🚀 5StarMemo Mobile API running on port ${PORT}`);
-  console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🌐 Health check: http://localhost:${PORT}/health`);
-  console.log(`📚 Student endpoints: http://localhost:${PORT}/api/student/*`);
+const server = app.listen(PORT, () => {
+  console.log(`Mobile API running on port ${PORT}`);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  server.close(async () => {
+    await pool.end();
+    process.exit(0);
+  });
 });
 
 export default app;

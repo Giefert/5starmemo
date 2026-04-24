@@ -195,7 +195,7 @@ export class ProgressModel {
       FROM study_sessions ss
       JOIN decks d ON ss.deck_id = d.id
       WHERE ss.user_id = $1 AND ss.cards_studied > 0
-      ORDER BY ss.id DESC
+      ORDER BY ss.created_at DESC
       LIMIT $2
     `;
     

@@ -1,6 +1,5 @@
 import pool from '../config/database';
 import { StudentDeck, StudyCardData, Card, FSRSCard } from '../../../shared/types';
-import { transformImageUrl } from '../utils/urlTransform';
 
 export class DeckModel {
   /**
@@ -76,7 +75,7 @@ export class DeckModel {
       const card: Card = {
         id: row.id,
         deckId: row.deck_id,
-        imageUrl: transformImageUrl(row.image_url),
+        imageUrl: row.image_url || undefined,
         order: row.card_order,
         restaurantData: row.restaurant_data || undefined,
         createdAt: row.created_at,
@@ -165,7 +164,7 @@ export class DeckModel {
       const card: Card = {
         id: row.id,
         deckId: row.deck_id,
-        imageUrl: transformImageUrl(row.image_url),
+        imageUrl: row.image_url || undefined,
         order: row.card_order,
         restaurantData: row.restaurant_data || undefined,
         createdAt: row.created_at,

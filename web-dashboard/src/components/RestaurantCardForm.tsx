@@ -268,14 +268,9 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
 
       // Always include imageUrl, even when null/empty to handle image removal
       submissionData.imageUrl = finalImageUrl && finalImageUrl.trim() ? finalImageUrl.trim() : null;
-      console.log('📝 Submitting form with imageUrl:', {
-        imageUrl: submissionData.imageUrl
-      });
 
-      console.log('🚀 Calling onSubmit with:', submissionData);
       await onSubmit(submissionData);
     } catch (error) {
-      console.error('Error submitting form:', error);
     } finally {
       setIsSubmitting(false);
       setIsUploading(false);

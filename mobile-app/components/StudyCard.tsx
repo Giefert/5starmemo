@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
 import {
   StudyCardData,
   isMakiCard,
@@ -11,7 +12,6 @@ import {
   isSauceCard,
   isFishCard
 } from '../types/shared';
-import { adjustUrlForPlatform } from '../utils/imageUrl';
 
 export interface LinkedTerm {
   id: string;
@@ -133,8 +133,7 @@ const WineMeterBar: React.FC<{
 export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linkedTerms, onTermPress }) => {
   const { card } = cardData;
 
-  // Get image URL from card and adjust for platform (Android emulator needs 10.0.2.2)
-  const imageUrl = adjustUrlForPlatform(card.imageUrl);
+  const imageUrl = card.imageUrl;
 
   return (
     <View
@@ -158,7 +157,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
             <Image
               source={{ uri: imageUrl }}
               style={styles.cardImage}
-              resizeMode="contain"
+              contentFit="contain"
             />
           ) : (
             <View style={styles.emptyImageState}>

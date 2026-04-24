@@ -2,6 +2,10 @@
 
 ## Project Context
 5starmemo - A spaced repetition learning system with mobile app and web dashboard.
+BFF architecture: web-api (management), mobile-api (student), web-dashboard (Next.js), mobile-app (Expo).
 
 ## Development Guidelines
-We are early in development. When we are debugging a solution, do not add needless fail-safes. We want to avoid adding too much bloat and leftover junk which we won't be able to find, maintain or clean-up.
+- Keep the codebase lean. Delete dead code rather than commenting it out or guarding it.
+- Don't over-engineer: no abstractions for one-time operations, no feature flags, no designing for hypothetical future requirements.
+- Production requirements (security, store compliance, deployment config) are not bloat — implement them simply and directly.
+- Prefer fixing root causes over adding defensive wrappers around broken code.

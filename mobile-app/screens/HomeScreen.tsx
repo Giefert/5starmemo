@@ -59,32 +59,11 @@ export const HomeScreen: React.FC = () => {
   const loadData = async () => {
     try {
       if (!isRefreshing) setIsLoading(true);
-      console.log('Loading study data...');
       const decksData = await apiService.getAvailableDecks();
-      console.log('Data loaded successfully:', { decksData });
       setDecks(decksData);
     } catch (error) {
-      // Enhanced error logging for debugging network issues
-      console.error('Failed to load data:', error);
-      console.error('Error type:', error?.constructor?.name);
-      if (error instanceof Error) {
-        console.error('Error message:', error.message);
-        console.error('Error stack:', error.stack);
-      }
-      
-      // Log network-specific information
-      if (error && typeof error === 'object' && 'code' in error) {
-        console.error('Network error code:', error.code);
-      }
-      if (error && typeof error === 'object' && 'response' in error) {
-        const axiosError = error as any;
-        console.error('API response status:', axiosError.response?.status);
-        console.error('API response data:', axiosError.response?.data);
-      }
-      
       // Handle authentication errors by logging out
       if (error instanceof Error && error.name === 'AuthenticationError') {
-        console.log('Authentication error detected, logging out user');
         logout();
         return; // Don't show alert, user will be redirected to login
       }

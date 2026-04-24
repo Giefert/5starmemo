@@ -18,7 +18,7 @@ import {
   GlossarySection
 } from '../../../shared/types';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_BASE_URL = process.env.NEXT_PUBLIC_WEB_API_URL || 'http://localhost:3001';
 
 // Create axios instance
 const api = axios.create({
@@ -46,9 +46,7 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    console.log('API Error:', error.response?.status, error.response?.data, error.config?.url);
     if (error.response?.status === 401 || error.response?.status === 403) {
-      console.log('Auth error - logging out user');
       localStorage.removeItem('authToken');
       localStorage.removeItem('user');
       window.location.href = '/login';

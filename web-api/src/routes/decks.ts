@@ -210,7 +210,6 @@ router.post('/:id/cards',
     body('restaurantData').optional().isObject(),
     body('restaurantData.itemName').optional().trim().isLength({ min: 1 }),
     body('restaurantData.category').optional().isIn(VALID_CATEGORIES),
-    body('restaurantData.classification').optional().isString()
   ],
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -260,7 +259,6 @@ router.put('/cards/:cardId',
     body('restaurantData').optional().isObject(),
     body('restaurantData.itemName').optional().trim().isLength({ min: 1 }),
     body('restaurantData.category').optional().isIn(VALID_CATEGORIES),
-    body('restaurantData.classification').optional().isString()
   ],
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -283,10 +281,10 @@ router.put('/cards/:cardId',
       }
 
       const deck = await DeckModel.findById(existingCard.deckId);
-      if (!deck) {
+      if (!deck || deck.createdBy !== req.user!.id) {
         return res.status(404).json({
           success: false,
-          error: 'Deck not found'
+          error: 'Card not found'
         });
       }
 
@@ -333,10 +331,10 @@ router.delete('/cards/:cardId',
       }
 
       const deck = await DeckModel.findById(existingCard.deckId);
-      if (!deck) {
+      if (!deck || deck.createdBy !== req.user!.id) {
         return res.status(404).json({
           success: false,
-          error: 'Deck not found'
+          error: 'Card not found'
         });
       }
 

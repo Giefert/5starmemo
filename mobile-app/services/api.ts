@@ -1,5 +1,6 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import Constants from 'expo-constants';
 import {
   LoginInput,
   ApiResponse,
@@ -15,49 +16,39 @@ import {
 
 import { Platform } from 'react-native';
 
-// Dynamic API URL based on platform
 const getApiBaseUrl = () => {
   if (__DEV__) {
-    if (Platform.OS === 'ios') {
-      // iOS Simulator - use host machine's IP address
-      return 'http://localhost:3002/api/student';
-    } else if (Platform.OS === 'android') {
-      // Android Emulator - use Android emulator IP
-      return 'http://10.0.2.2:3002/api/student';
-    } else {
-      // Web development
-      return 'http://localhost:3002/api/student';
-    }
+    return Platform.OS === 'android'
+      ? 'http://10.0.2.2:3002/api/student'
+      : 'http://localhost:3002/api/student';
   }
-  // Production - would use your actual API domain
-  return 'http://localhost:3002/api/student';
+  return Constants.expoConfig?.extra?.apiUrl || 'https://api.tusavor.com/api/student';
 };
 
 const API_BASE_URL = getApiBaseUrl();
+
+const apiClient = axios.create({
+  baseURL: API_BASE_URL,
+});
 
 class ApiService {
   private token: string | null = null;
 
   constructor() {
     this.initializeToken();
-    this.setupResponseInterceptor();
+    this.setupInterceptors();
   }
 
-  private setupResponseInterceptor() {
-    axios.interceptors.response.use(
+  private setupInterceptors() {
+    apiClient.interceptors.response.use(
       (response) => response,
       async (error) => {
-        // Handle 401 and 403 authentication errors globally
         if (error.response?.status === 401 || error.response?.status === 403) {
-          console.log(`${error.response.status} authentication error detected, clearing stored credentials`);
           await this.clearStoredCredentials();
-
-          // Create a custom error to indicate re-login is needed
           const authError = new Error('Authentication expired. Please log in again.');
           authError.name = 'AuthenticationError';
           throw authError;
         }
-        // Re-throw the original error if it's not auth-related
         throw error;
       }
     );
@@ -85,8 +76,8 @@ class ApiService {
   }
 
   async login(credentials: LoginInput): Promise<AuthResponse> {
-    const response = await axios.post<ApiResponse<AuthResponse>>(
-      `${API_BASE_URL}/auth/login`,
+    const response = await apiClient.post<ApiResponse<AuthResponse>>(
+      `/auth/login`,
       credentials
     );
     
@@ -103,10 +94,16 @@ class ApiService {
     await this.clearStoredCredentials();
   }
 
+  async deleteAccount(): Promise<void> {
+    const headers = await this.getAuthHeaders();
+    await apiClient.delete('/auth/account', { headers });
+    await this.clearStoredCredentials();
+  }
+
   async getAvailableDecks(): Promise<Deck[]> {
     const headers = await this.getAuthHeaders();
-    const response = await axios.get<ApiResponse<Deck[]>>(
-      `${API_BASE_URL}/decks`,
+    const response = await apiClient.get<ApiResponse<Deck[]>>(
+      `/decks`,
       { headers }
     );
     
@@ -119,8 +116,8 @@ class ApiService {
 
   async getDeckForStudy(deckId: string): Promise<{ deckId: string; cards: any[] }> {
     const headers = await this.getAuthHeaders();
-    const response = await axios.get<ApiResponse<{ deckId: string; cards: any[] }>>(
-      `${API_BASE_URL}/decks/${deckId}`,
+    const response = await apiClient.get<ApiResponse<{ deckId: string; cards: any[] }>>(
+      `/decks/${deckId}`,
       { headers }
     );
     
@@ -133,8 +130,8 @@ class ApiService {
 
   async getStudyStats(): Promise<StudyStats> {
     const headers = await this.getAuthHeaders();
-    const response = await axios.get<ApiResponse<StudyStats>>(
-      `${API_BASE_URL}/progress/stats`,
+    const response = await apiClient.get<ApiResponse<StudyStats>>(
+      `/progress/stats`,
       { headers }
     );
     
@@ -147,8 +144,8 @@ class ApiService {
 
   async createStudySession(deckId: string): Promise<StudySession> {
     const headers = await this.getAuthHeaders();
-    const response = await axios.post<ApiResponse<StudySession>>(
-      `${API_BASE_URL}/progress/sessions`,
+    const response = await apiClient.post<ApiResponse<StudySession>>(
+      `/progress/sessions`,
       { deckId },
       { headers }
     );
@@ -164,8 +161,8 @@ class ApiService {
     const headers = await this.getAuthHeaders();
     const payload = sessionId ? { ...reviewData, sessionId } : reviewData;
     
-    const response = await axios.post<ApiResponse<any>>(
-      `${API_BASE_URL}/progress/review`,
+    const response = await apiClient.post<ApiResponse<any>>(
+      `/progress/review`,
       payload,
       { headers }
     );
@@ -183,8 +180,8 @@ class ApiService {
     averageRating: number;
   }): Promise<StudySession> {
     const headers = await this.getAuthHeaders();
-    const response = await axios.put<ApiResponse<StudySession>>(
-      `${API_BASE_URL}/progress/sessions/${sessionId}/end`,
+    const response = await apiClient.put<ApiResponse<StudySession>>(
+      `/progress/sessions/${sessionId}/end`,
       stats,
       { headers }
     );
@@ -198,8 +195,8 @@ class ApiService {
 
   async getRecentSessions(limit: number = 10): Promise<StudySession[]> {
     const headers = await this.getAuthHeaders();
-    const response = await axios.get<ApiResponse<StudySession[]>>(
-      `${API_BASE_URL}/progress/sessions?limit=${limit}`,
+    const response = await apiClient.get<ApiResponse<StudySession[]>>(
+      `/progress/sessions?limit=${limit}`,
       { headers }
     );
     
@@ -216,9 +213,9 @@ class ApiService {
     const params = new URLSearchParams();
     if (section) params.append('section', section);
     const url = params.toString()
-      ? `${API_BASE_URL}/glossary/categories?${params.toString()}`
-      : `${API_BASE_URL}/glossary/categories`;
-    const response = await axios.get<ApiResponse<GlossaryCategory[]>>(
+      ? `/glossary/categories?${params.toString()}`
+      : `/glossary/categories`;
+    const response = await apiClient.get<ApiResponse<GlossaryCategory[]>>(
       url,
       { headers }
     );
@@ -245,8 +242,8 @@ class ApiService {
     if (options?.page) params.append('page', options.page.toString());
     if (options?.limit) params.append('limit', options.limit.toString());
 
-    const response = await axios.get<any>(
-      `${API_BASE_URL}/glossary/terms?${params.toString()}`,
+    const response = await apiClient.get<any>(
+      `/glossary/terms?${params.toString()}`,
       { headers }
     );
 
@@ -262,8 +259,8 @@ class ApiService {
 
   async getGlossaryTerm(id: string): Promise<GlossaryTerm> {
     const headers = await this.getAuthHeaders();
-    const response = await axios.get<ApiResponse<GlossaryTerm>>(
-      `${API_BASE_URL}/glossary/terms/${id}`,
+    const response = await apiClient.get<ApiResponse<GlossaryTerm>>(
+      `/glossary/terms/${id}`,
       { headers }
     );
 
@@ -276,8 +273,8 @@ class ApiService {
 
   async getTermsForCard(cardId: string): Promise<{ id: string; term: string; definition: string; matchField: string | null; matchContext: string | null }[]> {
     const headers = await this.getAuthHeaders();
-    const response = await axios.get<ApiResponse<any>>(
-      `${API_BASE_URL}/glossary/cards/${cardId}/terms`,
+    const response = await apiClient.get<ApiResponse<any>>(
+      `/glossary/cards/${cardId}/terms`,
       { headers }
     );
 

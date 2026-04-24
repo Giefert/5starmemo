@@ -186,17 +186,8 @@ export type RestaurantCardData =
   | SauceCardData
   | FishCardData;
 
-// Alias for backward compatibility
-export type RestaurantCardDataV2 = RestaurantCardData;
-
-/**
- * V1 monolithic interface - DEPRECATED
- *
- * Only use this type for migration purposes (converting legacy data to V2).
- * For new code, use RestaurantCardData (the discriminated union).
- *
- * @deprecated Use RestaurantCardData instead
- */
+// Flat (all-fields) shape used by the management form to collect input before
+// stripping to category-specific fields via migrateToV2().
 export interface RestaurantCardDataV1 {
   itemName: string;
   category: 'wine' | 'beer' | 'cocktail' | 'spirit' | 'maki' | 'sake' | 'sauce' | 'fish';
@@ -491,7 +482,7 @@ export function isAlcoholicCard(
   return ['wine', 'beer', 'cocktail', 'spirit', 'sake'].includes(data.category);
 }
 
-// Migration helper: convert V1 to V2 (strips invalid category-specific fields)
+// Strip a flat all-fields object down to only category-valid fields
 export function migrateToV2(v1: RestaurantCardDataV1): RestaurantCardData {
   const base = {
     itemName: v1.itemName,

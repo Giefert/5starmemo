@@ -24,15 +24,4 @@ export class UserModel {
     return result.rows[0] || null;
   }
 
-  static async findStudents(): Promise<User[]> {
-    const query = `
-      SELECT id, email, username, role, created_at, updated_at
-      FROM users
-      WHERE role = 'student'
-      ORDER BY created_at DESC
-    `;
-    
-    const result = await pool.query(query);
-    return result.rows;
-  }
 }

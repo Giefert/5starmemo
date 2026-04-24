@@ -188,11 +188,13 @@ export class DeckModel {
 
     setClause.push(`updated_at = CURRENT_TIMESTAMP`);
     values.push(id);
+    paramCount++;
+    values.push(userId);
 
     const query = `
       UPDATE decks
       SET ${setClause.join(', ')}
-      WHERE id = $${paramCount}
+      WHERE id = $${paramCount - 1} AND created_by = $${paramCount}
       RETURNING id, title, description, category_id, created_by, is_public, is_featured, created_at, updated_at
     `;
 
@@ -217,25 +219,9 @@ export class DeckModel {
   }
 
   static async delete(id: string, userId: string): Promise<boolean> {
-    const query = 'DELETE FROM decks WHERE id = $1';
-    const result = await pool.query(query, [id]);
+    const query = 'DELETE FROM decks WHERE id = $1 AND created_by = $2';
+    const result = await pool.query(query, [id, userId]);
     return (result.rowCount || 0) > 0;
   }
 
-  static async findByCreator(createdBy: string): Promise<Deck[]> {
-    const query = `
-      SELECT d.*, COUNT(c.id) as card_count
-      FROM decks d
-      LEFT JOIN cards c ON d.id = c.deck_id
-      WHERE d.created_by = $1
-      GROUP BY d.id
-      ORDER BY d.created_at DESC
-    `;
-    
-    const result = await pool.query(query, [createdBy]);
-    return result.rows.map(row => ({
-      ...row,
-      cardCount: parseInt(row.card_count) || 0
-    }));
-  }
 }

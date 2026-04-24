@@ -40,21 +40,4 @@ export class UserModel {
     return result.rows[0] || null;
   }
 
-  static async findByRole(role: 'student' | 'management'): Promise<User[]> {
-    const query = `
-      SELECT id, email, username, role, created_at, updated_at
-      FROM users
-      WHERE role = $1
-      ORDER BY created_at DESC
-    `;
-    
-    const result = await pool.query(query, [role]);
-    return result.rows;
-  }
-
-  static async delete(id: string): Promise<boolean> {
-    const query = 'DELETE FROM users WHERE id = $1';
-    const result = await pool.query(query, [id]);
-    return (result.rowCount || 0) > 0;
-  }
 }
