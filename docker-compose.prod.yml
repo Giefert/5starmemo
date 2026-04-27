@@ -85,6 +85,8 @@ services:
     build:
       context: .
       dockerfile: ./web-dashboard/Dockerfile
+      args:
+        NEXT_PUBLIC_WEB_API_URL: https://api.tusavor.com
     environment:
       NODE_ENV: production
       PORT: 3000

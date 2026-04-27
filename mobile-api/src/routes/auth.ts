@@ -73,6 +73,36 @@ router.post('/login', authLimiter,
   }
 );
 
+// Export all user data — Loi 25 data portability
+router.get('/export', authenticateToken,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const userId = req.user!.id;
+
+      const [user, fsrsCards, sessions, reviews] = await Promise.all([
+        pool.query('SELECT id, email, role, created_at FROM users WHERE id = $1', [userId]),
+        pool.query('SELECT card_id, difficulty, stability, retrievability, grade, lapses, reps, state, last_review, next_review, created_at FROM fsrs_cards WHERE user_id = $1', [userId]),
+        pool.query('SELECT id, deck_id, cards_studied, correct_answers, average_rating, started_at, ended_at, created_at FROM study_sessions WHERE user_id = $1 ORDER BY created_at DESC', [userId]),
+        pool.query('SELECT cr.card_id, cr.rating, cr.response_time_ms, cr.created_at FROM card_reviews cr JOIN study_sessions ss ON cr.session_id = ss.id WHERE ss.user_id = $1 ORDER BY cr.created_at DESC', [userId]),
+      ]);
+
+      res.json({
+        success: true,
+        data: {
+          exportedAt: new Date().toISOString(),
+          account: user.rows[0] || null,
+          studyProgress: fsrsCards.rows,
+          studySessions: sessions.rows,
+          cardReviews: reviews.rows,
+        },
+      });
+    } catch (error) {
+      console.error('Data export error:', error);
+      res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+  }
+);
+
 // Delete account — Apple App Store requirement
 router.delete('/account', authenticateToken,
   async (req: AuthenticatedRequest, res: Response) => {

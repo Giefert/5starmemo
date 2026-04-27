@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Linking } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Linking, Share, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
 import { useAuth } from '../contexts/AuthContext';
@@ -8,9 +8,25 @@ import apiService from '../services/api';
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { logout } = useAuth();
+  const [isExporting, setIsExporting] = useState(false);
 
   const privacyPolicyUrl =
-    Constants.expoConfig?.extra?.privacyPolicyUrl || 'https://fivestarmemo.com/privacy';
+    Constants.expoConfig?.extra?.privacyPolicyUrl || 'https://tusavor.com/privacy';
+
+  const handleExportData = async () => {
+    setIsExporting(true);
+    try {
+      const data = await apiService.exportData();
+      await Share.share({
+        message: data,
+        title: 'My Tusavor Data',
+      });
+    } catch {
+      Alert.alert('Error', 'Failed to export data. Please try again.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -50,6 +66,19 @@ export default function SettingsScreen() {
         >
           <Text style={styles.rowText}>Privacy Policy</Text>
           <Text style={styles.rowChevron}>›</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.row, { marginTop: 1 }]}
+          onPress={handleExportData}
+          disabled={isExporting}
+        >
+          <Text style={styles.rowText}>Export My Data</Text>
+          {isExporting ? (
+            <ActivityIndicator size="small" color="#999" />
+          ) : (
+            <Text style={styles.rowChevron}>›</Text>
+          )}
         </TouchableOpacity>
 
         <View style={styles.separator} />

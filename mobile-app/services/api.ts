@@ -100,6 +100,12 @@ class ApiService {
     await this.clearStoredCredentials();
   }
 
+  async exportData(): Promise<string> {
+    const headers = await this.getAuthHeaders();
+    const response = await apiClient.get('/auth/export', { headers });
+    return JSON.stringify(response.data.data, null, 2);
+  }
+
   async getAvailableDecks(): Promise<Deck[]> {
     const headers = await this.getAuthHeaders();
     const response = await apiClient.get<ApiResponse<Deck[]>>(
