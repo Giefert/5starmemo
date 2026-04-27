@@ -3,5 +3,13 @@ tusavor.com {
 }
 
 api.tusavor.com {
-	reverse_proxy web-api:3001
+	handle /api/management/* {
+		reverse_proxy web-api:3001
+	}
+	handle /api/student/* {
+		reverse_proxy mobile-api:3002
+	}
+	handle /health {
+		reverse_proxy web-api:3001
+	}
 }
