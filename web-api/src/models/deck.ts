@@ -49,24 +49,25 @@ export class DeckModel {
 
   static async findAll(createdBy?: string): Promise<DeckWithStats[]> {
     let query = `
-      SELECT 
+      SELECT
         d.*,
         COUNT(DISTINCT c.id) as card_count,
         COUNT(DISTINCT ss.user_id) as total_students,
         COUNT(DISTINCT ss.id) as total_sessions,
-        AVG(ss.average_rating) as average_rating
+        AVG(ss.average_rating) as average_rating,
+        ARRAY_AGG(DISTINCT c.restaurant_data->>'category') FILTER (WHERE c.restaurant_data->>'category' IS NOT NULL) as card_categories
       FROM decks d
       LEFT JOIN cards c ON d.id = c.deck_id
       LEFT JOIN study_sessions ss ON d.id = ss.deck_id
     `;
-    
+
     const values: any[] = [];
-    
+
     if (createdBy) {
       query += ` WHERE d.created_by = $1`;
       values.push(createdBy);
     }
-    
+
     query += `
       GROUP BY d.id, d.title, d.description, d.category_id, d.created_by, d.is_public, d.is_featured, d.created_at, d.updated_at
       ORDER BY d.created_at DESC
@@ -85,6 +86,7 @@ export class DeckModel {
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       cardCount: parseInt(row.card_count) || 0,
+      cardCategories: row.card_categories ?? [],
       totalStudents: parseInt(row.total_students) || 0,
       totalSessions: parseInt(row.total_sessions) || 0,
       averageRating: parseFloat(row.average_rating) || 0,

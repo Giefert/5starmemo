@@ -38,6 +38,7 @@ export interface Deck {
   updatedAt: Date;
   cards?: Card[];
   cardCount?: number;
+  cardCategories?: string[]; // distinct restaurant_data.category values across the deck's cards
   newCards?: number;
   reviewCards?: number;
 }
