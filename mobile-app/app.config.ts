@@ -3,7 +3,7 @@ import { ExpoConfig, ConfigContext } from 'expo/config';
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: 'Tusavor',
-  slug: 'tusavor',
+  slug: '5starmemo',
   version: '1.0.0',
   orientation: 'portrait',
   icon: './assets/app_icon_1024.png',
@@ -51,7 +51,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     privacyPolicyUrl:
       process.env.PRIVACY_POLICY_URL || 'https://tusavor.com/privacy',
     eas: {
-      projectId: process.env.EAS_PROJECT_ID || '',
+      projectId: 'd25aae9b-8910-4fbf-8489-62e8ae9cdeec',
     },
   },
 });

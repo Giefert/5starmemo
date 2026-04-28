@@ -23,17 +23,5 @@
         "API_URL": "https://api.tusavor.com/api/student"
       }
     }
-  },
-  "submit": {
-    "production": {
-      "ios": {
-        "appleId": "",
-        "ascAppId": "",
-        "appleTeamId": ""
-      },
-      "android": {
-        "serviceAccountKeyPath": ""
-      }
-    }
   }
 }
