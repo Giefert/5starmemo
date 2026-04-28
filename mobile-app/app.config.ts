@@ -18,6 +18,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     supportsTablet: true,
     bundleIdentifier: 'com.tusavor.app',
     infoPlist: {
+      ITSAppUsesNonExemptEncryption: false,
       NSUserTrackingUsageDescription:
         'This identifier is used to deliver a better study experience.',
     },
