@@ -2,21 +2,21 @@ import { ExpoConfig, ConfigContext } from 'expo/config';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: '5star memo',
-  slug: '5starmemo',
+  name: 'Tusavor',
+  slug: 'tusavor',
   version: '1.0.0',
   orientation: 'portrait',
-  icon: './assets/icon.png',
+  icon: './assets/app_icon_1024.png',
   userInterfaceStyle: 'light',
   newArchEnabled: true,
   splash: {
-    image: './assets/splash-icon.png',
-    resizeMode: 'contain',
-    backgroundColor: '#ffffff',
+    image: './assets/splash-tusavor.png',
+    resizeMode: 'cover',
+    backgroundColor: '#1a1a1a',
   },
   ios: {
     supportsTablet: true,
-    bundleIdentifier: 'com.fivestarmemo.app',
+    bundleIdentifier: 'com.tusavor.app',
     infoPlist: {
       NSUserTrackingUsageDescription:
         'This identifier is used to deliver a better study experience.',
@@ -40,11 +40,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     adaptiveIcon: {
-      foregroundImage: './assets/adaptive-icon.png',
-      backgroundColor: '#ffffff',
+      foregroundImage: './assets/app_icon_1024.png',
+      backgroundColor: '#1a1a1a',
     },
     edgeToEdgeEnabled: true,
-    package: 'com.fivestarmemo.app',
+    package: 'com.tusavor.app',
   },
   extra: {
     apiUrl: process.env.API_URL || 'https://api.tusavor.com/api/student',
