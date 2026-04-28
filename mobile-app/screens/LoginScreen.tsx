@@ -35,8 +35,8 @@ export const LoginScreen: React.FC = () => {
   };
 
   const fillDemoCredentials = () => {
-    setEmail('student@5starmemo.com');
-    setPassword('Student123!');
+    setEmail('student@tusavor.com');
+    setPassword('Student123');
   };
 
   return (
@@ -45,7 +45,7 @@ export const LoginScreen: React.FC = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={styles.content}>
-        <Text style={styles.title}>5StarMemo</Text>
+        <Text style={styles.title}>Tusavor</Text>
         <Text style={styles.subtitle}>Student Learning App</Text>
 
         <View style={styles.form}>
