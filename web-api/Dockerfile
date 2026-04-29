@@ -13,6 +13,7 @@ COPY --from=builder /app/package*.json ./
 RUN npm ci --omit=dev
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /shared /shared
+COPY database/migrations /app/migrations
 USER node
 EXPOSE 3001
 CMD ["node", "dist/app/src/index.js"]

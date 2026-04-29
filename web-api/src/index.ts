@@ -12,6 +12,7 @@ import deckRoutes from './routes/decks';
 import uploadRoutes from './routes/upload';
 import glossaryRoutes from './routes/glossary';
 import pool from './config/database';
+import { runMigrations } from './migrate';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -86,17 +87,21 @@ app.use((error: any, req: express.Request, res: express.Response, next: express.
   });
 });
 
-// Start server
-const server = app.listen(PORT, () => {
-  console.log(`Web API running on port ${PORT}`);
-});
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  server.close(async () => {
-    await pool.end();
-    process.exit(0);
+// Start server (after migrations complete, so we never serve traffic against a stale schema)
+runMigrations(pool).then(() => {
+  const server = app.listen(PORT, () => {
+    console.log(`Web API running on port ${PORT}`);
   });
+
+  process.on('SIGTERM', () => {
+    server.close(async () => {
+      await pool.end();
+      process.exit(0);
+    });
+  });
+}).catch(err => {
+  console.error('Startup failed:', err);
+  process.exit(1);
 });
 
 export default app;

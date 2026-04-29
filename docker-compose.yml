@@ -38,6 +38,7 @@ services:
       - ./uploads:/app/uploads
       - ./web-api:/app
       - ./shared:/shared
+      - ./database/migrations:/app/migrations
       - /app/node_modules
     command: npm run dev
 
