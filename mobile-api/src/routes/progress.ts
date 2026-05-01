@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { body, param, validationResult } from 'express-validator';
 import { ProgressModel } from '../models/progress';
+import { DeckModel } from '../models/deck';
 import { authenticateToken, requireStudent, AuthenticatedRequest } from '../middleware/auth';
 import { ApiResponse, ReviewInput } from '../../../shared/types';
 
@@ -13,14 +14,14 @@ router.use(requireStudent);
 // Get user's study statistics
 router.get('/stats', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const stats = await ProgressModel.getStudyStats(req.user!.id);
-    
+    const stats = await ProgressModel.getStudyStats(req.user!.id, req.user!.restaurantId);
+
     const response: ApiResponse = {
       success: true,
       data: stats,
       message: 'Study statistics retrieved successfully'
     };
-    
+
     res.json(response);
   } catch (error) {
     console.error('Error fetching study stats:', error);
@@ -35,14 +36,14 @@ router.get('/stats', async (req: AuthenticatedRequest, res: Response) => {
 router.get('/sessions', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const limit = parseInt(req.query.limit as string) || 10;
-    const sessions = await ProgressModel.getRecentSessions(req.user!.id, limit);
-    
+    const sessions = await ProgressModel.getRecentSessions(req.user!.id, req.user!.restaurantId, limit);
+
     const response: ApiResponse = {
       success: true,
       data: sessions,
       message: 'Recent sessions retrieved successfully'
     };
-    
+
     res.json(response);
   } catch (error) {
     console.error('Error fetching recent sessions:', error);
@@ -70,6 +71,17 @@ router.post('/sessions',
       }
 
       const { deckId } = req.body;
+
+      // Confirm the deck is in the student's restaurant before creating
+      // a session against it.
+      const isAvailable = await DeckModel.isDeckAvailable(deckId, req.user!.restaurantId);
+      if (!isAvailable) {
+        return res.status(404).json({
+          success: false,
+          error: 'Deck not found or not available'
+        });
+      }
+
       const session = await ProgressModel.createStudySession(req.user!.id, deckId);
 
       const response: ApiResponse = {
@@ -77,7 +89,7 @@ router.post('/sessions',
         data: session,
         message: 'Study session started successfully'
       };
-      
+
       res.status(201).json(response);
     } catch (error) {
       console.error('Error starting study session:', error);
@@ -127,7 +139,7 @@ router.put('/sessions/:id/end',
         data: session,
         message: 'Study session ended successfully'
       };
-      
+
       res.json(response);
     } catch (error) {
       console.error('Error ending study session:', error);
@@ -162,6 +174,15 @@ router.post('/review',
         rating: req.body.rating
       };
 
+      // Don't allow reviewing cards from other restaurants
+      const cardOk = await ProgressModel.cardInRestaurant(reviewInput.cardId, req.user!.restaurantId);
+      if (!cardOk) {
+        return res.status(404).json({
+          success: false,
+          error: 'Card not found'
+        });
+      }
+
       const fsrsCard = await ProgressModel.submitReview(
         req.user!.id,
         reviewInput,
@@ -176,7 +197,7 @@ router.post('/review',
         },
         message: 'Review submitted successfully'
       };
-      
+
       res.json(response);
     } catch (error) {
       console.error('Error submitting review:', error);

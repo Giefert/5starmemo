@@ -18,7 +18,7 @@ router.get('/categories',
   async (req: AuthenticatedRequest, res: Response) => {
   try {
     const section = req.query.section as string | undefined;
-    const categories = await GlossaryModel.getCategories(section);
+    const categories = await GlossaryModel.getCategories(req.user!.restaurantId, section);
     const response: ApiResponse = {
       success: true,
       data: categories,
@@ -55,6 +55,7 @@ router.get('/terms',
       const limit = parseInt(req.query.limit as string) || 50;
 
       const result = await GlossaryModel.getTerms({
+        restaurantId: req.user!.restaurantId,
         categoryId: req.query.categoryId as string,
         section: req.query.section as string,
         search: req.query.search as string,
@@ -94,7 +95,7 @@ router.get('/terms/:id',
         });
       }
 
-      const term = await GlossaryModel.getTermById(req.params.id);
+      const term = await GlossaryModel.getTermById(req.params.id, req.user!.restaurantId);
       if (!term) {
         return res.status(404).json({ success: false, error: 'Term not found' });
       }
@@ -125,7 +126,7 @@ router.get('/cards/:cardId/terms',
           details: errors.array()
         });
       }
-      const terms = await GlossaryModel.getTermsByCardId(req.params.cardId);
+      const terms = await GlossaryModel.getTermsByCardId(req.params.cardId, req.user!.restaurantId);
       const response: ApiResponse = {
         success: true,
         data: terms,

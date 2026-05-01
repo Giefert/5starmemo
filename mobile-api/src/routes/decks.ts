@@ -13,14 +13,14 @@ router.use(requireStudent);
 // Get available decks for studying
 router.get('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const decks = await DeckModel.getAvailableDecks(req.user!.id);
-    
+    const decks = await DeckModel.getAvailableDecks(req.user!.id, req.user!.restaurantId);
+
     const response: ApiResponse = {
       success: true,
       data: decks,
       message: 'Available decks retrieved successfully'
     };
-    
+
     res.json(response);
   } catch (error) {
     console.error('Error fetching available decks:', error);
@@ -45,8 +45,8 @@ router.get('/:id',
         });
       }
 
-      // Check if deck is available
-      const isAvailable = await DeckModel.isDeckAvailable(req.params.id);
+      // Check if deck is available within the student's restaurant
+      const isAvailable = await DeckModel.isDeckAvailable(req.params.id, req.user!.restaurantId);
       if (!isAvailable) {
         return res.status(404).json({
           success: false,
@@ -54,7 +54,7 @@ router.get('/:id',
         });
       }
 
-      const studyData = await DeckModel.getDeckForStudy(req.params.id, req.user!.id);
+      const studyData = await DeckModel.getDeckForStudy(req.params.id, req.user!.id, req.user!.restaurantId);
 
       const response: ApiResponse = {
         success: true,
@@ -64,7 +64,7 @@ router.get('/:id',
         },
         message: 'Deck study data retrieved successfully'
       };
-      
+
       res.json(response);
     } catch (error) {
       console.error('Error fetching deck for study:', error);
@@ -80,7 +80,7 @@ router.get('/:id',
 router.get('/review/due', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const limit = parseInt(req.query.limit as string) || 50;
-    const cards = await DeckModel.getCardsForReview(req.user!.id, limit);
+    const cards = await DeckModel.getCardsForReview(req.user!.id, req.user!.restaurantId, limit);
 
     const response: ApiResponse = {
       success: true,
@@ -90,7 +90,7 @@ router.get('/review/due', async (req: AuthenticatedRequest, res: Response) => {
       },
       message: 'Due cards retrieved successfully'
     };
-    
+
     res.json(response);
   } catch (error) {
     console.error('Error fetching due cards:', error);

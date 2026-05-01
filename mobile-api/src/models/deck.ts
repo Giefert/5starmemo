@@ -3,9 +3,11 @@ import { StudentDeck, StudyCardData, Card, FSRSCard } from '../../../shared/type
 
 export class DeckModel {
   /**
-   * Get all available decks for students (public decks only)
+   * Get all available decks for students (public decks within the student's
+   * restaurant). The restaurant scope is mandatory — there is no cross-tenant
+   * browsing.
    */
-  static async getAvailableDecks(userId: string): Promise<StudentDeck[]> {
+  static async getAvailableDecks(userId: string, restaurantId: string): Promise<StudentDeck[]> {
     const query = `
       SELECT
         d.id,
@@ -19,12 +21,12 @@ export class DeckModel {
       FROM decks d
       LEFT JOIN cards c ON d.id = c.deck_id
       LEFT JOIN fsrs_cards fc ON c.id = fc.card_id AND fc.user_id = $1
-      WHERE d.is_public = true
+      WHERE d.is_public = true AND d.restaurant_id = $2
       GROUP BY d.id, d.title, d.description, d.is_featured
       ORDER BY d.is_featured DESC, d.created_at DESC
     `;
 
-    const result = await pool.query(query, [userId]);
+    const result = await pool.query(query, [userId, restaurantId]);
 
     return result.rows.map(row => ({
       id: row.id,
@@ -39,9 +41,9 @@ export class DeckModel {
   }
 
   /**
-   * Get deck with cards for studying
+   * Get deck with cards for studying. Restaurant scope enforced via deck.
    */
-  static async getDeckForStudy(deckId: string, userId: string): Promise<StudyCardData[]> {
+  static async getDeckForStudy(deckId: string, userId: string, restaurantId: string): Promise<StudyCardData[]> {
     const query = `
       SELECT
         c.id,
@@ -64,12 +66,13 @@ export class DeckModel {
         fc.created_at as fsrs_created_at,
         fc.updated_at as fsrs_updated_at
       FROM cards c
+      JOIN decks d ON d.id = c.deck_id
       LEFT JOIN fsrs_cards fc ON c.id = fc.card_id AND fc.user_id = $2
-      WHERE c.deck_id = $1
+      WHERE c.deck_id = $1 AND d.restaurant_id = $3
       ORDER BY c.restaurant_data->>'itemName' ASC, c.created_at ASC
     `;
 
-    const result = await pool.query(query, [deckId, userId]);
+    const result = await pool.query(query, [deckId, userId, restaurantId]);
 
     return result.rows.map(row => {
       const card: Card = {
@@ -123,11 +126,11 @@ export class DeckModel {
   }
 
   /**
-   * Get cards due for review
+   * Get cards due for review (within the student's restaurant).
    */
-  static async getCardsForReview(userId: string, limit: number = 50): Promise<StudyCardData[]> {
+  static async getCardsForReview(userId: string, restaurantId: string, limit: number = 50): Promise<StudyCardData[]> {
     const query = `
-      SELECT 
+      SELECT
         c.id,
         c.deck_id,
         c.image_url,
@@ -154,11 +157,12 @@ export class DeckModel {
       WHERE fc.user_id = $1
         AND fc.next_review <= NOW()
         AND d.is_public = true
+        AND d.restaurant_id = $3
       ORDER BY fc.next_review ASC, c.card_order ASC
       LIMIT $2
     `;
 
-    const result = await pool.query(query, [userId, limit]);
+    const result = await pool.query(query, [userId, limit, restaurantId]);
 
     return result.rows.map(row => {
       const card: Card = {
@@ -197,16 +201,16 @@ export class DeckModel {
   }
 
   /**
-   * Check if deck exists and is public
+   * Check if deck exists, is public, and belongs to the caller's restaurant.
    */
-  static async isDeckAvailable(deckId: string): Promise<boolean> {
+  static async isDeckAvailable(deckId: string, restaurantId: string): Promise<boolean> {
     const query = `
-      SELECT COUNT(*) as count
+      SELECT 1
       FROM decks
-      WHERE id = $1 AND is_public = true
+      WHERE id = $1 AND is_public = true AND restaurant_id = $2
     `;
-    
-    const result = await pool.query(query, [deckId]);
-    return parseInt(result.rows[0].count) > 0;
+
+    const result = await pool.query(query, [deckId, restaurantId]);
+    return result.rows.length > 0;
   }
 }

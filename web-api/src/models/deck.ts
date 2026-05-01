@@ -15,10 +15,10 @@ function parseRestaurantData(data: any) {
 }
 
 export class DeckModel {
-  static async create(deckData: CreateDeckInput, createdBy: string): Promise<Deck> {
+  static async create(deckData: CreateDeckInput, createdBy: string, restaurantId: string): Promise<Deck> {
     const query = `
-      INSERT INTO decks (title, description, category_id, created_by, is_public, is_featured)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO decks (title, description, category_id, created_by, restaurant_id, is_public, is_featured)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING id, title, description, category_id, created_by, is_public, is_featured, created_at, updated_at
     `;
 
@@ -27,6 +27,7 @@ export class DeckModel {
       deckData.description || null,
       deckData.categoryId || null,
       createdBy,
+      restaurantId,
       deckData.isPublic || false,
       deckData.isFeatured || false
     ];
@@ -47,8 +48,8 @@ export class DeckModel {
     };
   }
 
-  static async findAll(createdBy?: string): Promise<DeckWithStats[]> {
-    let query = `
+  static async findAll(restaurantId: string): Promise<DeckWithStats[]> {
+    const query = `
       SELECT
         d.*,
         COUNT(DISTINCT c.id) as card_count,
@@ -59,21 +60,12 @@ export class DeckModel {
       FROM decks d
       LEFT JOIN cards c ON d.id = c.deck_id
       LEFT JOIN study_sessions ss ON d.id = ss.deck_id
-    `;
-
-    const values: any[] = [];
-
-    if (createdBy) {
-      query += ` WHERE d.created_by = $1`;
-      values.push(createdBy);
-    }
-
-    query += `
+      WHERE d.restaurant_id = $1
       GROUP BY d.id, d.title, d.description, d.category_id, d.created_by, d.is_public, d.is_featured, d.created_at, d.updated_at
       ORDER BY d.created_at DESC
     `;
 
-    const result = await pool.query(query, values);
+    const result = await pool.query(query, [restaurantId]);
 
     return result.rows.map(row => ({
       id: row.id,
@@ -93,18 +85,18 @@ export class DeckModel {
     }));
   }
 
-  static async findById(id: string, includeCards: boolean = false): Promise<Deck | null> {
-    let query = `
+  static async findById(id: string, restaurantId: string, includeCards: boolean = false): Promise<Deck | null> {
+    const query = `
       SELECT
         d.*,
         COUNT(c.id) as card_count
       FROM decks d
       LEFT JOIN cards c ON d.id = c.deck_id
-      WHERE d.id = $1
+      WHERE d.id = $1 AND d.restaurant_id = $2
       GROUP BY d.id, d.title, d.description, d.category_id, d.created_by, d.is_public, d.is_featured, d.created_at, d.updated_at
     `;
 
-    const result = await pool.query(query, [id]);
+    const result = await pool.query(query, [id, restaurantId]);
 
     if (result.rows.length === 0) {
       return null;
@@ -131,7 +123,7 @@ export class DeckModel {
         WHERE deck_id = $1
         ORDER BY restaurant_data->>'itemName' ASC, created_at ASC
       `;
-      
+
       const cardsResult = await pool.query(cardsQuery, [id]);
       deck.cards = cardsResult.rows.map(card => ({
         id: card.id,
@@ -149,7 +141,7 @@ export class DeckModel {
     return deck;
   }
 
-  static async update(id: string, deckData: UpdateDeckInput, userId: string): Promise<Deck | null> {
+  static async update(id: string, deckData: UpdateDeckInput, restaurantId: string): Promise<Deck | null> {
     const setClause = [];
     const values = [];
     let paramCount = 1;
@@ -185,18 +177,18 @@ export class DeckModel {
     }
 
     if (setClause.length === 0) {
-      return this.findById(id);
+      return this.findById(id, restaurantId);
     }
 
     setClause.push(`updated_at = CURRENT_TIMESTAMP`);
     values.push(id);
     paramCount++;
-    values.push(userId);
+    values.push(restaurantId);
 
     const query = `
       UPDATE decks
       SET ${setClause.join(', ')}
-      WHERE id = $${paramCount - 1} AND created_by = $${paramCount}
+      WHERE id = $${paramCount - 1} AND restaurant_id = $${paramCount}
       RETURNING id, title, description, category_id, created_by, is_public, is_featured, created_at, updated_at
     `;
 
@@ -220,9 +212,9 @@ export class DeckModel {
     };
   }
 
-  static async delete(id: string, userId: string): Promise<boolean> {
-    const query = 'DELETE FROM decks WHERE id = $1 AND created_by = $2';
-    const result = await pool.query(query, [id, userId]);
+  static async delete(id: string, restaurantId: string): Promise<boolean> {
+    const query = 'DELETE FROM decks WHERE id = $1 AND restaurant_id = $2';
+    const result = await pool.query(query, [id, restaurantId]);
     return (result.rowCount || 0) > 0;
   }
 

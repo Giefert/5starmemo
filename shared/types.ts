@@ -1,10 +1,19 @@
 // Shared types for 5StarMemo BFF Architecture
 
+export interface Restaurant {
+  id: string;
+  name: string;
+  slug: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface User {
   id: string;
   email: string;
   username: string;
   role: 'student' | 'management';
+  restaurantId: string;
   createdAt: Date;
   updatedAt: Date;
 }

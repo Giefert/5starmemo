@@ -2,38 +2,38 @@ import pool from '../config/database';
 import { GlossaryCategory, CreateGlossaryCategoryInput, UpdateGlossaryCategoryInput } from '../../../shared/types';
 
 export class GlossaryCategoryModel {
-  static async findAll(userId: string): Promise<GlossaryCategory[]> {
+  static async findAll(restaurantId: string): Promise<GlossaryCategory[]> {
     const query = `
       SELECT gc.*,
              COUNT(gt.id)::int as term_count
       FROM glossary_categories gc
       LEFT JOIN glossary_terms gt ON gt.category_id = gc.id
-      WHERE gc.created_by = $1
+      WHERE gc.restaurant_id = $1
       GROUP BY gc.id
       ORDER BY gc.display_order ASC, gc.name ASC
     `;
-    const result = await pool.query(query, [userId]);
+    const result = await pool.query(query, [restaurantId]);
     return result.rows.map(row => this.mapRow(row));
   }
 
-  static async findById(id: string): Promise<GlossaryCategory | null> {
+  static async findById(id: string, restaurantId: string): Promise<GlossaryCategory | null> {
     const query = `
       SELECT gc.*,
              COUNT(gt.id)::int as term_count
       FROM glossary_categories gc
       LEFT JOIN glossary_terms gt ON gt.category_id = gc.id
-      WHERE gc.id = $1
+      WHERE gc.id = $1 AND gc.restaurant_id = $2
       GROUP BY gc.id
     `;
-    const result = await pool.query(query, [id]);
+    const result = await pool.query(query, [id, restaurantId]);
     if (result.rows.length === 0) return null;
     return this.mapRow(result.rows[0]);
   }
 
-  static async create(data: CreateGlossaryCategoryInput, userId: string): Promise<GlossaryCategory> {
+  static async create(data: CreateGlossaryCategoryInput, userId: string, restaurantId: string): Promise<GlossaryCategory> {
     const query = `
-      INSERT INTO glossary_categories (name, description, color, display_order, created_by)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO glossary_categories (name, description, color, display_order, created_by, restaurant_id)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
     `;
     const values = [
@@ -41,13 +41,14 @@ export class GlossaryCategoryModel {
       data.description || null,
       data.color || null,
       data.displayOrder || 0,
-      userId
+      userId,
+      restaurantId
     ];
     const result = await pool.query(query, values);
     return this.mapRow(result.rows[0]);
   }
 
-  static async update(id: string, data: UpdateGlossaryCategoryInput, userId: string): Promise<GlossaryCategory | null> {
+  static async update(id: string, data: UpdateGlossaryCategoryInput, restaurantId: string): Promise<GlossaryCategory | null> {
     const setClause: string[] = [];
     const values: any[] = [];
     let paramCount = 1;
@@ -73,13 +74,13 @@ export class GlossaryCategoryModel {
       paramCount++;
     }
 
-    if (setClause.length === 0) return this.findById(id);
+    if (setClause.length === 0) return this.findById(id, restaurantId);
 
-    values.push(id, userId);
+    values.push(id, restaurantId);
     const query = `
       UPDATE glossary_categories
       SET ${setClause.join(', ')}
-      WHERE id = $${paramCount} AND created_by = $${paramCount + 1}
+      WHERE id = $${paramCount} AND restaurant_id = $${paramCount + 1}
       RETURNING *
     `;
     const result = await pool.query(query, values);
@@ -87,9 +88,9 @@ export class GlossaryCategoryModel {
     return this.mapRow(result.rows[0]);
   }
 
-  static async delete(id: string, userId: string): Promise<boolean> {
-    const query = 'DELETE FROM glossary_categories WHERE id = $1 AND created_by = $2';
-    const result = await pool.query(query, [id, userId]);
+  static async delete(id: string, restaurantId: string): Promise<boolean> {
+    const query = 'DELETE FROM glossary_categories WHERE id = $1 AND restaurant_id = $2';
+    const result = await pool.query(query, [id, restaurantId]);
     return (result.rowCount || 0) > 0;
   }
 

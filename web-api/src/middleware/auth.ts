@@ -6,6 +6,7 @@ export interface AuthenticatedRequest extends Request {
     id: string;
     email: string;
     role: 'student' | 'management';
+    restaurantId: string;
   };
 }
 
@@ -22,6 +23,14 @@ export const authenticateToken = (req: AuthenticatedRequest, res: Response, next
 
   try {
     const decoded = verifyToken(token);
+    // Tokens issued before the multi-tenant migration won't have restaurantId.
+    // Force a re-login so we never serve a request without a tenant scope.
+    if (!decoded.restaurantId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Session expired, please log in again'
+      });
+    }
     req.user = decoded;
     next();
   } catch (error) {

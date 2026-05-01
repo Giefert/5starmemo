@@ -12,12 +12,13 @@ export const comparePassword = async (password: string, hashedPassword: string):
 };
 
 export const generateToken = (user: Omit<User, 'password'>): string => {
-  const payload = { 
-    id: user.id, 
-    email: user.email, 
-    role: user.role 
+  const payload = {
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    restaurantId: user.restaurantId,
   };
-  
+
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '30d' });
 };
 

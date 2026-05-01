@@ -15,19 +15,20 @@ function parseRestaurantData(data: any) {
 }
 
 export class GlossaryModel {
-  // Get all categories for browsing
-  static async getCategories(section?: string): Promise<GlossaryCategory[]> {
-    const values: any[] = [];
+  // Get all categories for browsing (within the student's restaurant)
+  static async getCategories(restaurantId: string, section?: string): Promise<GlossaryCategory[]> {
+    const values: any[] = [restaurantId];
     let joinCondition = 'gt.category_id = gc.id';
     if (section) {
       values.push(section);
-      joinCondition += ` AND gt.section = $1`;
+      joinCondition += ` AND gt.section = $${values.length}`;
     }
     const query = `
       SELECT gc.*,
              COUNT(gt.id)::int as term_count
       FROM glossary_categories gc
       LEFT JOIN glossary_terms gt ON ${joinCondition}
+      WHERE gc.restaurant_id = $1
       GROUP BY gc.id
       ORDER BY gc.display_order ASC, gc.name ASC
     `;
@@ -45,20 +46,21 @@ export class GlossaryModel {
     }));
   }
 
-  // Get terms with optional filtering
+  // Get terms with optional filtering (within the student's restaurant)
   static async getTerms(options: {
+    restaurantId: string;
     categoryId?: string;
     search?: string;
     section?: string;
     page?: number;
     limit?: number;
   }): Promise<{ terms: GlossaryTermSummary[]; total: number }> {
-    const { categoryId, search, section, page = 1, limit = 50 } = options;
+    const { restaurantId, categoryId, search, section, page = 1, limit = 50 } = options;
     const offset = (page - 1) * limit;
 
-    let whereClause = '';
-    const values: any[] = [];
-    let paramCount = 1;
+    let whereClause = ' AND gt.restaurant_id = $1';
+    const values: any[] = [restaurantId];
+    let paramCount = 2;
 
     if (section) {
       whereClause += ` AND gt.section = $${paramCount}`;
@@ -120,15 +122,15 @@ export class GlossaryModel {
     return { terms, total };
   }
 
-  // Get glossary terms linked to a specific card
-  static async getTermsByCardId(cardId: string): Promise<{ id: string; term: string; definition: string; matchField: string | null; matchContext: string | null }[]> {
+  // Get glossary terms linked to a specific card (scoped to caller's restaurant)
+  static async getTermsByCardId(cardId: string, restaurantId: string): Promise<{ id: string; term: string; definition: string; matchField: string | null; matchContext: string | null }[]> {
     const query = `
       SELECT gt.id, gt.term, gt.definition, gtc.match_field, gtc.match_context
       FROM glossary_term_cards gtc
       JOIN glossary_terms gt ON gt.id = gtc.term_id
-      WHERE gtc.card_id = $1
+      WHERE gtc.card_id = $1 AND gt.restaurant_id = $2
     `;
-    const result = await pool.query(query, [cardId]);
+    const result = await pool.query(query, [cardId, restaurantId]);
     return result.rows.map(row => ({
       id: row.id,
       term: row.term,
@@ -138,17 +140,17 @@ export class GlossaryModel {
     }));
   }
 
-  // Get single term with linked cards
-  static async getTermById(id: string): Promise<GlossaryTerm | null> {
+  // Get single term with linked cards (scoped to caller's restaurant)
+  static async getTermById(id: string, restaurantId: string): Promise<GlossaryTerm | null> {
     const query = `
       SELECT gt.*,
              gc.name as category_name, gc.color as category_color,
              gc.display_order as category_display_order
       FROM glossary_terms gt
       LEFT JOIN glossary_categories gc ON gc.id = gt.category_id
-      WHERE gt.id = $1
+      WHERE gt.id = $1 AND gt.restaurant_id = $2
     `;
-    const result = await pool.query(query, [id]);
+    const result = await pool.query(query, [id, restaurantId]);
     if (result.rows.length === 0) return null;
 
     const row = result.rows[0];

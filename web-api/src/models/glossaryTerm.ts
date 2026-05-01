@@ -22,7 +22,7 @@ function parseRestaurantData(data: any) {
 }
 
 export class GlossaryTermModel {
-  static async findAll(userId: string, categoryId?: string, section?: string): Promise<GlossaryTerm[]> {
+  static async findAll(restaurantId: string, categoryId?: string, section?: string): Promise<GlossaryTerm[]> {
     let query = `
       SELECT gt.*,
              gc.name as category_name,
@@ -31,9 +31,9 @@ export class GlossaryTermModel {
       FROM glossary_terms gt
       LEFT JOIN glossary_categories gc ON gc.id = gt.category_id
       LEFT JOIN glossary_term_cards gtc ON gtc.term_id = gt.id
-      WHERE gt.created_by = $1
+      WHERE gt.restaurant_id = $1
     `;
-    const values: any[] = [userId];
+    const values: any[] = [restaurantId];
 
     if (section) {
       values.push(section);
@@ -51,7 +51,7 @@ export class GlossaryTermModel {
     return result.rows.map(row => this.mapRow(row));
   }
 
-  static async findById(id: string, includeLinkedCards = false): Promise<GlossaryTerm | null> {
+  static async findById(id: string, restaurantId: string, includeLinkedCards = false): Promise<GlossaryTerm | null> {
     const query = `
       SELECT gt.*,
              gc.name as category_name,
@@ -59,9 +59,9 @@ export class GlossaryTermModel {
              gc.display_order as category_display_order
       FROM glossary_terms gt
       LEFT JOIN glossary_categories gc ON gc.id = gt.category_id
-      WHERE gt.id = $1
+      WHERE gt.id = $1 AND gt.restaurant_id = $2
     `;
-    const result = await pool.query(query, [id]);
+    const result = await pool.query(query, [id, restaurantId]);
     if (result.rows.length === 0) return null;
 
     const term = this.mapRow(result.rows[0]);
@@ -107,18 +107,18 @@ export class GlossaryTermModel {
     }));
   }
 
-  static async create(data: CreateGlossaryTermInput, userId: string): Promise<GlossaryTerm> {
+  static async create(data: CreateGlossaryTermInput, userId: string, restaurantId: string): Promise<GlossaryTerm> {
     const query = `
-      INSERT INTO glossary_terms (term, definition, section, category_id, created_by)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO glossary_terms (term, definition, section, category_id, created_by, restaurant_id)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
     `;
-    const values = [data.term, data.definition, data.section || 'glossary', data.categoryId || null, userId];
+    const values = [data.term, data.definition, data.section || 'glossary', data.categoryId || null, userId, restaurantId];
     const result = await pool.query(query, values);
     return this.mapRow(result.rows[0]);
   }
 
-  static async update(id: string, data: UpdateGlossaryTermInput, userId: string): Promise<GlossaryTerm | null> {
+  static async update(id: string, data: UpdateGlossaryTermInput, restaurantId: string): Promise<GlossaryTerm | null> {
     const setClause: string[] = [];
     const values: any[] = [];
     let paramCount = 1;
@@ -144,13 +144,13 @@ export class GlossaryTermModel {
       paramCount++;
     }
 
-    if (setClause.length === 0) return this.findById(id);
+    if (setClause.length === 0) return this.findById(id, restaurantId);
 
-    values.push(id, userId);
+    values.push(id, restaurantId);
     const query = `
       UPDATE glossary_terms
       SET ${setClause.join(', ')}
-      WHERE id = $${paramCount} AND created_by = $${paramCount + 1}
+      WHERE id = $${paramCount} AND restaurant_id = $${paramCount + 1}
       RETURNING *
     `;
     const result = await pool.query(query, values);
@@ -158,13 +158,15 @@ export class GlossaryTermModel {
     return this.mapRow(result.rows[0]);
   }
 
-  static async delete(id: string, userId: string): Promise<boolean> {
-    const query = 'DELETE FROM glossary_terms WHERE id = $1 AND created_by = $2';
-    const result = await pool.query(query, [id, userId]);
+  static async delete(id: string, restaurantId: string): Promise<boolean> {
+    const query = 'DELETE FROM glossary_terms WHERE id = $1 AND restaurant_id = $2';
+    const result = await pool.query(query, [id, restaurantId]);
     return (result.rowCount || 0) > 0;
   }
 
-  // Card linking methods
+  // Card linking methods. The route layer must verify the card belongs to the
+  // same restaurant as the term before calling this; we don't accept a
+  // restaurantId here because the link table itself doesn't carry one.
   static async linkCard(termId: string, cardId: string, matchField?: string, matchContext?: string): Promise<GlossaryTermCard> {
     const query = `
       INSERT INTO glossary_term_cards (term_id, card_id, match_field, match_context)
@@ -191,11 +193,11 @@ export class GlossaryTermModel {
     return (result.rowCount || 0) > 0;
   }
 
-  // Auto-suggestion algorithm for finding matching cards
-  static async findMatchingCards(term: string, limit = 20): Promise<CardMatchSuggestion[]> {
+  // Auto-suggestion: search cards in the caller's restaurant only. Cards
+  // inherit restaurant scope through their deck.
+  static async findMatchingCards(term: string, restaurantId: string, limit = 20): Promise<CardMatchSuggestion[]> {
     const searchPattern = term.toLowerCase();
 
-    // Search across multiple JSONB fields with scoring
     const query = `
       WITH card_matches AS (
         SELECT
@@ -262,7 +264,9 @@ export class GlossaryTermModel {
             ELSE 0
           END as garnish_score
         FROM cards c
+        JOIN decks d ON d.id = c.deck_id
         WHERE c.restaurant_data IS NOT NULL
+          AND d.restaurant_id = $3
       )
       SELECT
         *,
@@ -295,7 +299,7 @@ export class GlossaryTermModel {
       LIMIT $2
     `;
 
-    const result = await pool.query(query, [searchPattern, limit]);
+    const result = await pool.query(query, [searchPattern, limit, restaurantId]);
 
     return result.rows.map(row => {
       const restaurantData = parseRestaurantData(row.restaurant_data);
@@ -326,6 +330,18 @@ export class GlossaryTermModel {
         matchScore: row.best_score
       };
     });
+  }
+
+  // Confirm a card belongs to a given restaurant (via its deck) before linking.
+  static async cardBelongsToRestaurant(cardId: string, restaurantId: string): Promise<boolean> {
+    const query = `
+      SELECT 1
+      FROM cards c
+      JOIN decks d ON d.id = c.deck_id
+      WHERE c.id = $1 AND d.restaurant_id = $2
+    `;
+    const result = await pool.query(query, [cardId, restaurantId]);
+    return result.rows.length > 0;
   }
 
   private static mapRow(row: any): GlossaryTerm {

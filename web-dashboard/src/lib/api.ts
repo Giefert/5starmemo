@@ -4,6 +4,7 @@ import {
   AuthResponse,
   LoginInput,
   CreateUserInput,
+  User,
   Deck,
   CreateDeckInput,
   UpdateDeckInput,
@@ -62,8 +63,11 @@ export const authApi = {
     return response.data.data!;
   },
 
-  register: async (userData: CreateUserInput): Promise<AuthResponse> => {
-    const response = await api.post<ApiResponse<AuthResponse>>('/auth/register', userData);
+  // Admin-only: create a new user (student or admin) inside the caller's
+  // restaurant. The first admin of a restaurant is bootstrapped via the
+  // create-restaurant CLI script on the server, not through this API.
+  createUser: async (userData: CreateUserInput): Promise<User> => {
+    const response = await api.post<ApiResponse<User>>('/auth/users', userData);
     return response.data.data!;
   },
 };

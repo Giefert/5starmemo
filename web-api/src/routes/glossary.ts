@@ -18,7 +18,7 @@ router.use(requireManagement);
 // Get all categories
 router.get('/categories', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const categories = await GlossaryCategoryModel.findAll(req.user!.id);
+    const categories = await GlossaryCategoryModel.findAll(req.user!.restaurantId);
     const response: ApiResponse = {
       success: true,
       data: categories,
@@ -49,7 +49,7 @@ router.post('/categories',
           details: errors.array()
         });
       }
-      const category = await GlossaryCategoryModel.create(req.body, req.user!.id);
+      const category = await GlossaryCategoryModel.create(req.body, req.user!.id, req.user!.restaurantId);
       const response: ApiResponse = {
         success: true,
         data: category,
@@ -85,7 +85,7 @@ router.put('/categories/:id',
           details: errors.array()
         });
       }
-      const category = await GlossaryCategoryModel.update(req.params.id, req.body, req.user!.id);
+      const category = await GlossaryCategoryModel.update(req.params.id, req.body, req.user!.restaurantId);
       if (!category) {
         return res.status(404).json({ success: false, error: 'Category not found' });
       }
@@ -115,7 +115,7 @@ router.delete('/categories/:id',
           details: errors.array()
         });
       }
-      const deleted = await GlossaryCategoryModel.delete(req.params.id, req.user!.id);
+      const deleted = await GlossaryCategoryModel.delete(req.params.id, req.user!.restaurantId);
       if (!deleted) {
         return res.status(404).json({ success: false, error: 'Category not found' });
       }
@@ -140,7 +140,7 @@ router.get('/terms', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const categoryId = req.query.categoryId as string | undefined;
     const section = req.query.section as string | undefined;
-    const terms = await GlossaryTermModel.findAll(req.user!.id, categoryId, section);
+    const terms = await GlossaryTermModel.findAll(req.user!.restaurantId, categoryId, section);
     const response: ApiResponse = {
       success: true,
       data: terms,
@@ -166,7 +166,7 @@ router.get('/terms/:id',
           details: errors.array()
         });
       }
-      const term = await GlossaryTermModel.findById(req.params.id, true);
+      const term = await GlossaryTermModel.findById(req.params.id, req.user!.restaurantId, true);
       if (!term) {
         return res.status(404).json({ success: false, error: 'Term not found' });
       }
@@ -201,7 +201,7 @@ router.post('/terms',
           details: errors.array()
         });
       }
-      const term = await GlossaryTermModel.create(req.body, req.user!.id);
+      const term = await GlossaryTermModel.create(req.body, req.user!.id, req.user!.restaurantId);
       const response: ApiResponse = {
         success: true,
         data: term,
@@ -234,7 +234,7 @@ router.put('/terms/:id',
           details: errors.array()
         });
       }
-      const term = await GlossaryTermModel.update(req.params.id, req.body, req.user!.id);
+      const term = await GlossaryTermModel.update(req.params.id, req.body, req.user!.restaurantId);
       if (!term) {
         return res.status(404).json({ success: false, error: 'Term not found' });
       }
@@ -264,7 +264,7 @@ router.delete('/terms/:id',
           details: errors.array()
         });
       }
-      const deleted = await GlossaryTermModel.delete(req.params.id, req.user!.id);
+      const deleted = await GlossaryTermModel.delete(req.params.id, req.user!.restaurantId);
       if (!deleted) {
         return res.status(404).json({ success: false, error: 'Term not found' });
       }
@@ -300,12 +300,12 @@ router.get('/terms/:id/suggestions',
           details: errors.array()
         });
       }
-      const term = await GlossaryTermModel.findById(req.params.id);
+      const term = await GlossaryTermModel.findById(req.params.id, req.user!.restaurantId);
       if (!term) {
         return res.status(404).json({ success: false, error: 'Term not found' });
       }
       const limit = parseInt(req.query.limit as string) || 20;
-      const suggestions = await GlossaryTermModel.findMatchingCards(term.term, limit);
+      const suggestions = await GlossaryTermModel.findMatchingCards(term.term, req.user!.restaurantId, limit);
 
       // Filter out already linked cards
       const linkedCards = await GlossaryTermModel.getLinkedCards(req.params.id);
@@ -346,7 +346,7 @@ router.get('/cards/search',
       }
       const searchTerm = req.query.q as string;
       const limit = parseInt(req.query.limit as string) || 20;
-      const suggestions = await GlossaryTermModel.findMatchingCards(searchTerm, limit);
+      const suggestions = await GlossaryTermModel.findMatchingCards(searchTerm, req.user!.restaurantId, limit);
       const response: ApiResponse = {
         success: true,
         data: {
@@ -381,10 +381,15 @@ router.post('/terms/:termId/cards/:cardId',
           details: errors.array()
         });
       }
-      // Verify term exists and user owns it
-      const term = await GlossaryTermModel.findById(req.params.termId);
-      if (!term || term.createdBy !== req.user!.id) {
+      // Term must belong to caller's restaurant
+      const term = await GlossaryTermModel.findById(req.params.termId, req.user!.restaurantId);
+      if (!term) {
         return res.status(404).json({ success: false, error: 'Term not found' });
+      }
+      // And so must the card (via its deck)
+      const cardOk = await GlossaryTermModel.cardBelongsToRestaurant(req.params.cardId, req.user!.restaurantId);
+      if (!cardOk) {
+        return res.status(404).json({ success: false, error: 'Card not found' });
       }
 
       const link = await GlossaryTermModel.linkCard(
@@ -422,9 +427,9 @@ router.delete('/terms/:termId/cards/:cardId',
           details: errors.array()
         });
       }
-      // Verify term exists and user owns it
-      const term = await GlossaryTermModel.findById(req.params.termId);
-      if (!term || term.createdBy !== req.user!.id) {
+      // Term must belong to caller's restaurant
+      const term = await GlossaryTermModel.findById(req.params.termId, req.user!.restaurantId);
+      if (!term) {
         return res.status(404).json({ success: false, error: 'Term not found' });
       }
 

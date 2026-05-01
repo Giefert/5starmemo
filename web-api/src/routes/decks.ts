@@ -13,17 +13,17 @@ const router = Router();
 router.use(authenticateToken);
 router.use(requireManagement);
 
-// Get all decks for management user
+// Get all decks for the caller's restaurant
 router.get('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const decks = await DeckModel.findAll(req.user!.id);
-    
+    const decks = await DeckModel.findAll(req.user!.restaurantId);
+
     const response: ApiResponse = {
       success: true,
       data: decks,
       message: 'Decks retrieved successfully'
     };
-    
+
     res.json(response);
   } catch (error) {
     console.error('Error fetching decks:', error);
@@ -48,8 +48,8 @@ router.get('/:id',
         });
       }
 
-      const deck = await DeckModel.findById(req.params.id, true);
-      
+      const deck = await DeckModel.findById(req.params.id, req.user!.restaurantId, true);
+
       if (!deck) {
         return res.status(404).json({
           success: false,
@@ -63,7 +63,7 @@ router.get('/:id',
         data: deck,
         message: 'Deck retrieved successfully'
       };
-      
+
       res.json(response);
     } catch (error) {
       console.error('Error fetching deck:', error);
@@ -96,14 +96,14 @@ router.post('/',
       }
 
       const deckData: CreateDeckInput = req.body;
-      const deck = await DeckModel.create(deckData, req.user!.id);
+      const deck = await DeckModel.create(deckData, req.user!.id, req.user!.restaurantId);
 
       const response: ApiResponse = {
         success: true,
         data: deck,
         message: 'Deck created successfully'
       };
-      
+
       res.status(201).json(response);
     } catch (error) {
       console.error('Error creating deck:', error);
@@ -137,7 +137,7 @@ router.put('/:id',
       }
 
       const deckData: UpdateDeckInput = req.body;
-      const deck = await DeckModel.update(req.params.id, deckData, req.user!.id);
+      const deck = await DeckModel.update(req.params.id, deckData, req.user!.restaurantId);
 
       if (!deck) {
         return res.status(404).json({
@@ -151,7 +151,7 @@ router.put('/:id',
         data: deck,
         message: 'Deck updated successfully'
       };
-      
+
       res.json(response);
     } catch (error) {
       console.error('Error updating deck:', error);
@@ -177,7 +177,7 @@ router.delete('/:id',
         });
       }
 
-      const deleted = await DeckModel.delete(req.params.id, req.user!.id);
+      const deleted = await DeckModel.delete(req.params.id, req.user!.restaurantId);
 
       if (!deleted) {
         return res.status(404).json({
@@ -190,7 +190,7 @@ router.delete('/:id',
         success: true,
         message: 'Deck deleted successfully'
       };
-      
+
       res.json(response);
     } catch (error) {
       console.error('Error deleting deck:', error);
@@ -222,8 +222,8 @@ router.post('/:id/cards',
         });
       }
 
-      // Verify deck exists
-      const deck = await DeckModel.findById(req.params.id);
+      // Verify deck belongs to caller's restaurant
+      const deck = await DeckModel.findById(req.params.id, req.user!.restaurantId);
       if (!deck) {
         return res.status(404).json({
           success: false,
@@ -239,7 +239,7 @@ router.post('/:id/cards',
         data: card,
         message: 'Card added successfully'
       };
-      
+
       res.status(201).json(response);
     } catch (error) {
       console.error('Error adding card:', error);
@@ -271,7 +271,7 @@ router.put('/cards/:cardId',
         });
       }
 
-      // Verify card exists and user owns the deck
+      // Verify card exists and the deck it belongs to is in caller's restaurant
       const existingCard = await CardModel.findById(req.params.cardId);
       if (!existingCard) {
         return res.status(404).json({
@@ -280,8 +280,8 @@ router.put('/cards/:cardId',
         });
       }
 
-      const deck = await DeckModel.findById(existingCard.deckId);
-      if (!deck || deck.createdBy !== req.user!.id) {
+      const deck = await DeckModel.findById(existingCard.deckId, req.user!.restaurantId);
+      if (!deck) {
         return res.status(404).json({
           success: false,
           error: 'Card not found'
@@ -295,7 +295,7 @@ router.put('/cards/:cardId',
         data: card,
         message: 'Card updated successfully'
       };
-      
+
       res.json(response);
     } catch (error) {
       console.error('Error updating card:', error);
@@ -321,7 +321,7 @@ router.delete('/cards/:cardId',
         });
       }
 
-      // Verify card exists and user owns the deck
+      // Verify card exists and the deck it belongs to is in caller's restaurant
       const existingCard = await CardModel.findById(req.params.cardId);
       if (!existingCard) {
         return res.status(404).json({
@@ -330,8 +330,8 @@ router.delete('/cards/:cardId',
         });
       }
 
-      const deck = await DeckModel.findById(existingCard.deckId);
-      if (!deck || deck.createdBy !== req.user!.id) {
+      const deck = await DeckModel.findById(existingCard.deckId, req.user!.restaurantId);
+      if (!deck) {
         return res.status(404).json({
           success: false,
           error: 'Card not found'
@@ -351,7 +351,7 @@ router.delete('/cards/:cardId',
         success: true,
         message: 'Card deleted successfully'
       };
-      
+
       res.json(response);
     } catch (error) {
       console.error('Error deleting card:', error);

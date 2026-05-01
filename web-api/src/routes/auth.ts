@@ -3,7 +3,8 @@ import { body, validationResult } from 'express-validator';
 import rateLimit from 'express-rate-limit';
 import { UserModel } from '../models/user';
 import { comparePassword, generateToken } from '../utils/auth';
-import { LoginInput, CreateUserInput, ApiResponse, AuthResponse } from '../../../shared/types';
+import { authenticateToken, requireManagement, AuthenticatedRequest } from '../middleware/auth';
+import { LoginInput, CreateUserInput, ApiResponse, AuthResponse, User } from '../../../shared/types';
 
 const router = Router();
 
@@ -12,59 +13,6 @@ const authLimiter = rateLimit({
   max: 5,
   message: { success: false, error: 'Too many login attempts, try again in a minute.' }
 });
-
-// Register new management user
-router.post('/register', authLimiter,
-  [
-    body('email').isEmail().normalizeEmail(),
-    body('username').isLength({ min: 3, max: 30 }).trim(),
-    body('password').isLength({ min: 8 }),
-    body('role').isIn(['management']) // Only allow management registration through web API
-  ],
-  async (req: Request, res: Response) => {
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({
-          success: false,
-          error: 'Validation failed',
-          details: errors.array()
-        });
-      }
-
-      const userData: CreateUserInput = req.body;
-      
-      // Check if user already exists
-      const existingUser = await UserModel.findByEmail(userData.email);
-      if (existingUser) {
-        return res.status(409).json({
-          success: false,
-          error: 'User with this email already exists'
-        });
-      }
-
-      const user = await UserModel.create(userData);
-      const token = generateToken(user);
-
-      const response: ApiResponse<AuthResponse> = {
-        success: true,
-        data: {
-          user,
-          token
-        },
-        message: 'User registered successfully'
-      };
-
-      res.status(201).json(response);
-    } catch (error) {
-      console.error('Registration error:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Internal server error'
-      });
-    }
-  }
-);
 
 // Login
 router.post('/login', authLimiter,
@@ -84,7 +32,7 @@ router.post('/login', authLimiter,
       }
 
       const { email, password }: LoginInput = req.body;
-      
+
       const userWithPassword = await UserModel.findByEmail(email);
       if (!userWithPassword) {
         return res.status(401).json({
@@ -124,6 +72,56 @@ router.post('/login', authLimiter,
       res.json(response);
     } catch (error) {
       console.error('Login error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error'
+      });
+    }
+  }
+);
+
+// Create a new user (student or admin) inside the caller's restaurant.
+// This is the only registration path: there is no public sign-up. New
+// restaurants are bootstrapped via the create-restaurant CLI script.
+router.post('/users', authenticateToken, requireManagement,
+  [
+    body('email').isEmail().normalizeEmail(),
+    body('username').isLength({ min: 3, max: 30 }).trim(),
+    body('password').isLength({ min: 8 }),
+    body('role').isIn(['student', 'management']),
+  ],
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Validation failed',
+          details: errors.array()
+        });
+      }
+
+      const userData: CreateUserInput = req.body;
+
+      const existingUser = await UserModel.findByEmail(userData.email);
+      if (existingUser) {
+        return res.status(409).json({
+          success: false,
+          error: 'User with this email already exists'
+        });
+      }
+
+      const user: User = await UserModel.create(userData, req.user!.restaurantId);
+
+      const response: ApiResponse<User> = {
+        success: true,
+        data: user,
+        message: 'User created successfully'
+      };
+
+      res.status(201).json(response);
+    } catch (error) {
+      console.error('User creation error:', error);
       res.status(500).json({
         success: false,
         error: 'Internal server error'

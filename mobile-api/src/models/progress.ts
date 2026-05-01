@@ -6,7 +6,8 @@ export class ProgressModel {
   private static fsrs = new FSRS();
 
   /**
-   * Create a new study session
+   * Create a new study session. Caller must verify the deck is in the
+   * student's restaurant before calling.
    */
   static async createStudySession(userId: string, deckId: string): Promise<StudySession> {
     const query = `
@@ -14,7 +15,7 @@ export class ProgressModel {
       VALUES ($1, $2)
       RETURNING id, user_id, deck_id, cards_studied, correct_answers, average_rating
     `;
-    
+
     const result = await pool.query(query, [userId, deckId]);
     return result.rows[0];
   }
@@ -33,36 +34,52 @@ export class ProgressModel {
       WHERE id = $1
       RETURNING id, user_id, deck_id, cards_studied, correct_answers, average_rating
     `;
-    
+
     const result = await pool.query(query, [
       sessionId,
       stats.cardsStudied,
       stats.correctAnswers,
       stats.averageRating
     ]);
-    
+
     return result.rows[0] || null;
   }
 
   /**
-   * Submit a card review and update FSRS data
+   * Verify a card belongs to a deck in the given restaurant. Used by route
+   * layer before recording an FSRS review against a card.
+   */
+  static async cardInRestaurant(cardId: string, restaurantId: string): Promise<boolean> {
+    const query = `
+      SELECT 1
+      FROM cards c
+      JOIN decks d ON d.id = c.deck_id
+      WHERE c.id = $1 AND d.restaurant_id = $2
+    `;
+    const result = await pool.query(query, [cardId, restaurantId]);
+    return result.rows.length > 0;
+  }
+
+  /**
+   * Submit a card review and update FSRS data. Caller must verify the cardId
+   * belongs to the student's restaurant before calling.
    */
   static async submitReview(userId: string, review: ReviewInput, sessionId?: string): Promise<FSRSCard> {
     const client = await pool.connect();
-    
+
     try {
       await client.query('BEGIN');
 
       // Get current FSRS card data
       let fsrsCard = await this.getFSRSCard(userId, review.cardId, client);
-      
+
       // Calculate next review using FSRS
       const reviewResult = this.fsrs.next(fsrsCard, review.rating as Rating);
-      
+
       // Update or insert FSRS data
       const upsertQuery = `
         INSERT INTO fsrs_cards (
-          card_id, user_id, difficulty, stability, retrievability, grade, 
+          card_id, user_id, difficulty, stability, retrievability, grade,
           lapses, reps, state, last_review, next_review, updated_at
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), $10, NOW())
@@ -80,7 +97,7 @@ export class ProgressModel {
           updated_at = NOW()
         RETURNING *
       `;
-      
+
       const fsrsResult = await client.query(upsertQuery, [
         review.cardId,
         userId,
@@ -104,7 +121,7 @@ export class ProgressModel {
 
       await client.query('COMMIT');
       return fsrsResult.rows[0];
-      
+
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -114,30 +131,30 @@ export class ProgressModel {
   }
 
   /**
-   * Get user's study statistics
+   * Get user's study statistics (scoped to the student's restaurant).
    */
-  static async getStudyStats(userId: string): Promise<StudyStats> {
+  static async getStudyStats(userId: string, restaurantId: string): Promise<StudyStats> {
     const totalCardsQuery = `
       SELECT COUNT(DISTINCT fc.card_id) as total
       FROM fsrs_cards fc
       JOIN cards c ON fc.card_id = c.id
       JOIN decks d ON c.deck_id = d.id
-      WHERE fc.user_id = $1 AND d.is_public = true
+      WHERE fc.user_id = $1 AND d.is_public = true AND d.restaurant_id = $2
     `;
 
     const stateCountsQuery = `
-      SELECT 
+      SELECT
         fc.state,
         COUNT(*) as count
       FROM fsrs_cards fc
       JOIN cards c ON fc.card_id = c.id
       JOIN decks d ON c.deck_id = d.id
-      WHERE fc.user_id = $1 AND d.is_public = true
+      WHERE fc.user_id = $1 AND d.is_public = true AND d.restaurant_id = $2
       GROUP BY fc.state
     `;
 
     const dailyStatsQuery = `
-      SELECT 
+      SELECT
         COUNT(DISTINCT cr.card_id) as studied,
         COUNT(CASE WHEN cr.rating >= 3 THEN 1 END) as correct
       FROM card_reviews cr
@@ -150,14 +167,14 @@ export class ProgressModel {
       FROM cards c
       JOIN decks d ON c.deck_id = d.id
       LEFT JOIN fsrs_cards fc ON c.id = fc.card_id AND fc.user_id = $1
-      WHERE d.is_public = true AND fc.card_id IS NULL
+      WHERE d.is_public = true AND d.restaurant_id = $2 AND fc.card_id IS NULL
     `;
 
     const [totalResult, statesResult, dailyResult, newResult] = await Promise.all([
-      pool.query(totalCardsQuery, [userId]),
-      pool.query(stateCountsQuery, [userId]),
+      pool.query(totalCardsQuery, [userId, restaurantId]),
+      pool.query(stateCountsQuery, [userId, restaurantId]),
       pool.query(dailyStatsQuery, [userId]),
-      pool.query(newCardsQuery, [userId])
+      pool.query(newCardsQuery, [userId, restaurantId])
     ]);
 
     const states = statesResult.rows.reduce((acc: any, row: any) => {
@@ -180,11 +197,11 @@ export class ProgressModel {
   }
 
   /**
-   * Get user's recent study sessions
+   * Get user's recent study sessions (scoped to caller's restaurant).
    */
-  static async getRecentSessions(userId: string, limit: number = 10): Promise<StudySession[]> {
+  static async getRecentSessions(userId: string, restaurantId: string, limit: number = 10): Promise<StudySession[]> {
     const query = `
-      SELECT 
+      SELECT
         ss.id,
         ss.user_id,
         ss.deck_id,
@@ -194,12 +211,12 @@ export class ProgressModel {
         d.title as deck_title
       FROM study_sessions ss
       JOIN decks d ON ss.deck_id = d.id
-      WHERE ss.user_id = $1 AND ss.cards_studied > 0
+      WHERE ss.user_id = $1 AND ss.cards_studied > 0 AND d.restaurant_id = $2
       ORDER BY ss.created_at DESC
-      LIMIT $2
+      LIMIT $3
     `;
-    
-    const result = await pool.query(query, [userId, limit]);
+
+    const result = await pool.query(query, [userId, restaurantId, limit]);
     return result.rows;
   }
 
@@ -212,13 +229,13 @@ export class ProgressModel {
       FROM fsrs_cards
       WHERE user_id = $1 AND card_id = $2
     `;
-    
+
     const result = await client.query(query, [userId, cardId]);
-    
+
     if (result.rows.length > 0) {
       return result.rows[0];
     }
-    
+
     // Return default new card data
     return {
       id: '',
