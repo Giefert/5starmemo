@@ -65,13 +65,10 @@ export interface UpdateDeckInput extends Partial<CreateDeckInput> {}
 export interface Card {
   id: string;
   deckId: string;
-  front?: string;
-  back?: string;
   imageUrl?: string;
   order: number;
   createdAt: Date;
   updatedAt: Date;
-  // Restaurant-specific fields
   restaurantData?: RestaurantCardData;
 }
 
@@ -234,8 +231,6 @@ export interface RestaurantCardDataV1 {
 }
 
 export interface CreateCardInput {
-  front?: string;
-  back?: string;
   imageUrl?: string;
   order?: number;
   restaurantData?: RestaurantCardData;

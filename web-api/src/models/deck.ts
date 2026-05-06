@@ -118,7 +118,7 @@ export class DeckModel {
 
     if (includeCards) {
       const cardsQuery = `
-        SELECT id, deck_id, front, back, image_url, card_order, restaurant_data, created_at, updated_at
+        SELECT id, deck_id, image_url, card_order, restaurant_data, created_at, updated_at
         FROM cards
         WHERE deck_id = $1
         ORDER BY restaurant_data->>'itemName' ASC, created_at ASC
@@ -128,8 +128,6 @@ export class DeckModel {
       deck.cards = cardsResult.rows.map(card => ({
         id: card.id,
         deckId: card.deck_id,
-        front: card.front,
-        back: card.back,
         imageUrl: card.image_url,
         order: card.card_order,
         createdAt: card.created_at,
