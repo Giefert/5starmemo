@@ -22,7 +22,7 @@ function parseRestaurantData(data: any) {
 }
 
 export class GlossaryTermModel {
-  static async findAll(restaurantId: string, categoryId?: string, section?: string): Promise<GlossaryTerm[]> {
+  static async findAll(restaurantId: string, categoryId?: string, section?: string, search?: string): Promise<GlossaryTerm[]> {
     let query = `
       SELECT gt.*,
              gc.name as category_name,
@@ -43,6 +43,11 @@ export class GlossaryTermModel {
     if (categoryId) {
       values.push(categoryId);
       query += ` AND gt.category_id = $${values.length}`;
+    }
+
+    if (search) {
+      values.push(`%${search}%`);
+      query += ` AND gt.term ILIKE $${values.length}`;
     }
 
     query += ` GROUP BY gt.id, gc.name, gc.color ORDER BY gt.term ASC`;

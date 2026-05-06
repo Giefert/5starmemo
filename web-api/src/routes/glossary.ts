@@ -140,7 +140,8 @@ router.get('/terms', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const categoryId = req.query.categoryId as string | undefined;
     const section = req.query.section as string | undefined;
-    const terms = await GlossaryTermModel.findAll(req.user!.restaurantId, categoryId, section);
+    const q = (req.query.q as string | undefined)?.trim();
+    const terms = await GlossaryTermModel.findAll(req.user!.restaurantId, categoryId, section, q || undefined);
     const response: ApiResponse = {
       success: true,
       data: terms,

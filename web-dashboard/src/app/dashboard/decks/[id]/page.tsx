@@ -49,6 +49,21 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
     fetchDeck();
   }, [resolvedParams.id]);
 
+  // Honour `#card-<uuid>` on entry so dashboard links land on the right card.
+  // Runs once the deck (and therefore card DOM nodes) is loaded.
+  useEffect(() => {
+    if (!deck) return;
+    const hash = window.location.hash;
+    const match = /^#card-([0-9a-f-]+)$/i.exec(hash);
+    if (!match) return;
+    requestAnimationFrame(() => {
+      document.getElementById(`card-${match[1]}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+  }, [deck]);
+
   const fetchDeck = async () => {
     try {
       const data = await deckApi.getById(resolvedParams.id);

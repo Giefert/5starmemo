@@ -11,6 +11,9 @@ import authRoutes from './routes/auth';
 import deckRoutes from './routes/decks';
 import uploadRoutes from './routes/upload';
 import glossaryRoutes from './routes/glossary';
+import restaurantRoutes from './routes/restaurant';
+import curationRoutes from './routes/curations';
+import cardRoutes from './routes/cards';
 import pool from './config/database';
 import { runMigrations } from './migrate';
 
@@ -65,6 +68,9 @@ app.use('/api/auth', authRoutes);
 app.use('/api/decks', deckRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/glossary', glossaryRoutes);
+app.use('/api/restaurant', restaurantRoutes);
+app.use('/api/curations', curationRoutes);
+app.use('/api/cards', cardRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

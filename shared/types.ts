@@ -4,8 +4,24 @@ export interface Restaurant {
   id: string;
   name: string;
   slug: string;
+  announcements?: string[];
   createdAt: Date;
   updatedAt: Date;
+}
+
+// Bulletin board curation: each restaurant maintains four curated lists
+// (Specials, New items, Featured, Glossary highlight) shown on the dashboard
+// and consumed by the mobile app. Specials/New items/Featured can hold cards
+// or decks; Glossary highlight only holds glossary terms.
+export type CurationKind = 'specials' | 'new_item' | 'featured' | 'glossary_highlight';
+export type CurationTargetType = 'card' | 'deck' | 'glossary_term';
+
+export interface RestaurantCurationItem {
+  targetType: CurationTargetType;
+  targetId: string;
+  name: string;       // card itemName | deck title | glossary term
+  deckId?: string;    // present when targetType === 'card'
+  deckTitle?: string; // present when targetType === 'card'
 }
 
 export interface User {

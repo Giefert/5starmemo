@@ -1,27 +1,57 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { deckApi } from '@/lib/api';
-import { Deck } from '../../../../shared/types';
+import { useState, useEffect, useCallback } from 'react';
+import { curationApi, deckApi, restaurantApi } from '@/lib/api';
+import {
+  CurationKind,
+  CurationTargetType,
+  Deck,
+  Restaurant,
+  RestaurantCurationItem,
+} from '../../../../shared/types';
 import { applyFilter, CarteFilter } from '@/lib/decks';
 import { Masthead } from '@/components/admin/masthead';
 import { DeckGrid } from '@/components/admin/deck-grid';
 
+const EMPTY_CURATIONS: Record<CurationKind, RestaurantCurationItem[]> = {
+  specials: [],
+  new_item: [],
+  featured: [],
+  glossary_highlight: [],
+};
+
 export default function DashboardPage() {
   const [decks, setDecks] = useState<Deck[]>([]);
+  const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
+  const [curations, setCurations] =
+    useState<Record<CurationKind, RestaurantCurationItem[]>>(EMPTY_CURATIONS);
   const [filter, setFilter] = useState<CarteFilter>('All');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
-    deckApi
-      .getAll()
-      .then((data) => {
-        if (!cancelled) setDecks(data);
+    Promise.all([
+      deckApi.getAll(),
+      restaurantApi.me(),
+      curationApi.list('specials'),
+      curationApi.list('new_item'),
+      curationApi.list('featured'),
+      curationApi.list('glossary_highlight'),
+    ])
+      .then(([d, r, specials, newItems, featured, glossaryHighlight]) => {
+        if (cancelled) return;
+        setDecks(d);
+        setRestaurant(r);
+        setCurations({
+          specials,
+          new_item: newItems,
+          featured,
+          glossary_highlight: glossaryHighlight,
+        });
       })
       .catch((err: any) => {
-        if (!cancelled) setError(err.response?.data?.error || 'Failed to fetch decks');
+        if (!cancelled) setError(err.response?.data?.error || 'Failed to load dashboard');
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);
@@ -41,11 +71,33 @@ export default function DashboardPage() {
     }
   };
 
+  const handleSaveAnnouncements = useCallback(async (next: string[]) => {
+    const saved = await restaurantApi.updateAnnouncements(next);
+    setRestaurant((cur) => (cur ? { ...cur, announcements: saved } : cur));
+  }, []);
+
+  const handleAddCuration = useCallback(
+    async (kind: CurationKind, targetType: CurationTargetType, targetId: string) => {
+      const items = await curationApi.add(kind, targetType, targetId);
+      setCurations((cur) => ({ ...cur, [kind]: items }));
+    },
+    []
+  );
+
+  const handleRemoveCuration = useCallback(
+    async (kind: CurationKind, targetType: CurationTargetType, targetId: string) => {
+      await curationApi.remove(kind, targetType, targetId);
+      const items = await curationApi.list(kind);
+      setCurations((cur) => ({ ...cur, [kind]: items }));
+    },
+    []
+  );
+
   if (isLoading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center bg-ink text-on-dark-mute">
         <div className="font-dek italic" style={{ fontSize: 18 }}>
-          Loading the carte…
+          Loading the bulletin…
         </div>
       </div>
     );
@@ -55,7 +107,14 @@ export default function DashboardPage() {
 
   return (
     <main className="bg-ink text-on-dark min-h-screen w-full font-sans">
-      <Masthead decks={decks} />
+      <Masthead
+        restaurant={restaurant}
+        decks={decks}
+        curations={curations}
+        onSaveAnnouncements={handleSaveAnnouncements}
+        onAddCuration={handleAddCuration}
+        onRemoveCuration={handleRemoveCuration}
+      />
 
       {error && (
         <div

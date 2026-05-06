@@ -16,8 +16,19 @@ import {
   CreateGlossaryTermInput,
   UpdateGlossaryTermInput,
   TermSuggestionResponse,
-  GlossarySection
+  GlossarySection,
+  Restaurant,
+  CurationKind,
+  CurationTargetType,
+  RestaurantCurationItem
 } from '../../../shared/types';
+
+export interface CardSearchResult {
+  id: string;
+  deckId: string;
+  deckTitle: string;
+  name: string;
+}
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_WEB_API_URL || 'http://localhost:3001';
 
@@ -190,6 +201,67 @@ export const glossaryApi = {
 
   unlinkCard: async (termId: string, cardId: string): Promise<void> => {
     await api.delete(`/glossary/terms/${termId}/cards/${cardId}`);
+  },
+
+  searchTerms: async (q: string): Promise<GlossaryTerm[]> => {
+    const response = await api.get<ApiResponse<GlossaryTerm[]>>('/glossary/terms', {
+      params: { q }
+    });
+    return response.data.data!;
+  },
+};
+
+// Restaurant (current-tenant metadata + announcements)
+export const restaurantApi = {
+  me: async (): Promise<Restaurant> => {
+    const response = await api.get<ApiResponse<Restaurant>>('/restaurant/me');
+    return response.data.data!;
+  },
+
+  updateAnnouncements: async (announcements: string[]): Promise<string[]> => {
+    const response = await api.put<ApiResponse<{ announcements: string[] }>>(
+      '/restaurant/me/announcements',
+      { announcements }
+    );
+    return response.data.data!.announcements;
+  },
+};
+
+// Bulletin curation lists
+export const curationApi = {
+  list: async (kind: CurationKind): Promise<RestaurantCurationItem[]> => {
+    const response = await api.get<ApiResponse<RestaurantCurationItem[]>>(`/curations/${kind}`);
+    return response.data.data!;
+  },
+
+  add: async (
+    kind: CurationKind,
+    targetType: CurationTargetType,
+    targetId: string
+  ): Promise<RestaurantCurationItem[]> => {
+    const response = await api.post<ApiResponse<RestaurantCurationItem[]>>(
+      `/curations/${kind}`,
+      { targetType, targetId }
+    );
+    return response.data.data!;
+  },
+
+  remove: async (
+    kind: CurationKind,
+    targetType: CurationTargetType,
+    targetId: string
+  ): Promise<void> => {
+    await api.delete(`/curations/${kind}/${targetType}/${targetId}`);
+  },
+};
+
+// Card search (lightweight, dashboard-curation-only)
+export const cardApi = {
+  search: async (q: string, limit = 20): Promise<CardSearchResult[]> => {
+    const response = await api.get<ApiResponse<CardSearchResult[]>>('/cards/search', {
+      params: { q, limit }
+    });
+    return response.data.data!;
   },
 };
 
