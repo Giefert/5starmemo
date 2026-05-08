@@ -10,6 +10,14 @@ BFF architecture: web-api (management), mobile-api (student), web-dashboard (Nex
 - Production requirements (security, store compliance, deployment config) are not bloat — implement them simply and directly.
 - Prefer fixing root causes over adding defensive wrappers around broken code.
 
+## Workflow: develop against prod, not local
+Prod (`api.tusavor.com` / VPS at 149.56.134.158) is the working environment. No clients are on it yet, so it's safe to iterate on. Local docker-compose still exists but is **not** kept in sync — its DB has stale/empty data and shouldn't be used to validate features.
+
+- Test changes by deploying to the VPS (`git pull && docker compose ... up -d --build`) and exercising them through the live URLs / TestFlight build.
+- Debug with prod data: SSH in and query the prod DB or read container logs. Don't suggest "let me seed your local DB" or "run docker compose up locally" — that path is abandoned.
+- The mobile app's `__DEV__` branch in `mobile-app/services/api.ts` still points at `localhost:3002`. If a change requires running Expo locally, point it at prod instead of bringing local services back up.
+- Mention this only if relevant; don't add a "deploy to prod" step to every task — assume the user will deploy when they're ready.
+
 ## Cost safeguards
 
 MVP — any new recurring cost is a problem. Paid services in use:

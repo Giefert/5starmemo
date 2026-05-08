@@ -11,7 +11,8 @@ import {
   ReviewInput,
   GlossaryCategory,
   GlossaryTermSummary,
-  GlossaryTerm
+  GlossaryTerm,
+  BulletinPayload
 } from '../types/shared';
 
 import { Platform } from 'react-native';
@@ -104,6 +105,20 @@ class ApiService {
     const headers = await this.getAuthHeaders();
     const response = await apiClient.get('/auth/export', { headers });
     return JSON.stringify(response.data.data, null, 2);
+  }
+
+  async getBulletin(): Promise<BulletinPayload> {
+    const headers = await this.getAuthHeaders();
+    const response = await apiClient.get<ApiResponse<BulletinPayload>>(
+      `/bulletin`,
+      { headers }
+    );
+
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+
+    throw new Error(response.data.error || 'Failed to fetch bulletin');
   }
 
   async getAvailableDecks(): Promise<Deck[]> {

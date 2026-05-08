@@ -21,6 +21,14 @@ export interface RestaurantCurationItem {
   name: string;       // card itemName | deck title
   deckId?: string;    // present when targetType === 'card'
   deckTitle?: string; // present when targetType === 'card'
+  imageUrl?: string;  // card image | deck cover (first card with an image)
+  category?: RestaurantCategory; // present when targetType === 'card'
+}
+
+// Read-only payload served to the student mobile app for the bulletin tab.
+export interface BulletinPayload {
+  restaurant: Pick<Restaurant, 'id' | 'name' | 'slug' | 'announcements'>;
+  curations: Record<CurationKind, RestaurantCurationItem[]>;
 }
 
 export interface User {

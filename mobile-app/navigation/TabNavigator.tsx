@@ -2,6 +2,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import BulletinScreen from '../screens/BulletinScreen';
 import { HomeScreen } from '../screens/HomeScreen';
 import GlossaryScreen from '../screens/GlossaryScreen';
 import SettingsScreen from '../screens/SettingsScreen';
@@ -31,6 +32,15 @@ export default function TabNavigator() {
         },
       }}
     >
+      <Tab.Screen
+        name="Bulletin"
+        component={BulletinScreen}
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="newspaper" size={size} color={color} />
+          ),
+        }}
+      />
       <Tab.Screen
         name="Study"
         component={HomeScreen}

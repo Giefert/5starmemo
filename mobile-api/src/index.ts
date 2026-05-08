@@ -11,6 +11,7 @@ import authRoutes from './routes/auth';
 import deckRoutes from './routes/decks';
 import progressRoutes from './routes/progress';
 import glossaryRoutes from './routes/glossary';
+import bulletinRoutes from './routes/bulletin';
 import pool from './config/database';
 
 const app = express();
@@ -61,6 +62,7 @@ app.use('/api/student/auth', authRoutes);
 app.use('/api/student/decks', deckRoutes);
 app.use('/api/student/progress', progressRoutes);
 app.use('/api/student/glossary', glossaryRoutes);
+app.use('/api/student/bulletin', bulletinRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
