@@ -7,9 +7,7 @@ import {
   Deck,
   RestaurantCurationItem,
 } from '../../../../shared/types';
-import { cardApi, glossaryApi, CardSearchResult } from '@/lib/api';
-
-type Mode = 'cards_decks' | 'glossary_terms';
+import { cardApi, CardSearchResult } from '@/lib/api';
 
 interface SearchResult {
   targetType: CurationTargetType;
@@ -19,14 +17,12 @@ interface SearchResult {
 }
 
 export function CurationPanel({
-  mode,
   items,
   editing,
   decks,
   onAdd,
   onRemove,
 }: {
-  mode: Mode;
   items: RestaurantCurationItem[];
   editing: boolean;
   decks: Deck[];
@@ -57,29 +53,7 @@ export function CurationPanel({
     const myReq = ++reqId.current;
     setSearching(true);
 
-    if (mode === 'glossary_terms') {
-      glossaryApi
-        .searchTerms(debounced)
-        .then((terms) => {
-          if (reqId.current !== myReq) return;
-          setResults(
-            terms.slice(0, 10).map((t) => ({
-              targetType: 'glossary_term',
-              targetId: t.id,
-              name: t.term,
-            }))
-          );
-        })
-        .catch(() => {
-          if (reqId.current === myReq) setResults([]);
-        })
-        .finally(() => {
-          if (reqId.current === myReq) setSearching(false);
-        });
-      return;
-    }
-
-    // cards_decks: query backend for cards, filter loaded decks client-side
+    // Query backend for cards, filter loaded decks client-side.
     const lower = debounced.toLowerCase();
     const deckMatches: SearchResult[] = decks
       .filter((d) => d.title.toLowerCase().includes(lower))
@@ -108,7 +82,7 @@ export function CurationPanel({
       .finally(() => {
         if (reqId.current === myReq) setSearching(false);
       });
-  }, [debounced, editing, mode, decks]);
+  }, [debounced, editing, decks]);
 
   return (
     <div className="flex flex-col" style={{ gap: 6 }}>
@@ -133,11 +107,7 @@ export function CurationPanel({
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={
-              mode === 'glossary_terms'
-                ? 'Search glossary terms…'
-                : 'Search cards or decks…'
-            }
+            placeholder="Search cards or decks…"
             className="w-full bg-ink-soft text-on-dark border border-bg-hair focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber"
             style={{
               padding: '8px 10px',
@@ -210,9 +180,7 @@ function CurationRow({
   const href =
     item.targetType === 'card'
       ? `/dashboard/decks/${item.deckId}#card-${item.targetId}`
-      : item.targetType === 'deck'
-      ? `/dashboard/decks/${item.targetId}`
-      : `/dashboard/glossary/${item.targetId}`;
+      : `/dashboard/decks/${item.targetId}`;
 
   const label = (
     <span className="flex items-center justify-between" style={{ gap: 8 }}>
@@ -262,7 +230,7 @@ function CurationRow({
 }
 
 function TypeBadge({ type }: { type: CurationTargetType }) {
-  const label = type === 'card' ? 'card' : type === 'deck' ? 'deck' : 'term';
+  const label = type === 'card' ? 'card' : 'deck';
   return (
     <span
       className="uppercase text-on-dark-mute border border-bg-hair"

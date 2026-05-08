@@ -114,7 +114,6 @@ export function Masthead({
           onToggle={() => togglePanel('specials')}
         >
           <CurationPanel
-            mode="cards_decks"
             items={curations.specials}
             editing={editing}
             decks={decks}
@@ -130,7 +129,6 @@ export function Masthead({
           onToggle={() => togglePanel('new_item')}
         >
           <CurationPanel
-            mode="cards_decks"
             items={curations.new_item}
             editing={editing}
             decks={decks}
@@ -147,7 +145,6 @@ export function Masthead({
           onToggle={() => togglePanel('featured')}
         >
           <CurationPanel
-            mode="cards_decks"
             items={curations.featured}
             editing={editing}
             decks={decks}
@@ -157,18 +154,17 @@ export function Masthead({
         </StatPanel>
 
         <StatPanel
-          label="Glossary highlight"
-          count={curations.glossary_highlight.length}
-          expanded={expanded === 'glossary_highlight'}
-          onToggle={() => togglePanel('glossary_highlight')}
+          label="In season"
+          count={curations.in_season.length}
+          expanded={expanded === 'in_season'}
+          onToggle={() => togglePanel('in_season')}
         >
           <CurationPanel
-            mode="glossary_terms"
-            items={curations.glossary_highlight}
+            items={curations.in_season}
             editing={editing}
             decks={decks}
-            onAdd={(t, id) => onAddCuration('glossary_highlight', t, id)}
-            onRemove={(t, id) => onRemoveCuration('glossary_highlight', t, id)}
+            onAdd={(t, id) => onAddCuration('in_season', t, id)}
+            onRemove={(t, id) => onRemoveCuration('in_season', t, id)}
           />
         </StatPanel>
       </div>

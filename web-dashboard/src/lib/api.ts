@@ -202,13 +202,6 @@ export const glossaryApi = {
   unlinkCard: async (termId: string, cardId: string): Promise<void> => {
     await api.delete(`/glossary/terms/${termId}/cards/${cardId}`);
   },
-
-  searchTerms: async (q: string): Promise<GlossaryTerm[]> => {
-    const response = await api.get<ApiResponse<GlossaryTerm[]>>('/glossary/terms', {
-      params: { q }
-    });
-    return response.data.data!;
-  },
 };
 
 // Restaurant (current-tenant metadata + announcements)

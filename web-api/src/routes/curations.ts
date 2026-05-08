@@ -8,14 +8,8 @@ const router = Router();
 router.use(authenticateToken);
 router.use(requireManagement);
 
-const KINDS: CurationKind[] = ['specials', 'new_item', 'featured', 'glossary_highlight'];
-const TARGET_TYPES: CurationTargetType[] = ['card', 'deck', 'glossary_term'];
-
-// Glossary highlight only accepts terms; everything else only accepts cards or decks.
-function isCompatible(kind: CurationKind, targetType: CurationTargetType): boolean {
-  if (kind === 'glossary_highlight') return targetType === 'glossary_term';
-  return targetType === 'card' || targetType === 'deck';
-}
+const KINDS: CurationKind[] = ['specials', 'new_item', 'featured', 'in_season'];
+const TARGET_TYPES: CurationTargetType[] = ['card', 'deck'];
 
 router.get('/:kind',
   [param('kind').isIn(KINDS)],
@@ -59,13 +53,6 @@ router.post('/:kind',
         targetType: CurationTargetType;
         targetId: string;
       };
-
-      if (!isCompatible(kind, targetType)) {
-        return res.status(400).json({
-          success: false,
-          error: `Curation kind '${kind}' does not accept target type '${targetType}'`
-        });
-      }
 
       const ok = await CurationModel.targetBelongsToRestaurant(
         targetType,

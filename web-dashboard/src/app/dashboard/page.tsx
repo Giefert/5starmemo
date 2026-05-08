@@ -17,7 +17,7 @@ const EMPTY_CURATIONS: Record<CurationKind, RestaurantCurationItem[]> = {
   specials: [],
   new_item: [],
   featured: [],
-  glossary_highlight: [],
+  in_season: [],
 };
 
 export default function DashboardPage() {
@@ -37,9 +37,9 @@ export default function DashboardPage() {
       curationApi.list('specials'),
       curationApi.list('new_item'),
       curationApi.list('featured'),
-      curationApi.list('glossary_highlight'),
+      curationApi.list('in_season'),
     ])
-      .then(([d, r, specials, newItems, featured, glossaryHighlight]) => {
+      .then(([d, r, specials, newItems, featured, inSeason]) => {
         if (cancelled) return;
         setDecks(d);
         setRestaurant(r);
@@ -47,7 +47,7 @@ export default function DashboardPage() {
           specials,
           new_item: newItems,
           featured,
-          glossary_highlight: glossaryHighlight,
+          in_season: inSeason,
         });
       })
       .catch((err: any) => {

@@ -22,15 +22,8 @@ export class CurationModel {
       );
       return r.rows.length > 0;
     }
-    if (targetType === 'deck') {
-      const r = await pool.query(
-        `SELECT 1 FROM decks WHERE id = $1 AND restaurant_id = $2`,
-        [targetId, restaurantId]
-      );
-      return r.rows.length > 0;
-    }
     const r = await pool.query(
-      `SELECT 1 FROM glossary_terms WHERE id = $1 AND restaurant_id = $2`,
+      `SELECT 1 FROM decks WHERE id = $1 AND restaurant_id = $2`,
       [targetId, restaurantId]
     );
     return r.rows.length > 0;
@@ -41,7 +34,7 @@ export class CurationModel {
     restaurantId: string
   ): Promise<RestaurantCurationItem[]> {
     // Hydrate by left-joining each possible target table. Only one of the
-    // three joins matches per row; the others contribute NULLs.
+    // joins matches per row; the other contributes NULLs.
     const result = await pool.query(
       `SELECT
          rc.target_type,
@@ -52,9 +45,7 @@ export class CurationModel {
          c.restaurant_data->>'itemName' AS card_name,
          dc.title AS card_deck_title,
          d.id AS deck_id,
-         d.title AS deck_title,
-         gt.id AS term_id,
-         gt.term AS term_name
+         d.title AS deck_title
        FROM restaurant_curations rc
        LEFT JOIN cards c
          ON rc.target_type = 'card' AND c.id = rc.target_id
@@ -62,8 +53,6 @@ export class CurationModel {
          ON rc.target_type = 'card' AND dc.id = c.deck_id
        LEFT JOIN decks d
          ON rc.target_type = 'deck' AND d.id = rc.target_id
-       LEFT JOIN glossary_terms gt
-         ON rc.target_type = 'glossary_term' AND gt.id = rc.target_id
        WHERE rc.restaurant_id = $1 AND rc.kind = $2
        ORDER BY rc.position ASC, rc.created_at ASC`,
       [restaurantId, kind]
@@ -84,19 +73,11 @@ export class CurationModel {
             deckTitle: row.card_deck_title || ''
           };
         }
-        if (row.target_type === 'deck') {
-          if (!row.deck_id) return null;
-          return {
-            targetType: 'deck',
-            targetId: row.deck_id,
-            name: row.deck_title
-          };
-        }
-        if (!row.term_id) return null;
+        if (!row.deck_id) return null;
         return {
-          targetType: 'glossary_term',
-          targetId: row.term_id,
-          name: row.term_name
+          targetType: 'deck',
+          targetId: row.deck_id,
+          name: row.deck_title
         };
       })
       .filter((x): x is RestaurantCurationItem => x !== null);
