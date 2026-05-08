@@ -13,12 +13,14 @@
     },
     "preview": {
       "distribution": "internal",
+      "ios": { "image": "latest" },
       "env": {
         "API_URL": "https://api.tusavor.com/api/student"
       }
     },
     "production": {
       "autoIncrement": true,
+      "ios": { "image": "latest" },
       "env": {
         "API_URL": "https://api.tusavor.com/api/student"
       }
