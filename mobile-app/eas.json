@@ -8,7 +8,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "API_URL": "http://localhost:3002/api/student"
+        "API_URL": "https://api.tusavor.com/api/student"
       }
     },
     "preview": {

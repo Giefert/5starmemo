@@ -80,7 +80,7 @@ export const HomeScreen: React.FC = () => {
             break;
           case 'ECONNREFUSED':
             alertTitle = 'Connection Refused';
-            alertMessage = 'Cannot connect to the API server. Please make sure the server is running on port 3002.';
+            alertMessage = 'Cannot reach the server. Please check your internet connection and try again.';
             break;
           case 'ENOTFOUND':
             alertTitle = 'Server Not Found';

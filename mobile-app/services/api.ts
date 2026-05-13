@@ -15,14 +15,7 @@ import {
   BulletinPayload
 } from '../types/shared';
 
-import { Platform } from 'react-native';
-
 const getApiBaseUrl = () => {
-  if (__DEV__) {
-    return Platform.OS === 'android'
-      ? 'http://10.0.2.2:3002/api/student'
-      : 'http://localhost:3002/api/student';
-  }
   return Constants.expoConfig?.extra?.apiUrl || 'https://api.tusavor.com/api/student';
 };
 

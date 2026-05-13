@@ -15,7 +15,7 @@ Prod (`api.tusavor.com` / VPS at 149.56.134.158) is the working environment. No 
 
 - Test changes by deploying to the VPS (`git pull && docker compose ... up -d --build`) and exercising them through the live URLs / TestFlight build.
 - Debug with prod data: SSH in and query the prod DB or read container logs. Don't suggest "let me seed your local DB" or "run docker compose up locally" — that path is abandoned.
-- The mobile app's `__DEV__` branch in `mobile-app/services/api.ts` still points at `localhost:3002`. If a change requires running Expo locally, point it at prod instead of bringing local services back up.
+- The mobile app always hits prod, including local Expo runs (`mobile-app/services/api.ts` no longer has a `__DEV__` → localhost branch). Iterating on UI tweaks in the iOS sim "just works" — `npx expo start --ios` from `mobile-app/` pulls real data from `api.tusavor.com`. Use a test login, not a real student's, since actions write to the live DB.
 - Mention this only if relevant; don't add a "deploy to prod" step to every task — assume the user will deploy when they're ready.
 
 ## Cost safeguards
