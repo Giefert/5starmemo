@@ -49,8 +49,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   extra: {
     apiUrl: process.env.API_URL || 'https://api.tusavor.com/api/student',
-    privacyPolicyUrl:
-      process.env.PRIVACY_POLICY_URL || 'https://tusavor.com/privacy',
     eas: {
       projectId: 'd25aae9b-8910-4fbf-8489-62e8ae9cdeec',
     },

@@ -1,17 +1,15 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Linking, Share, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Share, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Constants from 'expo-constants';
 import { useAuth } from '../contexts/AuthContext';
 import apiService from '../services/api';
+import PrivacyPolicyScreen from './PrivacyPolicyScreen';
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { logout } = useAuth();
   const [isExporting, setIsExporting] = useState(false);
-
-  const privacyPolicyUrl =
-    Constants.expoConfig?.extra?.privacyPolicyUrl || 'https://tusavor.com/privacy';
+  const [showPrivacy, setShowPrivacy] = useState(false);
 
   const handleExportData = async () => {
     setIsExporting(true);
@@ -54,6 +52,10 @@ export default function SettingsScreen() {
     );
   };
 
+  if (showPrivacy) {
+    return <PrivacyPolicyScreen onBack={() => setShowPrivacy(false)} />;
+  }
+
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
@@ -62,7 +64,7 @@ export default function SettingsScreen() {
       <View style={styles.content}>
         <TouchableOpacity
           style={styles.row}
-          onPress={() => Linking.openURL(privacyPolicyUrl)}
+          onPress={() => setShowPrivacy(true)}
         >
           <Text style={styles.rowText}>Privacy Policy</Text>
           <Text style={styles.rowChevron}>›</Text>
