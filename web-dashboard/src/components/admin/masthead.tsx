@@ -23,6 +23,7 @@ export function Masthead({
   onSaveAnnouncements,
   onAddCuration,
   onRemoveCuration,
+  onReorderCuration,
 }: {
   restaurant: Restaurant | null;
   decks: Deck[];
@@ -37,6 +38,10 @@ export function Masthead({
     kind: CurationKind,
     targetType: CurationTargetType,
     targetId: string
+  ) => Promise<void>;
+  onReorderCuration: (
+    kind: CurationKind,
+    items: { targetType: CurationTargetType; targetId: string }[]
   ) => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
@@ -119,6 +124,7 @@ export function Masthead({
             decks={decks}
             onAdd={(t, id) => onAddCuration('specials', t, id)}
             onRemove={(t, id) => onRemoveCuration('specials', t, id)}
+            onReorder={(items) => onReorderCuration('specials', items)}
           />
         </StatPanel>
 
@@ -134,6 +140,7 @@ export function Masthead({
             decks={decks}
             onAdd={(t, id) => onAddCuration('new_item', t, id)}
             onRemove={(t, id) => onRemoveCuration('new_item', t, id)}
+            onReorder={(items) => onReorderCuration('new_item', items)}
           />
         </StatPanel>
 
@@ -150,6 +157,7 @@ export function Masthead({
             decks={decks}
             onAdd={(t, id) => onAddCuration('featured', t, id)}
             onRemove={(t, id) => onRemoveCuration('featured', t, id)}
+            onReorder={(items) => onReorderCuration('featured', items)}
           />
         </StatPanel>
 
@@ -165,6 +173,7 @@ export function Masthead({
             decks={decks}
             onAdd={(t, id) => onAddCuration('in_season', t, id)}
             onRemove={(t, id) => onRemoveCuration('in_season', t, id)}
+            onReorder={(items) => onReorderCuration('in_season', items)}
           />
         </StatPanel>
       </div>

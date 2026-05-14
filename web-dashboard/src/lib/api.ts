@@ -246,6 +246,17 @@ export const curationApi = {
   ): Promise<void> => {
     await api.delete(`/curations/${kind}/${targetType}/${targetId}`);
   },
+
+  reorder: async (
+    kind: CurationKind,
+    items: { targetType: CurationTargetType; targetId: string }[]
+  ): Promise<RestaurantCurationItem[]> => {
+    const response = await api.put<ApiResponse<RestaurantCurationItem[]>>(
+      `/curations/${kind}/order`,
+      { items }
+    );
+    return response.data.data!;
+  },
 };
 
 // Card search (lightweight, dashboard-curation-only)

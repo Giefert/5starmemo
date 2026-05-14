@@ -93,6 +93,27 @@ export default function DashboardPage() {
     []
   );
 
+  const handleReorderCuration = useCallback(
+    async (
+      kind: CurationKind,
+      items: { targetType: CurationTargetType; targetId: string }[]
+    ) => {
+      // Optimistically reorder, then sync with server response.
+      setCurations((cur) => {
+        const byKey = new Map(
+          cur[kind].map((i) => [`${i.targetType}:${i.targetId}`, i])
+        );
+        const next = items
+          .map((it) => byKey.get(`${it.targetType}:${it.targetId}`))
+          .filter((x): x is RestaurantCurationItem => Boolean(x));
+        return { ...cur, [kind]: next };
+      });
+      const updated = await curationApi.reorder(kind, items);
+      setCurations((cur) => ({ ...cur, [kind]: updated }));
+    },
+    []
+  );
+
   if (isLoading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center bg-ink text-on-dark-mute">
@@ -114,6 +135,7 @@ export default function DashboardPage() {
         onSaveAnnouncements={handleSaveAnnouncements}
         onAddCuration={handleAddCuration}
         onRemoveCuration={handleRemoveCuration}
+        onReorderCuration={handleReorderCuration}
       />
 
       {error && (

@@ -22,12 +22,16 @@ export function CurationPanel({
   decks,
   onAdd,
   onRemove,
+  onReorder,
 }: {
   items: RestaurantCurationItem[];
   editing: boolean;
   decks: Deck[];
   onAdd: (targetType: CurationTargetType, targetId: string) => Promise<void>;
   onRemove: (targetType: CurationTargetType, targetId: string) => Promise<void>;
+  onReorder: (
+    items: { targetType: CurationTargetType; targetId: string }[]
+  ) => Promise<void>;
 }) {
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
@@ -92,12 +96,22 @@ export function CurationPanel({
         </div>
       )}
 
-      {items.map((item) => (
+      {items.map((item, idx) => (
         <CurationRow
           key={`${item.targetType}:${item.targetId}`}
           item={item}
           editing={editing}
+          canMoveUp={idx > 0}
+          canMoveDown={idx < items.length - 1}
           onRemove={() => onRemove(item.targetType, item.targetId)}
+          onMove={(dir) => {
+            const swap = dir === 'up' ? idx - 1 : idx + 1;
+            const next = items.slice();
+            [next[idx], next[swap]] = [next[swap], next[idx]];
+            return onReorder(
+              next.map((i) => ({ targetType: i.targetType, targetId: i.targetId }))
+            );
+          }}
         />
       ))}
 
@@ -171,11 +185,17 @@ export function CurationPanel({
 function CurationRow({
   item,
   editing,
+  canMoveUp,
+  canMoveDown,
   onRemove,
+  onMove,
 }: {
   item: RestaurantCurationItem;
   editing: boolean;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
   onRemove: () => void;
+  onMove: (direction: 'up' | 'down') => Promise<void>;
 }) {
   const href =
     item.targetType === 'card'
@@ -215,15 +235,37 @@ function CurationRow({
         </Link>
       )}
       {editing && (
-        <button
-          type="button"
-          onClick={onRemove}
-          aria-label="Remove"
-          className="text-on-dark-mute transition-colors hover:text-red"
-          style={{ fontSize: 16, lineHeight: 1, padding: '0 4px' }}
-        >
-          ×
-        </button>
+        <div className="flex items-center" style={{ gap: 2 }}>
+          <button
+            type="button"
+            onClick={() => onMove('up')}
+            disabled={!canMoveUp}
+            aria-label="Move up"
+            className="text-on-dark-mute transition-colors hover:text-amber disabled:opacity-30 disabled:cursor-not-allowed"
+            style={{ fontSize: 12, lineHeight: 1, padding: '0 4px' }}
+          >
+            ↑
+          </button>
+          <button
+            type="button"
+            onClick={() => onMove('down')}
+            disabled={!canMoveDown}
+            aria-label="Move down"
+            className="text-on-dark-mute transition-colors hover:text-amber disabled:opacity-30 disabled:cursor-not-allowed"
+            style={{ fontSize: 12, lineHeight: 1, padding: '0 4px' }}
+          >
+            ↓
+          </button>
+          <button
+            type="button"
+            onClick={onRemove}
+            aria-label="Remove"
+            className="text-on-dark-mute transition-colors hover:text-red"
+            style={{ fontSize: 16, lineHeight: 1, padding: '0 4px' }}
+          >
+            ×
+          </button>
+        </div>
       )}
     </div>
   );

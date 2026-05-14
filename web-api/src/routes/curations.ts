@@ -74,6 +74,39 @@ router.post('/:kind',
   }
 );
 
+router.put('/:kind/order',
+  [
+    param('kind').isIn(KINDS),
+    body('items').isArray(),
+    body('items.*.targetType').isIn(TARGET_TYPES),
+    body('items.*.targetId').isUUID()
+  ],
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Validation failed',
+          details: errors.array()
+        });
+      }
+      const kind = req.params.kind as CurationKind;
+      const items = req.body.items as {
+        targetType: CurationTargetType;
+        targetId: string;
+      }[];
+      await CurationModel.reorder(kind, items, req.user!.restaurantId);
+      const updated = await CurationModel.list(kind, req.user!.restaurantId);
+      const response: ApiResponse = { success: true, data: updated };
+      res.json(response);
+    } catch (error) {
+      console.error('Error reordering curations:', error);
+      res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+  }
+);
+
 router.delete('/:kind/:targetType/:targetId',
   [
     param('kind').isIn(KINDS),

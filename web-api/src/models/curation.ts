@@ -120,4 +120,32 @@ export class CurationModel {
     );
     return (result.rowCount || 0) > 0;
   }
+
+  // Rewrite positions for a kind to match the order of the supplied list.
+  // Items not present in the supplied list keep their existing position.
+  static async reorder(
+    kind: CurationKind,
+    items: { targetType: CurationTargetType; targetId: string }[],
+    restaurantId: string
+  ): Promise<void> {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (let i = 0; i < items.length; i++) {
+        await client.query(
+          `UPDATE restaurant_curations
+              SET position = $1
+            WHERE restaurant_id = $2 AND kind = $3
+              AND target_type = $4 AND target_id = $5`,
+          [i, restaurantId, kind, items[i].targetType, items[i].targetId]
+        );
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
 }
