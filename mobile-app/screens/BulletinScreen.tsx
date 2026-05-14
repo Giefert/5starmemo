@@ -33,9 +33,9 @@ const COLORS = {
 };
 
 const SECTIONS: { kind: CurationKind; label: string; tone?: 'amber' }[] = [
-  { kind: 'specials', label: 'Specials' },
   { kind: 'new_item', label: 'New items' },
   { kind: 'featured', label: 'Featured', tone: 'amber' },
+  { kind: 'specials', label: 'Specials' },
   { kind: 'in_season', label: 'In season' },
 ];
 
@@ -108,10 +108,6 @@ export default function BulletinScreen() {
     loadBulletin();
   };
 
-  const handleRecommendedStudy = () => {
-    Alert.alert('Coming soon', 'Recommended Study is not available yet.');
-  };
-
   const handleSectionPress = (kind: CurationKind, label: string) => {
     const items = data?.curations[kind] ?? [];
     if (items.length === 0) return;
@@ -177,7 +173,13 @@ export default function BulletinScreen() {
   const announcements = data?.restaurant.announcements ?? [];
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={styles.container}>
+      <View style={[styles.masthead, { paddingTop: insets.top + 36 }]}>
+        <Text style={styles.eyebrow}>
+          {restaurantName + ' · Week ' + week}
+        </Text>
+        <Text style={styles.headline}>Bulletin.</Text>
+      </View>
       <ScrollView
         contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
         refreshControl={
@@ -188,22 +190,15 @@ export default function BulletinScreen() {
           />
         }
       >
-        <View style={styles.masthead}>
-          <Text style={styles.eyebrow}>
-            {restaurantName + ' · Week ' + week}
-          </Text>
-          <Text style={styles.headline}>Bulletin.</Text>
-
-          {announcements.length > 0 && (
-            <View style={styles.announcementBlock}>
-              {announcements.map((line, i) => (
-                <Text key={i} style={styles.announcementLine}>
-                  {line}
-                </Text>
-              ))}
-            </View>
-          )}
-        </View>
+        {announcements.length > 0 && (
+          <View style={styles.announcementBlock}>
+            {announcements.map((line, i) => (
+              <Text key={i} style={styles.announcementLine}>
+                {line}
+              </Text>
+            ))}
+          </View>
+        )}
 
         {error ? (
           <View style={styles.errorBanner}>
@@ -222,14 +217,6 @@ export default function BulletinScreen() {
             />
           ))}
         </View>
-
-        <TouchableOpacity
-          style={styles.recommendedButton}
-          onPress={handleRecommendedStudy}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.recommendedButtonText}>Recommended Study</Text>
-        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -280,23 +267,17 @@ function BulletinSection({
 }
 
 function BulletinItemRow({ item }: { item: RestaurantCurationItem }) {
-  const subtitle =
-    item.targetType === 'card'
-      ? item.deckTitle || (item.category ? item.category.toUpperCase() : 'CARD')
-      : 'DECK';
-
   return (
     <View style={styles.itemRow}>
       <View style={styles.itemTextWrap}>
         <Text style={styles.itemTitle} numberOfLines={2}>
           {item.name}
         </Text>
-        <Text style={styles.itemSubtitle} numberOfLines={1}>
-          {subtitle}
-        </Text>
       </View>
       <Text style={styles.itemBadge}>
-        {item.targetType === 'card' ? 'CARD' : 'DECK'}
+        {item.targetType === 'card'
+          ? (item.category ?? 'card').toUpperCase()
+          : 'DECK'}
       </Text>
     </View>
   );
@@ -318,8 +299,8 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   masthead: {
+    backgroundColor: COLORS.ink,
     paddingHorizontal: 24,
-    paddingTop: 36,
     paddingBottom: 24,
   },
   eyebrow: {
@@ -337,15 +318,16 @@ const styles = StyleSheet.create({
     letterSpacing: -1.5,
   },
   announcementBlock: {
-    marginTop: 18,
+    paddingHorizontal: 24,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: COLORS.bgHair,
     paddingTop: 14,
+    paddingBottom: 14,
     gap: 6,
   },
   announcementLine: {
     color: COLORS.onDark,
-    fontSize: 14,
+    fontSize: 20,
     lineHeight: 20,
   },
   errorBanner: {
@@ -374,9 +356,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionLabel: {
-    color: COLORS.onDarkMute,
-    fontSize: 13,
+    color: COLORS.onDark,
+    fontSize: 16,
     letterSpacing: 0.4,
+    fontWeight: '600',
   },
   sectionCount: {
     fontFamily: 'Georgia',
@@ -402,35 +385,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   itemTitle: {
-    color: COLORS.onDark,
-    fontSize: 15,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  itemSubtitle: {
     color: COLORS.onDarkMute,
-    fontSize: 11,
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
+    fontSize: 15,
+    marginBottom: 2,
   },
   itemBadge: {
     color: COLORS.onDarkMute,
     fontSize: 10,
     letterSpacing: 1.2,
     fontWeight: '600',
-  },
-  recommendedButton: {
-    marginTop: 28,
-    marginHorizontal: 24,
-    backgroundColor: COLORS.amber,
-    paddingVertical: 16,
-    borderRadius: 2,
-    alignItems: 'center',
-  },
-  recommendedButtonText: {
-    color: COLORS.ink,
-    fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: 0.4,
   },
 });

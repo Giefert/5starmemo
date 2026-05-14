@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -43,9 +43,7 @@ export default function GlossaryScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [error, setError] = useState('');
-  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [isFilterVisible, setIsFilterVisible] = useState(false);
-  const searchInputRef = useRef<TextInput>(null);
 
   // Debounce search
   useEffect(() => {
@@ -90,7 +88,6 @@ export default function GlossaryScreen() {
     setSelectedCategory(undefined);
     setSearchQuery('');
     setDebouncedSearch('');
-    setIsSearchExpanded(false);
     setIsFilterVisible(false);
   };
 
@@ -118,45 +115,39 @@ export default function GlossaryScreen() {
     setSelectedTerm(null);
   };
 
-  // Render category filter pills
-  const renderCategoryFilters = () => (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      style={styles.categoryScrollView}
-      contentContainerStyle={styles.categoryContainer}
-    >
-      <TouchableOpacity
-        style={[
-          styles.categoryPill,
-          !selectedCategory && styles.categoryPillActive
-        ]}
-        onPress={() => setSelectedCategory(undefined)}
-      >
-        <Text style={[
-          styles.categoryText,
-          !selectedCategory && styles.categoryTextActive
-        ]}>All</Text>
-      </TouchableOpacity>
-      {categories.map(cat => (
+  // Render category dropdown
+  const renderCategoryDropdown = () => (
+    <View style={styles.dropdown}>
+      <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
         <TouchableOpacity
-          key={cat.id}
-          style={[
-            styles.categoryPill,
-            selectedCategory === cat.id && styles.categoryPillActive,
-            cat.color && selectedCategory !== cat.id && { borderColor: cat.color }
-          ]}
-          onPress={() => setSelectedCategory(selectedCategory === cat.id ? undefined : cat.id)}
+          style={[styles.dropdownItem, !selectedCategory && styles.dropdownItemActive]}
+          onPress={() => setSelectedCategory(undefined)}
         >
-          <Text style={[
-            styles.categoryText,
-            selectedCategory === cat.id && styles.categoryTextActive
-          ]}>
-            {cat.name} ({cat.termCount || 0})
+          <Text style={[styles.dropdownItemText, !selectedCategory && styles.dropdownItemTextActive]}>
+            All
           </Text>
+          {!selectedCategory && <Ionicons name="checkmark" size={18} color="#007AFF" />}
         </TouchableOpacity>
-      ))}
-    </ScrollView>
+        {categories.map(cat => {
+          const isActive = selectedCategory === cat.id;
+          return (
+            <TouchableOpacity
+              key={cat.id}
+              style={[styles.dropdownItem, isActive && styles.dropdownItemActive]}
+              onPress={() => setSelectedCategory(isActive ? undefined : cat.id)}
+            >
+              <View style={styles.dropdownItemLabel}>
+                {cat.color && <View style={[styles.dropdownColorDot, { backgroundColor: cat.color }]} />}
+                <Text style={[styles.dropdownItemText, isActive && styles.dropdownItemTextActive]}>
+                  {cat.name} ({cat.termCount || 0})
+                </Text>
+              </View>
+              {isActive && <Ionicons name="checkmark" size={18} color="#007AFF" />}
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+    </View>
   );
 
   // Render term item
@@ -293,77 +284,72 @@ export default function GlossaryScreen() {
         <Text style={styles.title}>Reference</Text>
       </View>
 
-      {/* Section Tabs */}
-      <View style={styles.sectionTabContainer}>
-        <TouchableOpacity
-          style={[
-            styles.sectionTab,
-            activeSection === 'glossary' && styles.sectionTabActive
-          ]}
-          onPress={() => handleSectionChange('glossary')}
-        >
-          <Text style={[
-            styles.sectionTabText,
-            activeSection === 'glossary' && styles.sectionTabTextActive
-          ]}>Glossary</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.sectionTab,
-            activeSection === 'encyclopedia' && styles.sectionTabActive
-          ]}
-          onPress={() => handleSectionChange('encyclopedia')}
-        >
-          <Text style={[
-            styles.sectionTabText,
-            activeSection === 'encyclopedia' && styles.sectionTabTextActive
-          ]}>Encyclopedia</Text>
-        </TouchableOpacity>
+      {/* Section Toggle */}
+      <View style={styles.toggleBar}>
+        <View style={styles.toggle}>
+          <TouchableOpacity
+            style={[styles.toggleOption, activeSection === 'glossary' && styles.toggleOptionActive]}
+            onPress={() => handleSectionChange('glossary')}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.toggleText, activeSection === 'glossary' && styles.toggleTextActive]}>
+              Glossary
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.toggleOption, activeSection === 'encyclopedia' && styles.toggleOptionActive]}
+            onPress={() => handleSectionChange('encyclopedia')}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.toggleText, activeSection === 'encyclopedia' && styles.toggleTextActive]}>
+              Encyclopedia
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Search & Filter Controls */}
       <View style={styles.filtersContainer}>
         <View style={styles.filterToolbar}>
-          <TouchableOpacity
-            style={[styles.toolbarButton, isSearchExpanded && styles.toolbarButtonActive]}
-            onPress={() => {
-              if (isSearchExpanded) {
-                setIsSearchExpanded(false);
-                setSearchQuery('');
-              } else {
-                setIsSearchExpanded(true);
-                setTimeout(() => searchInputRef.current?.focus(), 100);
-              }
-            }}
-          >
-            <Ionicons name="search" size={18} color={isSearchExpanded ? '#fff' : '#666'} />
-          </TouchableOpacity>
+          <View style={styles.searchBar}>
+            <Ionicons name="search" size={18} color="#666" style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchBarInput}
+              placeholder="Search terms..."
+              placeholderTextColor="#999"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              returnKeyType="search"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={8}>
+                <Ionicons name="close-circle" size={18} color="#999" />
+              </TouchableOpacity>
+            )}
+          </View>
           {categories.length > 0 && (
             <TouchableOpacity
-              style={[styles.toolbarButton, isFilterVisible && styles.toolbarButtonActive]}
+              style={[styles.toolbarButton, (isFilterVisible || selectedCategory) && styles.toolbarButtonActive]}
               onPress={() => setIsFilterVisible(!isFilterVisible)}
             >
-              <Ionicons name="filter" size={16} color={isFilterVisible ? '#fff' : '#666'} style={{ marginRight: 4 }} />
-              <Text style={[styles.filterButtonText, isFilterVisible && styles.filterButtonTextActive]}>
+              <Ionicons
+                name="filter"
+                size={16}
+                color={isFilterVisible || selectedCategory ? '#fff' : '#666'}
+                style={{ marginRight: 4 }}
+              />
+              <Text style={[
+                styles.filterButtonText,
+                (isFilterVisible || selectedCategory) && styles.filterButtonTextActive,
+              ]}>
                 Filter{selectedCategory ? ' (1)' : ''}
               </Text>
             </TouchableOpacity>
           )}
         </View>
-        {isSearchExpanded && (
-          <TextInput
-            ref={searchInputRef}
-            style={styles.searchInput}
-            placeholder="Search terms..."
-            placeholderTextColor="#999"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            returnKeyType="search"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-        )}
-        {isFilterVisible && categories.length > 0 && renderCategoryFilters()}
+        {isFilterVisible && categories.length > 0 && renderCategoryDropdown()}
       </View>
 
       {/* Error Message */}
@@ -416,8 +402,10 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 20,
-    paddingBottom: 12,
+    paddingBottom: 16,
     backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
   title: {
     fontSize: 32,
@@ -436,42 +424,65 @@ const styles = StyleSheet.create({
     color: '#007AFF',
     fontSize: 16,
   },
-  sectionTabContainer: {
+  toggleBar: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  toggle: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 0,
-  },
-  sectionTab: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
+    backgroundColor: '#EFEFF4',
     borderRadius: 8,
-    backgroundColor: '#f0f0f0',
+    padding: 2,
   },
-  sectionTabActive: {
-    backgroundColor: '#007AFF',
+  toggleOption: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 6,
   },
-  sectionTabText: {
+  toggleOptionActive: {
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  toggleText: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#666',
   },
-  sectionTabTextActive: {
-    color: '#fff',
+  toggleTextActive: {
+    color: '#007AFF',
+    fontWeight: '600',
   },
   filtersContainer: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
   },
   filterToolbar: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  searchBar: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchBarInput: {
+    flex: 1,
+    fontSize: 15,
+    color: '#333',
+    padding: 0,
   },
   toolbarButton: {
     flexDirection: 'row',
@@ -492,43 +503,52 @@ const styles = StyleSheet.create({
   filterButtonTextActive: {
     color: '#fff',
   },
-  searchInput: {
-    backgroundColor: '#f0f0f0',
+  dropdown: {
+    marginTop: 10,
+    backgroundColor: '#fff',
     borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    fontSize: 16,
-    color: '#333',
-    marginTop: 10,
-  },
-  categoryScrollView: {
-    marginTop: 10,
-    marginHorizontal: -16,
-  },
-  categoryContainer: {
-    paddingHorizontal: 16,
-    alignItems: 'center',
-  },
-  categoryPill: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#f0f0f0',
-    marginRight: 8,
     borderWidth: 1,
-    borderColor: 'transparent',
+    borderColor: '#e5e7eb',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  categoryPillActive: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
+  dropdownScroll: {
+    maxHeight: 280,
   },
-  categoryText: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e5e7eb',
   },
-  categoryTextActive: {
-    color: '#fff',
+  dropdownItemActive: {
+    backgroundColor: '#f5f9ff',
+  },
+  dropdownItemLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  dropdownColorDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 10,
+  },
+  dropdownItemText: {
+    fontSize: 15,
+    color: '#333',
+  },
+  dropdownItemTextActive: {
+    color: '#007AFF',
+    fontWeight: '600',
   },
   listContent: {
     padding: 12,
