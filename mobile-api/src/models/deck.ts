@@ -15,8 +15,17 @@ export class DeckModel {
         d.description,
         d.is_featured,
         COUNT(c.id) as card_count,
-        COUNT(CASE WHEN fc.state = 'new' OR fc.card_id IS NULL THEN 1 END) as new_cards,
-        COUNT(CASE WHEN fc.state IN ('learning', 'review', 'relearning') AND fc.next_review <= NOW() THEN 1 END) as review_cards,
+        COUNT(CASE
+          WHEN fc.card_id IS NULL OR fc.state IN ('new', 'learning') THEN 1
+        END) as weak_cards,
+        COUNT(CASE
+          WHEN fc.state = 'relearning'
+            OR (fc.state = 'review' AND fc.stability < 21)
+          THEN 1
+        END) as learning_cards,
+        COUNT(CASE
+          WHEN fc.state = 'review' AND fc.stability >= 21 THEN 1
+        END) as mastered_cards,
         MIN(CASE WHEN fc.next_review > NOW() THEN fc.next_review END) as next_review_at
       FROM decks d
       LEFT JOIN cards c ON d.id = c.deck_id
@@ -34,16 +43,38 @@ export class DeckModel {
       description: row.description,
       isFeatured: row.is_featured,
       cardCount: parseInt(row.card_count) || 0,
-      newCards: parseInt(row.new_cards) || 0,
-      reviewCards: parseInt(row.review_cards) || 0,
+      masteredCards: parseInt(row.mastered_cards) || 0,
+      learningCards: parseInt(row.learning_cards) || 0,
+      weakCards: parseInt(row.weak_cards) || 0,
       nextReviewAt: row.next_review_at
     }));
   }
 
   /**
    * Get deck with cards for studying. Restaurant scope enforced via deck.
+   *
+   * mode='full' returns every card in the deck.
+   * mode='recommended' (default) returns cards FSRS thinks the student should
+   * work on now: anything due (next_review <= NOW), plus anything not-yet-
+   * mastered (no FSRS row, or state in new/learning/relearning, or review
+   * state with stability < 21 days). Mastered cards scheduled in the future
+   * are skipped.
    */
-  static async getDeckForStudy(deckId: string, userId: string, restaurantId: string): Promise<StudyCardData[]> {
+  static async getDeckForStudy(
+    deckId: string,
+    userId: string,
+    restaurantId: string,
+    mode: 'recommended' | 'full' = 'full'
+  ): Promise<StudyCardData[]> {
+    const recommendedFilter = `
+      AND (
+        fc.card_id IS NULL
+        OR fc.state IN ('new', 'learning', 'relearning')
+        OR (fc.state = 'review' AND fc.stability < 21)
+        OR fc.next_review <= NOW()
+      )
+    `;
+
     const query = `
       SELECT
         c.id,
@@ -69,6 +100,7 @@ export class DeckModel {
       JOIN decks d ON d.id = c.deck_id
       LEFT JOIN fsrs_cards fc ON c.id = fc.card_id AND fc.user_id = $2
       WHERE c.deck_id = $1 AND d.restaurant_id = $3
+      ${mode === 'recommended' ? recommendedFilter : ''}
       ORDER BY c.restaurant_data->>'itemName' ASC, c.created_at ASC
     `;
 

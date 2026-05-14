@@ -12,21 +12,23 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
-import { Deck } from '../types/shared';
+import { StudentDeck } from '../types/shared';
 import apiService from '../services/api';
 import { StudyScreen } from './StudyScreen';
 import { StudyCompletedScreen } from './StudyCompletedScreen';
 import { BrowseScreen } from './BrowseScreen';
 
 type ScreenState = 'home' | 'study' | 'completed' | 'browse';
+type Mode = 'recommended' | 'full' | 'browse';
 
 export const HomeScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
-  const [decks, setDecks] = useState<Deck[]>([]);
+  const [decks, setDecks] = useState<StudentDeck[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [screenState, setScreenState] = useState<ScreenState>('home');
-  const [selectedDeck, setSelectedDeck] = useState<Deck | null>(null);
+  const [mode, setMode] = useState<Mode>('recommended');
+  const [selectedDeck, setSelectedDeck] = useState<StudentDeck | null>(null);
   const [studyStats, setStudyStats] = useState<{
     studied: number;
     correct: number;
@@ -122,24 +124,20 @@ export const HomeScreen: React.FC = () => {
     loadData();
   };
 
-  const handleDeckTap = (deck: Deck) => {
-    Alert.alert(
-      deck.title,
-      'What would you like to do?',
-      [
-        { text: 'Study', onPress: () => handleStartStudy(deck) },
-        { text: 'Browse', onPress: () => handleBrowseDeck(deck) },
-        { text: 'Cancel', style: 'cancel' },
-      ]
-    );
+  const handleDeckTap = (deck: StudentDeck) => {
+    if (mode === 'browse') {
+      handleBrowseDeck(deck);
+    } else {
+      handleStartStudy(deck);
+    }
   };
 
-  const handleStartStudy = (deck: Deck) => {
+  const handleStartStudy = (deck: StudentDeck) => {
     setSelectedDeck(deck);
     setScreenState('study');
   };
 
-  const handleBrowseDeck = (deck: Deck) => {
+  const handleBrowseDeck = (deck: StudentDeck) => {
     setSelectedDeck(deck);
     setScreenState('browse');
   };
@@ -167,7 +165,12 @@ export const HomeScreen: React.FC = () => {
   if (screenState === 'study' && selectedDeck) {
     return (
       <StudyScreen
-        target={{ kind: 'deck', deckId: selectedDeck.id, deckTitle: selectedDeck.title }}
+        target={{
+          kind: 'deck',
+          deckId: selectedDeck.id,
+          deckTitle: selectedDeck.title,
+          mode: mode === 'full' ? 'full' : 'recommended',
+        }}
         onComplete={handleStudyComplete}
         onExit={handleBackToHome}
       />
@@ -208,13 +211,43 @@ export const HomeScreen: React.FC = () => {
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <Text style={styles.title}>Study</Text>
       </View>
+      <View style={styles.toggleBar}>
+        <View style={styles.toggle}>
+          <TouchableOpacity
+            style={[styles.toggleOption, mode === 'recommended' && styles.toggleOptionActive]}
+            onPress={() => setMode('recommended')}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.toggleText, mode === 'recommended' && styles.toggleTextActive]}>
+              Recommended
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.toggleOption, mode === 'full' && styles.toggleOptionActive]}
+            onPress={() => setMode('full')}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.toggleText, mode === 'full' && styles.toggleTextActive]}>
+              Full
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.toggleOption, mode === 'browse' && styles.toggleOptionActive]}
+            onPress={() => setMode('browse')}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.toggleText, mode === 'browse' && styles.toggleTextActive]}>
+              Browse
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
       <ScrollView
         refreshControl={
           <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
         }
       >
         <View style={styles.decksContainer}>
-          <Text style={styles.sectionTitle}>Available Decks</Text>
           {decks.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyStateText}>No decks available yet</Text>
@@ -242,7 +275,7 @@ export const HomeScreen: React.FC = () => {
                     <Text style={styles.deckDescription}>{deck.description}</Text>
                   )}
                   <Text style={styles.deckStats}>
-                    {deck.cardCount || 0} cards • {deck.newCards || 0} new • {deck.reviewCards || 0} review
+                    {deck.masteredCards || 0} mastered • {deck.learningCards || 0} learning • {deck.weakCards || 0} weak
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -282,11 +315,38 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    color: '#1a1a1a',
+  toggleBar: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  toggle: {
+    flexDirection: 'row',
+    backgroundColor: '#EFEFF4',
+    borderRadius: 8,
+    padding: 2,
+  },
+  toggleOption: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 6,
+  },
+  toggleOptionActive: {
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  toggleText: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#666',
+  },
+  toggleTextActive: {
+    color: '#007AFF',
+    fontWeight: '600',
   },
   decksContainer: {
     padding: 20,

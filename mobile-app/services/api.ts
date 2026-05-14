@@ -5,7 +5,7 @@ import {
   LoginInput,
   ApiResponse,
   AuthResponse,
-  Deck,
+  StudentDeck,
   StudyStats,
   StudySession,
   ReviewInput,
@@ -130,9 +130,9 @@ class ApiService {
     throw new Error(response.data.error || 'Failed to fetch curation study');
   }
 
-  async getAvailableDecks(): Promise<Deck[]> {
+  async getAvailableDecks(): Promise<StudentDeck[]> {
     const headers = await this.getAuthHeaders();
-    const response = await apiClient.get<ApiResponse<Deck[]>>(
+    const response = await apiClient.get<ApiResponse<StudentDeck[]>>(
       `/decks`,
       { headers }
     );
@@ -144,11 +144,14 @@ class ApiService {
     throw new Error(response.data.error || 'Failed to fetch decks');
   }
 
-  async getDeckForStudy(deckId: string): Promise<{ deckId: string; cards: any[] }> {
+  async getDeckForStudy(
+    deckId: string,
+    mode: 'recommended' | 'full' = 'recommended'
+  ): Promise<{ deckId: string; cards: any[] }> {
     const headers = await this.getAuthHeaders();
     const response = await apiClient.get<ApiResponse<{ deckId: string; cards: any[] }>>(
       `/decks/${deckId}`,
-      { headers }
+      { headers, params: { mode } }
     );
     
     if (response.data.success && response.data.data) {

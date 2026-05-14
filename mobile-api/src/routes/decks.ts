@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { param, validationResult } from 'express-validator';
+import { param, query, validationResult } from 'express-validator';
 import { DeckModel } from '../models/deck';
 import { authenticateToken, requireStudent, AuthenticatedRequest } from '../middleware/auth';
 import { ApiResponse } from '../../../shared/types';
@@ -33,14 +33,17 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
 
 // Get specific deck for studying
 router.get('/:id',
-  [param('id').isUUID()],
+  [
+    param('id').isUUID(),
+    query('mode').optional().isIn(['recommended', 'full'])
+  ],
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
         return res.status(400).json({
           success: false,
-          error: 'Invalid deck ID',
+          error: 'Invalid request',
           details: errors.array()
         });
       }
@@ -54,7 +57,8 @@ router.get('/:id',
         });
       }
 
-      const studyData = await DeckModel.getDeckForStudy(req.params.id, req.user!.id, req.user!.restaurantId);
+      const mode = (req.query.mode as 'recommended' | 'full' | undefined) ?? 'full';
+      const studyData = await DeckModel.getDeckForStudy(req.params.id, req.user!.id, req.user!.restaurantId, mode);
 
       const response: ApiResponse = {
         success: true,

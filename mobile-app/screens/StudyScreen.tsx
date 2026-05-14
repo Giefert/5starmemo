@@ -18,9 +18,10 @@ import apiService from '../services/api';
 import { StudyCardData } from '../types/shared';
 
 import { CurationKind } from '../types/shared';
+import { DeckStudyMode } from '../services/StudySessionManager';
 
 type StudyTarget =
-  | { kind: 'deck'; deckId: string; deckTitle?: string }
+  | { kind: 'deck'; deckId: string; deckTitle?: string; mode?: DeckStudyMode }
   | { kind: 'curation'; curationKind: CurationKind; title: string };
 
 interface StudyScreenProps {

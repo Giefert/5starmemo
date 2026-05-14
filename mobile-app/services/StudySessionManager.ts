@@ -15,8 +15,10 @@ export interface StudySessionState {
   deckTitle?: string;
 }
 
+export type DeckStudyMode = 'recommended' | 'full';
+
 type StartTarget =
-  | { kind: 'deck'; deckId: string; deckTitle?: string }
+  | { kind: 'deck'; deckId: string; deckTitle?: string; mode?: DeckStudyMode }
   | { kind: 'curation'; curationKind: CurationKind; title: string };
 
 function shuffle<T>(items: T[]): T[] {
@@ -51,7 +53,7 @@ export class StudySessionManager {
     try {
       if (target.kind === 'deck') {
         this.state.session = await apiService.createStudySession({ deckId: target.deckId });
-        const studyData = await apiService.getDeckForStudy(target.deckId);
+        const studyData = await apiService.getDeckForStudy(target.deckId, target.mode ?? 'recommended');
         this.state.cards = studyData.cards;
         this.state.unitStartIndices = [];
         this.state.deckTitle = target.deckTitle;
