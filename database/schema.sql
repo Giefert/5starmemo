@@ -70,14 +70,19 @@ CREATE TABLE fsrs_cards (
     UNIQUE(card_id, user_id)
 );
 
--- Study sessions for tracking user progress (no time tracking for privacy)
+-- Study sessions for tracking user progress (no time tracking for privacy).
+-- Either deck_id or curation_kind must be set: deck-tab study fills deck_id,
+-- bulletin "study this section" fills curation_kind and leaves deck_id NULL.
 CREATE TABLE study_sessions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    deck_id UUID NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
+    deck_id UUID REFERENCES decks(id) ON DELETE CASCADE,
+    curation_kind TEXT CHECK (curation_kind IN ('specials', 'new_item', 'featured', 'in_season')),
     cards_studied INTEGER DEFAULT 0,
     correct_answers INTEGER DEFAULT 0,
-    average_rating DECIMAL(3,2)
+    average_rating DECIMAL(3,2),
+    CONSTRAINT study_sessions_deck_or_curation
+        CHECK (deck_id IS NOT NULL OR curation_kind IS NOT NULL)
 );
 
 -- Individual card reviews within study sessions (no time tracking for privacy)

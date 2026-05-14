@@ -12,7 +12,9 @@ import {
   GlossaryCategory,
   GlossaryTermSummary,
   GlossaryTerm,
-  BulletinPayload
+  BulletinPayload,
+  CurationKind,
+  CurationStudyPayload
 } from '../types/shared';
 
 const getApiBaseUrl = () => {
@@ -114,6 +116,20 @@ class ApiService {
     throw new Error(response.data.error || 'Failed to fetch bulletin');
   }
 
+  async getCurationStudy(kind: CurationKind): Promise<CurationStudyPayload> {
+    const headers = await this.getAuthHeaders();
+    const response = await apiClient.get<ApiResponse<CurationStudyPayload>>(
+      `/bulletin/${kind}/study`,
+      { headers }
+    );
+
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    }
+
+    throw new Error(response.data.error || 'Failed to fetch curation study');
+  }
+
   async getAvailableDecks(): Promise<Deck[]> {
     const headers = await this.getAuthHeaders();
     const response = await apiClient.get<ApiResponse<Deck[]>>(
@@ -156,18 +172,20 @@ class ApiService {
     throw new Error(response.data.error || 'Failed to fetch study stats');
   }
 
-  async createStudySession(deckId: string): Promise<StudySession> {
+  async createStudySession(
+    target: { deckId: string; curationKind?: undefined } | { deckId?: undefined; curationKind: CurationKind }
+  ): Promise<StudySession> {
     const headers = await this.getAuthHeaders();
     const response = await apiClient.post<ApiResponse<StudySession>>(
       `/progress/sessions`,
-      { deckId },
+      target,
       { headers }
     );
-    
+
     if (response.data.success && response.data.data) {
       return response.data.data;
     }
-    
+
     throw new Error(response.data.error || 'Failed to create study session');
   }
 

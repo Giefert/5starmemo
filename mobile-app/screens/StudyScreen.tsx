@@ -17,9 +17,14 @@ import { RatingButtons } from '../components/RatingButtons';
 import apiService from '../services/api';
 import { StudyCardData } from '../types/shared';
 
+import { CurationKind } from '../types/shared';
+
+type StudyTarget =
+  | { kind: 'deck'; deckId: string; deckTitle?: string }
+  | { kind: 'curation'; curationKind: CurationKind; title: string };
+
 interface StudyScreenProps {
-  deckId: string;
-  deckTitle?: string;
+  target: StudyTarget;
   onComplete: (stats: {
     studied: number;
     correct: number;
@@ -29,12 +34,13 @@ interface StudyScreenProps {
 }
 
 export const StudyScreen: React.FC<StudyScreenProps> = ({
-  deckId,
-  deckTitle,
+  target,
   onComplete,
   onExit
 }) => {
   const insets = useSafeAreaInsets()
+  const headerTitle = target.kind === 'deck' ? target.deckTitle : target.title;
+  const targetKey = target.kind === 'deck' ? target.deckId : target.curationKind;
   const [currentCard, setCurrentCard] = useState<StudyCardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -48,6 +54,7 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
     studied: 0,
     correct: 0,
     percentage: 0,
+    unitStartIndices: [] as number[],
   });
 
   useEffect(() => {
@@ -57,7 +64,7 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
       // Clean up session on unmount
       studySessionManager.reset();
     };
-  }, [deckId]);
+  }, [targetKey]);
 
   useEffect(() => {
     if (currentCard) {
@@ -72,7 +79,7 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
   const startStudySession = async () => {
     try {
       setIsLoading(true);
-      await studySessionManager.startSession(deckId, deckTitle);
+      await studySessionManager.startSession(target);
       updateCurrentState();
     } catch (error) {
       Alert.alert(
@@ -184,12 +191,18 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
           </TouchableOpacity>
 
           <View style={styles.progressContainer}>
-            {deckTitle && (
-              <Text style={styles.deckTitle}>{deckTitle}</Text>
+            {headerTitle && (
+              <Text style={styles.deckTitle}>{headerTitle}</Text>
             )}
             {/* Slimmer, Blue Focus Progress Bar */}
             <View style={styles.progressBar}>
               <View style={[styles.progressFill, { width: `${Math.max(5, progress.percentage)}%` }]} />
+              {progress.total > 0 && progress.unitStartIndices.slice(1).map((startIdx) => (
+                <View
+                  key={startIdx}
+                  style={[styles.progressMarker, { left: `${(startIdx / progress.total) * 100}%` }]}
+                />
+              ))}
             </View>
           </View>
         </View>
@@ -286,10 +299,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#E0E0E0',
     borderRadius: 2,
     overflow: 'hidden',
+    position: 'relative',
   },
   progressFill: {
     height: '100%',
     backgroundColor: '#4A90E2', // Focus Blue
+  },
+  progressMarker: {
+    position: 'absolute',
+    top: 0,
+    width: 2,
+    height: '100%',
+    backgroundColor: '#2D2D2D',
   },
   cardArea: {
     flex: 1,

@@ -167,8 +167,7 @@ export const HomeScreen: React.FC = () => {
   if (screenState === 'study' && selectedDeck) {
     return (
       <StudyScreen
-        deckId={selectedDeck.id}
-        deckTitle={selectedDeck.title}
+        target={{ kind: 'deck', deckId: selectedDeck.id, deckTitle: selectedDeck.title }}
         onComplete={handleStudyComplete}
         onExit={handleBackToHome}
       />

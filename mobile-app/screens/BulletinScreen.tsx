@@ -9,8 +9,8 @@ import {
   RefreshControl,
   Alert,
 } from 'react-native';
-import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 import apiService from '../services/api';
 import {
@@ -18,6 +18,8 @@ import {
   CurationKind,
   RestaurantCurationItem,
 } from '../types/shared';
+import { StudyScreen } from './StudyScreen';
+import { StudyCompletedScreen } from './StudyCompletedScreen';
 
 const COLORS = {
   ink: '#14120F',
@@ -37,6 +39,8 @@ const SECTIONS: { kind: CurationKind; label: string; tone?: 'amber' }[] = [
   { kind: 'in_season', label: 'In season' },
 ];
 
+type ScreenState = 'home' | 'study' | 'completed';
+
 function isoWeekNumber(date: Date = new Date()): number {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   const day = d.getUTCDay() || 7;
@@ -47,11 +51,19 @@ function isoWeekNumber(date: Date = new Date()): number {
 
 export default function BulletinScreen() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   const { logout } = useAuth();
   const [data, setData] = useState<BulletinPayload | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [screenState, setScreenState] = useState<ScreenState>('home');
+  const [activeSection, setActiveSection] = useState<{ kind: CurationKind; label: string } | null>(null);
+  const [studyStats, setStudyStats] = useState<{
+    studied: number;
+    correct: number;
+    total: number;
+  } | null>(null);
 
   const loadBulletin = useCallback(async () => {
     try {
@@ -74,6 +86,23 @@ export default function BulletinScreen() {
     loadBulletin();
   }, [loadBulletin]);
 
+  // Hide tab bar during study sessions, like HomeScreen does.
+  useEffect(() => {
+    const shouldHideTabs = screenState === 'study' || screenState === 'completed';
+    navigation.setOptions({
+      tabBarStyle: shouldHideTabs
+        ? { display: 'none' }
+        : {
+            backgroundColor: '#fff',
+            borderTopWidth: 1,
+            borderTopColor: '#E5E5EA',
+            height: 60 + insets.bottom,
+            paddingBottom: insets.bottom,
+            paddingTop: 8,
+          },
+    });
+  }, [screenState, navigation, insets.bottom]);
+
   const handleRefresh = () => {
     setIsRefreshing(true);
     loadBulletin();
@@ -82,6 +111,57 @@ export default function BulletinScreen() {
   const handleRecommendedStudy = () => {
     Alert.alert('Coming soon', 'Recommended Study is not available yet.');
   };
+
+  const handleSectionPress = (kind: CurationKind, label: string) => {
+    const items = data?.curations[kind] ?? [];
+    if (items.length === 0) return;
+    Alert.alert(
+      label,
+      `Study the ${items.length} ${items.length === 1 ? 'item' : 'items'} in this section?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Study',
+          onPress: () => {
+            setActiveSection({ kind, label });
+            setScreenState('study');
+          },
+        },
+      ],
+    );
+  };
+
+  const handleStudyComplete = (stats: { studied: number; correct: number; total: number }) => {
+    setStudyStats(stats);
+    setScreenState('completed');
+  };
+
+  const handleBackToHome = () => {
+    setScreenState('home');
+    setActiveSection(null);
+    setStudyStats(null);
+    loadBulletin();
+  };
+
+  if (screenState === 'study' && activeSection) {
+    return (
+      <StudyScreen
+        target={{ kind: 'curation', curationKind: activeSection.kind, title: activeSection.label }}
+        onComplete={handleStudyComplete}
+        onExit={handleBackToHome}
+      />
+    );
+  }
+
+  if (screenState === 'completed' && studyStats) {
+    return (
+      <StudyCompletedScreen
+        stats={studyStats}
+        deckTitle={activeSection?.label}
+        onContinue={handleBackToHome}
+      />
+    );
+  }
 
   if (isLoading && !data) {
     return (
@@ -138,6 +218,7 @@ export default function BulletinScreen() {
               label={section.label}
               tone={section.tone}
               items={data?.curations[section.kind] ?? []}
+              onPress={() => handleSectionPress(section.kind, section.label)}
             />
           ))}
         </View>
@@ -158,76 +239,64 @@ function BulletinSection({
   label,
   tone,
   items,
+  onPress,
 }: {
   label: string;
   tone?: 'amber';
   items: RestaurantCurationItem[];
+  onPress: () => void;
 }) {
   const countColor = tone === 'amber' ? COLORS.amber : COLORS.paper;
+  const disabled = items.length === 0;
 
   return (
     <View style={styles.section}>
-      <View style={styles.sectionHeader}>
+      <TouchableOpacity
+        style={styles.sectionHeader}
+        onPress={onPress}
+        disabled={disabled}
+        activeOpacity={0.7}
+      >
         <Text style={styles.sectionLabel}>{label}</Text>
         <Text style={[styles.sectionCount, { color: countColor }]}>
           {items.length}
         </Text>
-      </View>
+      </TouchableOpacity>
 
       {items.length === 0 ? (
         <Text style={styles.emptyText}>Nothing here yet.</Text>
       ) : (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.cardsRow}
-        >
+        <View style={styles.itemsList}>
           {items.map((item) => (
-            <BulletinCard
+            <BulletinItemRow
               key={`${item.targetType}:${item.targetId}`}
               item={item}
             />
           ))}
-        </ScrollView>
+        </View>
       )}
     </View>
   );
 }
 
-function BulletinCard({ item }: { item: RestaurantCurationItem }) {
+function BulletinItemRow({ item }: { item: RestaurantCurationItem }) {
   const subtitle =
     item.targetType === 'card'
       ? item.deckTitle || (item.category ? item.category.toUpperCase() : 'CARD')
       : 'DECK';
 
   return (
-    <View style={styles.card}>
-      <View style={styles.cardImageWrap}>
-        {item.imageUrl ? (
-          <Image
-            source={{ uri: item.imageUrl }}
-            style={styles.cardImage}
-            contentFit="cover"
-          />
-        ) : (
-          <View style={[styles.cardImage, styles.cardImagePlaceholder]}>
-            <Text style={styles.cardImagePlaceholderText}>
-              {item.targetType === 'deck' ? 'DECK' : 'CARD'}
-            </Text>
-          </View>
-        )}
-        <View style={styles.cardBadge}>
-          <Text style={styles.cardBadgeText}>
-            {item.targetType === 'card' ? 'CARD' : 'DECK'}
-          </Text>
-        </View>
+    <View style={styles.itemRow}>
+      <View style={styles.itemTextWrap}>
+        <Text style={styles.itemTitle} numberOfLines={2}>
+          {item.name}
+        </Text>
+        <Text style={styles.itemSubtitle} numberOfLines={1}>
+          {subtitle}
+        </Text>
       </View>
-
-      <Text style={styles.cardTitle} numberOfLines={2}>
-        {item.name}
-      </Text>
-      <Text style={styles.cardSubtitle} numberOfLines={1}>
-        {subtitle}
+      <Text style={styles.itemBadge}>
+        {item.targetType === 'card' ? 'CARD' : 'DECK'}
       </Text>
     </View>
   );
@@ -320,61 +389,35 @@ const styles = StyleSheet.create({
     fontSize: 13,
     paddingVertical: 8,
   },
-  cardsRow: {
-    gap: 12,
-    paddingRight: 24,
+  itemsList: {
+    gap: 10,
   },
-  card: {
-    width: 160,
-  },
-  cardImageWrap: {
-    position: 'relative',
-    marginBottom: 8,
-  },
-  cardImage: {
-    width: 160,
-    height: 160,
-    borderRadius: 2,
-    backgroundColor: COLORS.inkSoft,
-  },
-  cardImagePlaceholder: {
+  itemRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: COLORS.bgHair,
+    justifyContent: 'space-between',
+    gap: 12,
   },
-  cardImagePlaceholderText: {
-    color: COLORS.onDarkMute,
-    fontSize: 11,
-    letterSpacing: 1.2,
+  itemTextWrap: {
+    flex: 1,
   },
-  cardBadge: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    backgroundColor: 'rgba(20, 18, 15, 0.8)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: COLORS.bgHair,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 2,
-  },
-  cardBadgeText: {
-    color: COLORS.onDarkMute,
-    fontSize: 9,
-    letterSpacing: 1.2,
-  },
-  cardTitle: {
+  itemTitle: {
     color: COLORS.onDark,
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
     marginBottom: 2,
   },
-  cardSubtitle: {
+  itemSubtitle: {
     color: COLORS.onDarkMute,
     fontSize: 11,
     letterSpacing: 0.6,
     textTransform: 'uppercase',
+  },
+  itemBadge: {
+    color: COLORS.onDarkMute,
+    fontSize: 10,
+    letterSpacing: 1.2,
+    fontWeight: '600',
   },
   recommendedButton: {
     marginTop: 28,

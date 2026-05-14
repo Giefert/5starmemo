@@ -1,23 +1,31 @@
 import pool from '../config/database';
-import { StudySession, StudyStats, FSRSCard, ReviewInput } from '../../../shared/types';
+import { StudySession, StudyStats, FSRSCard, ReviewInput, CurationKind } from '../../../shared/types';
 import { FSRS, Rating } from '../utils/fsrs';
 
 export class ProgressModel {
   private static fsrs = new FSRS();
 
   /**
-   * Create a new study session. Caller must verify the deck is in the
-   * student's restaurant before calling.
+   * Create a new study session. Caller must verify the deck or curation
+   * kind is valid in the student's restaurant before calling. Exactly one
+   * of deckId / curationKind must be set.
    */
-  static async createStudySession(userId: string, deckId: string): Promise<StudySession> {
+  static async createStudySession(
+    userId: string,
+    target: { deckId: string; curationKind?: undefined } | { deckId?: undefined; curationKind: CurationKind },
+  ): Promise<StudySession> {
     const query = `
-      INSERT INTO study_sessions (user_id, deck_id)
-      VALUES ($1, $2)
-      RETURNING id, user_id, deck_id, cards_studied, correct_answers, average_rating
+      INSERT INTO study_sessions (user_id, deck_id, curation_kind)
+      VALUES ($1, $2, $3)
+      RETURNING id, user_id, deck_id, curation_kind, cards_studied, correct_answers, average_rating
     `;
 
-    const result = await pool.query(query, [userId, deckId]);
-    return result.rows[0];
+    const result = await pool.query(query, [
+      userId,
+      target.deckId ?? null,
+      target.curationKind ?? null,
+    ]);
+    return mapSessionRow(result.rows[0]);
   }
 
   /**
@@ -32,7 +40,7 @@ export class ProgressModel {
       UPDATE study_sessions
       SET cards_studied = $2, correct_answers = $3, average_rating = $4
       WHERE id = $1
-      RETURNING id, user_id, deck_id, cards_studied, correct_answers, average_rating
+      RETURNING id, user_id, deck_id, curation_kind, cards_studied, correct_answers, average_rating
     `;
 
     const result = await pool.query(query, [
@@ -42,7 +50,7 @@ export class ProgressModel {
       stats.averageRating
     ]);
 
-    return result.rows[0] || null;
+    return result.rows[0] ? mapSessionRow(result.rows[0]) : null;
   }
 
   /**
@@ -198,6 +206,8 @@ export class ProgressModel {
 
   /**
    * Get user's recent study sessions (scoped to caller's restaurant).
+   * Includes both deck-tab and bulletin sessions; the deck join is left
+   * outer so curation sessions (deck_id NULL) still surface.
    */
   static async getRecentSessions(userId: string, restaurantId: string, limit: number = 10): Promise<StudySession[]> {
     const query = `
@@ -205,19 +215,53 @@ export class ProgressModel {
         ss.id,
         ss.user_id,
         ss.deck_id,
+        ss.curation_kind,
         ss.cards_studied,
         ss.correct_answers,
-        ss.average_rating,
-        d.title as deck_title
+        ss.average_rating
       FROM study_sessions ss
-      JOIN decks d ON ss.deck_id = d.id
-      WHERE ss.user_id = $1 AND ss.cards_studied > 0 AND d.restaurant_id = $2
+      LEFT JOIN decks d ON ss.deck_id = d.id
+      WHERE ss.user_id = $1
+        AND ss.cards_studied > 0
+        AND (d.restaurant_id = $2 OR ss.deck_id IS NULL)
       ORDER BY ss.created_at DESC
       LIMIT $3
     `;
 
     const result = await pool.query(query, [userId, restaurantId, limit]);
-    return result.rows;
+    return result.rows.map(mapSessionRow);
+  }
+
+  /**
+   * Verify a card is curated in the given kind for the caller's restaurant
+   * (either directly as a card target, or via a deck target whose deck
+   * contains the card). Used to gate review submissions for curation-mode
+   * sessions, where the deck is not the sole source of allowed cards.
+   */
+  static async cardInCuration(
+    cardId: string,
+    restaurantId: string,
+    kind: CurationKind,
+  ): Promise<boolean> {
+    const query = `
+      SELECT 1
+        FROM cards c
+        JOIN decks d ON d.id = c.deck_id
+       WHERE c.id = $1
+         AND d.restaurant_id = $2
+         AND EXISTS (
+           SELECT 1 FROM restaurant_curations rc
+            WHERE rc.restaurant_id = $2
+              AND rc.kind = $3
+              AND (
+                (rc.target_type = 'card' AND rc.target_id = c.id) OR
+                (rc.target_type = 'deck' AND rc.target_id = c.deck_id)
+              )
+         )
+       LIMIT 1
+    `;
+    const result = await pool.query(query, [cardId, restaurantId, kind]);
+    return result.rows.length > 0;
   }
 
   /**
@@ -254,4 +298,18 @@ export class ProgressModel {
       updatedAt: new Date()
     };
   }
+}
+
+function mapSessionRow(row: any): StudySession {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    deckId: row.deck_id ?? null,
+    curationKind: row.curation_kind ?? null,
+    cardsStudied: row.cards_studied ?? 0,
+    correctAnswers: row.correct_answers ?? 0,
+    averageRating: row.average_rating === null || row.average_rating === undefined
+      ? 0
+      : parseFloat(row.average_rating),
+  };
 }

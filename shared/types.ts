@@ -31,6 +31,22 @@ export interface BulletinPayload {
   curations: Record<CurationKind, RestaurantCurationItem[]>;
 }
 
+// One studyable unit inside a curation section. A 'card' unit always has a
+// single card; a 'deck' unit has every card in that deck. The client shuffles
+// units (and cards within deck units) before flattening into a single queue,
+// and draws progress-bar ticks at unit boundaries.
+export interface CurationStudyUnit {
+  type: CurationTargetType;
+  targetId: string;
+  title: string;
+  cards: StudyCardData[];
+}
+
+export interface CurationStudyPayload {
+  kind: CurationKind;
+  units: CurationStudyUnit[];
+}
+
 export interface User {
   id: string;
   email: string;
@@ -298,7 +314,8 @@ export interface FSRSCard {
 export interface StudySession {
   id: string;
   userId: string;
-  deckId: string;
+  deckId: string | null;
+  curationKind: CurationKind | null;
   cardsStudied: number;
   correctAnswers: number;
   averageRating: number;

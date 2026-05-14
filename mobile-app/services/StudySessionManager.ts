@@ -1,9 +1,13 @@
-import { StudyCardData, StudySession, ReviewInput } from '../types/shared';
+import { StudyCardData, StudySession, ReviewInput, CurationKind } from '../types/shared';
 import apiService from './api';
 
 export interface StudySessionState {
   session: StudySession | null;
   cards: StudyCardData[];
+  // Indices in `cards` where a new curation unit begins. First unit always
+  // starts at 0; subsequent entries are positions of the second, third,
+  // ... unit. Empty for deck-tab sessions. Used to draw progress-bar ticks.
+  unitStartIndices: number[];
   currentCardIndex: number;
   studiedCount: number;
   correctCount: number;
@@ -11,13 +15,27 @@ export interface StudySessionState {
   deckTitle?: string;
 }
 
+type StartTarget =
+  | { kind: 'deck'; deckId: string; deckTitle?: string }
+  | { kind: 'curation'; curationKind: CurationKind; title: string };
+
+function shuffle<T>(items: T[]): T[] {
+  const arr = items.slice();
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 export class StudySessionManager {
   private state: StudySessionState;
-  
+
   constructor() {
     this.state = {
       session: null,
       cards: [],
+      unitStartIndices: [],
       currentCardIndex: 0,
       studiedCount: 0,
       correctCount: 0,
@@ -29,21 +47,34 @@ export class StudySessionManager {
   /**
    * Start a new study session
    */
-  async startSession(deckId: string, deckTitle?: string): Promise<StudyCardData[]> {
+  async startSession(target: StartTarget): Promise<StudyCardData[]> {
     try {
-      // Create study session
-      this.state.session = await apiService.createStudySession(deckId);
+      if (target.kind === 'deck') {
+        this.state.session = await apiService.createStudySession({ deckId: target.deckId });
+        const studyData = await apiService.getDeckForStudy(target.deckId);
+        this.state.cards = studyData.cards;
+        this.state.unitStartIndices = [];
+        this.state.deckTitle = target.deckTitle;
+      } else {
+        const payload = await apiService.getCurationStudy(target.curationKind);
+        const shuffledUnits = shuffle(payload.units);
+        const cards: StudyCardData[] = [];
+        const starts: number[] = [];
+        for (const unit of shuffledUnits) {
+          starts.push(cards.length);
+          const unitCards = unit.type === 'deck' ? shuffle(unit.cards) : unit.cards;
+          cards.push(...unitCards);
+        }
+        this.state.session = await apiService.createStudySession({ curationKind: target.curationKind });
+        this.state.cards = cards;
+        this.state.unitStartIndices = starts;
+        this.state.deckTitle = target.title;
+      }
 
-      // Get cards for study
-      const studyData = await apiService.getDeckForStudy(deckId);
-      this.state.cards = studyData.cards;
-
-      // Reset state
       this.state.currentCardIndex = 0;
       this.state.studiedCount = 0;
       this.state.correctCount = 0;
       this.state.isComplete = false;
-      this.state.deckTitle = deckTitle;
 
       return this.state.cards;
     } catch (error) {
@@ -147,15 +178,17 @@ export class StudySessionManager {
     studied: number;
     correct: number;
     percentage: number;
+    unitStartIndices: number[];
   } {
     return {
       current: this.state.currentCardIndex + 1,
       total: this.state.cards.length,
       studied: this.state.studiedCount,
       correct: this.state.correctCount,
-      percentage: this.state.cards.length > 0 
-        ? Math.round((this.state.studiedCount / this.state.cards.length) * 100) 
-        : 0
+      percentage: this.state.cards.length > 0
+        ? Math.round((this.state.studiedCount / this.state.cards.length) * 100)
+        : 0,
+      unitStartIndices: this.state.unitStartIndices,
     };
   }
 
@@ -173,6 +206,7 @@ export class StudySessionManager {
     this.state = {
       session: null,
       cards: [],
+      unitStartIndices: [],
       currentCardIndex: 0,
       studiedCount: 0,
       correctCount: 0,

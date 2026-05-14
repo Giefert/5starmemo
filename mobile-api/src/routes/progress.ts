@@ -3,7 +3,9 @@ import { body, param, validationResult } from 'express-validator';
 import { ProgressModel } from '../models/progress';
 import { DeckModel } from '../models/deck';
 import { authenticateToken, requireStudent, AuthenticatedRequest } from '../middleware/auth';
-import { ApiResponse, ReviewInput } from '../../../shared/types';
+import { ApiResponse, CurationKind, ReviewInput } from '../../../shared/types';
+
+const CURATION_KINDS: CurationKind[] = ['specials', 'new_item', 'featured', 'in_season'];
 
 const router = Router();
 
@@ -54,10 +56,12 @@ router.get('/sessions', async (req: AuthenticatedRequest, res: Response) => {
   }
 });
 
-// Start a study session
+// Start a study session. Accepts either a deckId (deck-tab study) or a
+// curationKind (bulletin "study this section"). Exactly one must be set.
 router.post('/sessions',
   [
-    body('deckId').isUUID().withMessage('Valid deck ID required')
+    body('deckId').optional().isUUID().withMessage('deckId must be a UUID'),
+    body('curationKind').optional().isIn(CURATION_KINDS).withMessage('Invalid curationKind'),
   ],
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -70,19 +74,27 @@ router.post('/sessions',
         });
       }
 
-      const { deckId } = req.body;
-
-      // Confirm the deck is in the student's restaurant before creating
-      // a session against it.
-      const isAvailable = await DeckModel.isDeckAvailable(deckId, req.user!.restaurantId);
-      if (!isAvailable) {
-        return res.status(404).json({
+      const { deckId, curationKind } = req.body as { deckId?: string; curationKind?: CurationKind };
+      if ((!deckId && !curationKind) || (deckId && curationKind)) {
+        return res.status(400).json({
           success: false,
-          error: 'Deck not found or not available'
+          error: 'Provide exactly one of deckId or curationKind'
         });
       }
 
-      const session = await ProgressModel.createStudySession(req.user!.id, deckId);
+      let session;
+      if (deckId) {
+        const isAvailable = await DeckModel.isDeckAvailable(deckId, req.user!.restaurantId);
+        if (!isAvailable) {
+          return res.status(404).json({
+            success: false,
+            error: 'Deck not found or not available'
+          });
+        }
+        session = await ProgressModel.createStudySession(req.user!.id, { deckId });
+      } else {
+        session = await ProgressModel.createStudySession(req.user!.id, { curationKind: curationKind! });
+      }
 
       const response: ApiResponse = {
         success: true,
