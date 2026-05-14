@@ -113,22 +113,6 @@ export function Masthead({
 
       <div className="flex flex-col border-t border-bg-hair">
         <StatPanel
-          label="Specials"
-          count={curations.specials.length}
-          expanded={expanded === 'specials'}
-          onToggle={() => togglePanel('specials')}
-        >
-          <CurationPanel
-            items={curations.specials}
-            editing={editing}
-            decks={decks}
-            onAdd={(t, id) => onAddCuration('specials', t, id)}
-            onRemove={(t, id) => onRemoveCuration('specials', t, id)}
-            onReorder={(items) => onReorderCuration('specials', items)}
-          />
-        </StatPanel>
-
-        <StatPanel
           label="New items"
           count={curations.new_item.length}
           expanded={expanded === 'new_item'}
@@ -158,6 +142,22 @@ export function Masthead({
             onAdd={(t, id) => onAddCuration('featured', t, id)}
             onRemove={(t, id) => onRemoveCuration('featured', t, id)}
             onReorder={(items) => onReorderCuration('featured', items)}
+          />
+        </StatPanel>
+
+        <StatPanel
+          label="Specials"
+          count={curations.specials.length}
+          expanded={expanded === 'specials'}
+          onToggle={() => togglePanel('specials')}
+        >
+          <CurationPanel
+            items={curations.specials}
+            editing={editing}
+            decks={decks}
+            onAdd={(t, id) => onAddCuration('specials', t, id)}
+            onRemove={(t, id) => onRemoveCuration('specials', t, id)}
+            onReorder={(items) => onReorderCuration('specials', items)}
           />
         </StatPanel>
 
