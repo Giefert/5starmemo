@@ -87,8 +87,6 @@ export interface Deck {
   cards?: Card[];
   cardCount?: number;
   cardCategories?: string[]; // distinct restaurant_data.category values across the deck's cards
-  newCards?: number;
-  reviewCards?: number;
 }
 
 export interface CreateDeckInput {
@@ -377,8 +375,9 @@ export interface StudentDeck {
   description?: string;
   isFeatured: boolean;
   cardCount: number;
-  newCards: number;
-  reviewCards: number;
+  masteredCards: number;
+  learningCards: number;
+  weakCards: number;
   nextReviewAt?: Date;
 }
 
