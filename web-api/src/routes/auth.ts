@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import rateLimit from 'express-rate-limit';
 import { UserModel } from '../models/user';
+import { StudentRoleModel } from '../models/studentRole';
+import { UserDeckAccessModel } from '../models/userDeckAccess';
 import { comparePassword, generateToken } from '../utils/auth';
 import { authenticateToken, requireManagement, AuthenticatedRequest } from '../middleware/auth';
 import { LoginInput, CreateUserInput, ApiResponse, AuthResponse, User } from '../../../shared/types';
@@ -89,6 +91,10 @@ router.post('/users', authenticateToken, requireManagement,
     body('username').isLength({ min: 3, max: 30 }).trim(),
     body('password').isLength({ min: 8 }),
     body('role').isIn(['student', 'management']),
+    body('roleIds').optional().isArray(),
+    body('roleIds.*').optional().isUUID(),
+    body('deckIds').optional().isArray(),
+    body('deckIds.*').optional().isUUID(),
   ],
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -112,6 +118,17 @@ router.post('/users', authenticateToken, requireManagement,
       }
 
       const user: User = await UserModel.create(userData, req.user!.restaurantId);
+
+      // Role/deck assignments are only meaningful for students. The tenant
+      // check inside each setter drops cross-restaurant ids silently.
+      if (user.role === 'student') {
+        if (Array.isArray(userData.roleIds) && userData.roleIds.length > 0) {
+          await StudentRoleModel.setUserRoles(user.id, userData.roleIds, req.user!.restaurantId);
+        }
+        if (Array.isArray(userData.deckIds) && userData.deckIds.length > 0) {
+          await UserDeckAccessModel.setUserDecks(user.id, userData.deckIds, req.user!.restaurantId);
+        }
+      }
 
       const response: ApiResponse<User> = {
         success: true,

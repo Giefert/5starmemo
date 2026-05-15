@@ -11,7 +11,6 @@ import Link from 'next/link';
 export default function NewDeckPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [isPublic, setIsPublic] = useState(false);
   const [isFeatured, setIsFeatured] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -27,10 +26,9 @@ export default function NewDeckPage() {
       const deck = await deckApi.create({
         title,
         description: description || undefined,
-        isPublic,
         isFeatured
       });
-      
+
       router.push(`/dashboard/decks/${deck.id}`);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to create deck');
@@ -94,35 +92,19 @@ export default function NewDeckPage() {
             <div className="space-y-3">
               <div className="flex items-center">
                 <input
-                  id="isPublic"
-                  type="checkbox"
-                  checked={isPublic}
-                  onChange={(e) => {
-                    setIsPublic(e.target.checked);
-                    if (!e.target.checked) {
-                      setIsFeatured(false);
-                    }
-                  }}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <label htmlFor="isPublic" className="ml-2 block text-sm text-gray-900">
-                  Make this deck publicly available to all students
-                </label>
-              </div>
-
-              <div className="flex items-center">
-                <input
                   id="isFeatured"
                   type="checkbox"
                   checked={isFeatured}
                   onChange={(e) => setIsFeatured(e.target.checked)}
-                  disabled={!isPublic}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />
-                <label htmlFor="isFeatured" className={`ml-2 block text-sm ${!isPublic ? 'text-gray-400' : 'text-gray-900'}`}>
+                <label htmlFor="isFeatured" className="ml-2 block text-sm text-gray-900">
                   Feature this deck (highlight as recommended content)
                 </label>
               </div>
+              <p className="text-sm text-gray-500">
+                After creating the deck, assign which roles or students can access it from the deck page.
+              </p>
             </div>
 
             {error && (

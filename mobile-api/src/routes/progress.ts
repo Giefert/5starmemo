@@ -84,7 +84,7 @@ router.post('/sessions',
 
       let session;
       if (deckId) {
-        const isAvailable = await DeckModel.isDeckAvailable(deckId, req.user!.restaurantId);
+        const isAvailable = await DeckModel.isDeckAvailable(deckId, req.user!.id, req.user!.restaurantId);
         if (!isAvailable) {
           return res.status(404).json({
             success: false,
@@ -155,6 +155,48 @@ router.put('/sessions/:id/end',
       res.json(response);
     } catch (error) {
       console.error('Error ending study session:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error'
+      });
+    }
+  }
+);
+
+// Reset FSRS progress. Body: { deckIds?: string[] }. Omitting deckIds (or
+// passing an empty array) resets all decks in the student's restaurant.
+router.delete('/fsrs',
+  [
+    body('deckIds').optional().isArray().withMessage('deckIds must be an array'),
+    body('deckIds.*').optional().isUUID().withMessage('deckIds must contain UUIDs'),
+  ],
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Validation failed',
+          details: errors.array()
+        });
+      }
+
+      const deckIds = req.body.deckIds as string[] | undefined;
+      const resetCount = await ProgressModel.resetFsrs(
+        req.user!.id,
+        req.user!.restaurantId,
+        deckIds,
+      );
+
+      const response: ApiResponse = {
+        success: true,
+        data: { resetCount },
+        message: 'FSRS progress reset successfully'
+      };
+
+      res.json(response);
+    } catch (error) {
+      console.error('Error resetting FSRS progress:', error);
       res.status(500).json({
         success: false,
         error: 'Internal server error'

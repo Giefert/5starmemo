@@ -48,8 +48,12 @@ router.get('/:id',
         });
       }
 
-      // Check if deck is available within the student's restaurant
-      const isAvailable = await DeckModel.isDeckAvailable(req.params.id, req.user!.restaurantId);
+      // Check if the student has been granted access to this deck.
+      const isAvailable = await DeckModel.isDeckAvailable(
+        req.params.id,
+        req.user!.id,
+        req.user!.restaurantId
+      );
       if (!isAvailable) {
         return res.status(404).json({
           success: false,

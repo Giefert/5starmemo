@@ -2,6 +2,24 @@ import pool from '../config/database';
 import { StudySession, StudyStats, FSRSCard, ReviewInput, CurationKind } from '../../../shared/types';
 import { FSRS, Rating } from '../utils/fsrs';
 
+// Mirrors deck.ts ACCESSIBLE_DECK_IDS_SQL. $1 = user_id, $2 = restaurant_id.
+const ACCESSIBLE_DECK_IDS_SQL = `
+  SELECT d.id
+  FROM decks d
+  WHERE d.restaurant_id = $2
+    AND (
+      EXISTS (
+        SELECT 1 FROM user_deck_access uda
+        WHERE uda.user_id = $1 AND uda.deck_id = d.id
+      )
+      OR EXISTS (
+        SELECT 1 FROM role_deck_access rda
+        JOIN student_role_assignments sra ON sra.role_id = rda.role_id
+        WHERE sra.user_id = $1 AND rda.deck_id = d.id
+      )
+    )
+`;
+
 export class ProgressModel {
   private static fsrs = new FSRS();
 
@@ -143,21 +161,21 @@ export class ProgressModel {
    */
   static async getStudyStats(userId: string, restaurantId: string): Promise<StudyStats> {
     const totalCardsQuery = `
+      WITH accessible AS (${ACCESSIBLE_DECK_IDS_SQL})
       SELECT COUNT(DISTINCT fc.card_id) as total
       FROM fsrs_cards fc
       JOIN cards c ON fc.card_id = c.id
-      JOIN decks d ON c.deck_id = d.id
-      WHERE fc.user_id = $1 AND d.is_public = true AND d.restaurant_id = $2
+      WHERE fc.user_id = $1 AND c.deck_id IN (SELECT id FROM accessible)
     `;
 
     const stateCountsQuery = `
+      WITH accessible AS (${ACCESSIBLE_DECK_IDS_SQL})
       SELECT
         fc.state,
         COUNT(*) as count
       FROM fsrs_cards fc
       JOIN cards c ON fc.card_id = c.id
-      JOIN decks d ON c.deck_id = d.id
-      WHERE fc.user_id = $1 AND d.is_public = true AND d.restaurant_id = $2
+      WHERE fc.user_id = $1 AND c.deck_id IN (SELECT id FROM accessible)
       GROUP BY fc.state
     `;
 
@@ -171,11 +189,11 @@ export class ProgressModel {
     `;
 
     const newCardsQuery = `
+      WITH accessible AS (${ACCESSIBLE_DECK_IDS_SQL})
       SELECT COUNT(*) as new_cards
       FROM cards c
-      JOIN decks d ON c.deck_id = d.id
       LEFT JOIN fsrs_cards fc ON c.id = fc.card_id AND fc.user_id = $1
-      WHERE d.is_public = true AND d.restaurant_id = $2 AND fc.card_id IS NULL
+      WHERE c.deck_id IN (SELECT id FROM accessible) AND fc.card_id IS NULL
     `;
 
     const [totalResult, statesResult, dailyResult, newResult] = await Promise.all([
@@ -230,6 +248,42 @@ export class ProgressModel {
 
     const result = await pool.query(query, [userId, restaurantId, limit]);
     return result.rows.map(mapSessionRow);
+  }
+
+  /**
+   * Delete FSRS progress for the student. If deckIds is omitted, resets all
+   * decks in the student's restaurant; otherwise restricts to the given
+   * decks (also scoped to the restaurant so a student can't touch another
+   * tenant's data). Returns the number of fsrs_cards rows removed.
+   */
+  static async resetFsrs(
+    userId: string,
+    restaurantId: string,
+    deckIds?: string[],
+  ): Promise<number> {
+    if (deckIds && deckIds.length === 0) {
+      return 0;
+    }
+
+    const params: any[] = [userId, restaurantId];
+    let deckFilter = '';
+    if (deckIds && deckIds.length > 0) {
+      params.push(deckIds);
+      deckFilter = 'AND d.id = ANY($3::uuid[])';
+    }
+
+    const query = `
+      DELETE FROM fsrs_cards fc
+      USING cards c, decks d
+      WHERE fc.user_id = $1
+        AND fc.card_id = c.id
+        AND c.deck_id = d.id
+        AND d.restaurant_id = $2
+        ${deckFilter}
+    `;
+
+    const result = await pool.query(query, params);
+    return result.rowCount ?? 0;
   }
 
   /**

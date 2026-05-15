@@ -20,7 +20,14 @@ import {
   Restaurant,
   CurationKind,
   CurationTargetType,
-  RestaurantCurationItem
+  RestaurantCurationItem,
+  UserListItem,
+  UserDetail,
+  StudentRoleSummary,
+  StudentRoleDetail,
+  CreateStudentRoleInput,
+  UpdateStudentRoleInput,
+  DeckAccess
 } from '../../../shared/types';
 
 export interface CardSearchResult {
@@ -265,6 +272,96 @@ export const cardApi = {
     const response = await api.get<ApiResponse<CardSearchResult[]>>('/cards/search', {
       params: { q, limit }
     });
+    return response.data.data!;
+  },
+};
+
+// Students and their role / direct-deck access.
+export const userApi = {
+  getAll: async (): Promise<UserListItem[]> => {
+    const response = await api.get<ApiResponse<UserListItem[]>>('/users');
+    return response.data.data!;
+  },
+
+  getById: async (id: string): Promise<UserDetail> => {
+    const response = await api.get<ApiResponse<UserDetail>>(`/users/${id}`);
+    return response.data.data!;
+  },
+
+  update: async (id: string, data: { email?: string; username?: string }): Promise<User> => {
+    const response = await api.put<ApiResponse<User>>(`/users/${id}`, data);
+    return response.data.data!;
+  },
+
+  resetPassword: async (id: string, password: string): Promise<void> => {
+    await api.put(`/users/${id}/password`, { password });
+  },
+
+  setRoles: async (id: string, roleIds: string[]): Promise<{ roles: Array<{ id: string; name: string }> }> => {
+    const response = await api.put<ApiResponse<{ roles: Array<{ id: string; name: string }> }>>(
+      `/users/${id}/roles`,
+      { roleIds }
+    );
+    return response.data.data!;
+  },
+
+  setDecks: async (id: string, deckIds: string[]): Promise<{ directDecks: Array<{ id: string; title: string }> }> => {
+    const response = await api.put<ApiResponse<{ directDecks: Array<{ id: string; title: string }> }>>(
+      `/users/${id}/decks`,
+      { deckIds }
+    );
+    return response.data.data!;
+  },
+
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/users/${id}`);
+  },
+};
+
+// Custom student roles per restaurant.
+export const roleApi = {
+  getAll: async (): Promise<StudentRoleSummary[]> => {
+    const response = await api.get<ApiResponse<StudentRoleSummary[]>>('/roles');
+    return response.data.data!;
+  },
+
+  getById: async (id: string): Promise<StudentRoleDetail> => {
+    const response = await api.get<ApiResponse<StudentRoleDetail>>(`/roles/${id}`);
+    return response.data.data!;
+  },
+
+  create: async (data: CreateStudentRoleInput): Promise<StudentRoleSummary> => {
+    const response = await api.post<ApiResponse<StudentRoleSummary>>('/roles', data);
+    return response.data.data!;
+  },
+
+  update: async (id: string, data: UpdateStudentRoleInput): Promise<StudentRoleSummary> => {
+    const response = await api.put<ApiResponse<StudentRoleSummary>>(`/roles/${id}`, data);
+    return response.data.data!;
+  },
+
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/roles/${id}`);
+  },
+
+  setDecks: async (id: string, deckIds: string[]): Promise<{ decks: Array<{ id: string; title: string }> }> => {
+    const response = await api.put<ApiResponse<{ decks: Array<{ id: string; title: string }> }>>(
+      `/roles/${id}/decks`,
+      { deckIds }
+    );
+    return response.data.data!;
+  },
+};
+
+// Deck-centric access editor (read + replace-all).
+export const deckAccessApi = {
+  get: async (deckId: string): Promise<DeckAccess> => {
+    const response = await api.get<ApiResponse<DeckAccess>>(`/decks/${deckId}/access`);
+    return response.data.data!;
+  },
+
+  set: async (deckId: string, payload: { roleIds: string[]; userIds: string[] }): Promise<DeckAccess> => {
+    const response = await api.put<ApiResponse<DeckAccess>>(`/decks/${deckId}/access`, payload);
     return response.data.data!;
   },
 };

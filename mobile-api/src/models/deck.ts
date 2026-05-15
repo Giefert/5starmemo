@@ -1,14 +1,35 @@
 import pool from '../config/database';
 import { StudentDeck, StudyCardData, Card, FSRSCard } from '../../../shared/types';
 
+// SQL predicate selecting deck IDs the student can see in their restaurant.
+// A student has access iff a direct grant (user_deck_access) exists OR they
+// belong to a role with a grant (role_deck_access). Two placeholders are
+// expected: $1 = user_id, $2 = restaurant_id.
+const ACCESSIBLE_DECK_IDS_SQL = `
+  SELECT d.id
+  FROM decks d
+  WHERE d.restaurant_id = $2
+    AND (
+      EXISTS (
+        SELECT 1 FROM user_deck_access uda
+        WHERE uda.user_id = $1 AND uda.deck_id = d.id
+      )
+      OR EXISTS (
+        SELECT 1 FROM role_deck_access rda
+        JOIN student_role_assignments sra ON sra.role_id = rda.role_id
+        WHERE sra.user_id = $1 AND rda.deck_id = d.id
+      )
+    )
+`;
+
 export class DeckModel {
   /**
-   * Get all available decks for students (public decks within the student's
-   * restaurant). The restaurant scope is mandatory — there is no cross-tenant
-   * browsing.
+   * Get all decks the student has been granted access to within their
+   * restaurant — either individually or via a role they belong to.
    */
   static async getAvailableDecks(userId: string, restaurantId: string): Promise<StudentDeck[]> {
     const query = `
+      WITH accessible AS (${ACCESSIBLE_DECK_IDS_SQL})
       SELECT
         d.id,
         d.title,
@@ -30,7 +51,7 @@ export class DeckModel {
       FROM decks d
       LEFT JOIN cards c ON d.id = c.deck_id
       LEFT JOIN fsrs_cards fc ON c.id = fc.card_id AND fc.user_id = $1
-      WHERE d.is_public = true AND d.restaurant_id = $2
+      WHERE d.id IN (SELECT id FROM accessible)
       GROUP BY d.id, d.title, d.description, d.is_featured
       ORDER BY d.is_featured DESC, d.created_at DESC
     `;
@@ -158,10 +179,12 @@ export class DeckModel {
   }
 
   /**
-   * Get cards due for review (within the student's restaurant).
+   * Get cards due for review across every deck the student currently has
+   * access to in their restaurant.
    */
   static async getCardsForReview(userId: string, restaurantId: string, limit: number = 50): Promise<StudyCardData[]> {
     const query = `
+      WITH accessible AS (${ACCESSIBLE_DECK_IDS_SQL})
       SELECT
         c.id,
         c.deck_id,
@@ -188,13 +211,12 @@ export class DeckModel {
       JOIN decks d ON c.deck_id = d.id
       WHERE fc.user_id = $1
         AND fc.next_review <= NOW()
-        AND d.is_public = true
-        AND d.restaurant_id = $3
+        AND d.id IN (SELECT id FROM accessible)
       ORDER BY fc.next_review ASC, c.card_order ASC
-      LIMIT $2
+      LIMIT $3
     `;
 
-    const result = await pool.query(query, [userId, limit, restaurantId]);
+    const result = await pool.query(query, [userId, restaurantId, limit]);
 
     return result.rows.map(row => {
       const card: Card = {
@@ -233,16 +255,29 @@ export class DeckModel {
   }
 
   /**
-   * Check if deck exists, is public, and belongs to the caller's restaurant.
+   * Check that the deck exists, lives in the student's restaurant, and the
+   * student has been granted access (directly or via a role).
    */
-  static async isDeckAvailable(deckId: string, restaurantId: string): Promise<boolean> {
+  static async isDeckAvailable(deckId: string, userId: string, restaurantId: string): Promise<boolean> {
     const query = `
       SELECT 1
-      FROM decks
-      WHERE id = $1 AND is_public = true AND restaurant_id = $2
+      FROM decks d
+      WHERE d.id = $3
+        AND d.restaurant_id = $2
+        AND (
+          EXISTS (
+            SELECT 1 FROM user_deck_access uda
+            WHERE uda.user_id = $1 AND uda.deck_id = d.id
+          )
+          OR EXISTS (
+            SELECT 1 FROM role_deck_access rda
+            JOIN student_role_assignments sra ON sra.role_id = rda.role_id
+            WHERE sra.user_id = $1 AND rda.deck_id = d.id
+          )
+        )
     `;
 
-    const result = await pool.query(query, [deckId, restaurantId]);
+    const result = await pool.query(query, [userId, restaurantId, deckId]);
     return result.rows.length > 0;
   }
 }

@@ -17,9 +17,9 @@ function parseRestaurantData(data: any) {
 export class DeckModel {
   static async create(deckData: CreateDeckInput, createdBy: string, restaurantId: string): Promise<Deck> {
     const query = `
-      INSERT INTO decks (title, description, category_id, created_by, restaurant_id, is_public, is_featured)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING id, title, description, category_id, created_by, is_public, is_featured, created_at, updated_at
+      INSERT INTO decks (title, description, category_id, created_by, restaurant_id, is_featured)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id, title, description, category_id, created_by, is_featured, created_at, updated_at
     `;
 
     const values = [
@@ -28,20 +28,17 @@ export class DeckModel {
       deckData.categoryId || null,
       createdBy,
       restaurantId,
-      deckData.isPublic || false,
       deckData.isFeatured || false
     ];
 
     const result = await pool.query(query, values);
 
-    // Map database fields to API fields for consistency
     return {
       id: result.rows[0].id,
       title: result.rows[0].title,
       description: result.rows[0].description,
       categoryId: result.rows[0].category_id,
       createdBy: result.rows[0].created_by,
-      isPublic: result.rows[0].is_public,
       isFeatured: result.rows[0].is_featured,
       createdAt: result.rows[0].created_at,
       updatedAt: result.rows[0].updated_at
@@ -61,7 +58,7 @@ export class DeckModel {
       LEFT JOIN cards c ON d.id = c.deck_id
       LEFT JOIN study_sessions ss ON d.id = ss.deck_id
       WHERE d.restaurant_id = $1
-      GROUP BY d.id, d.title, d.description, d.category_id, d.created_by, d.is_public, d.is_featured, d.created_at, d.updated_at
+      GROUP BY d.id, d.title, d.description, d.category_id, d.created_by, d.is_featured, d.created_at, d.updated_at
       ORDER BY d.created_at DESC
     `;
 
@@ -73,7 +70,6 @@ export class DeckModel {
       description: row.description,
       categoryId: row.category_id,
       createdBy: row.created_by,
-      isPublic: row.is_public,
       isFeatured: row.is_featured,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -93,7 +89,7 @@ export class DeckModel {
       FROM decks d
       LEFT JOIN cards c ON d.id = c.deck_id
       WHERE d.id = $1 AND d.restaurant_id = $2
-      GROUP BY d.id, d.title, d.description, d.category_id, d.created_by, d.is_public, d.is_featured, d.created_at, d.updated_at
+      GROUP BY d.id, d.title, d.description, d.category_id, d.created_by, d.is_featured, d.created_at, d.updated_at
     `;
 
     const result = await pool.query(query, [id, restaurantId]);
@@ -108,7 +104,6 @@ export class DeckModel {
       description: result.rows[0].description,
       categoryId: result.rows[0].category_id,
       createdBy: result.rows[0].created_by,
-      isPublic: result.rows[0].is_public,
       isFeatured: result.rows[0].is_featured,
       createdAt: result.rows[0].created_at,
       updatedAt: result.rows[0].updated_at,
@@ -162,12 +157,6 @@ export class DeckModel {
       paramCount++;
     }
 
-    if (deckData.isPublic !== undefined) {
-      setClause.push(`is_public = $${paramCount}`);
-      values.push(deckData.isPublic);
-      paramCount++;
-    }
-
     if (deckData.isFeatured !== undefined) {
       setClause.push(`is_featured = $${paramCount}`);
       values.push(deckData.isFeatured);
@@ -187,7 +176,7 @@ export class DeckModel {
       UPDATE decks
       SET ${setClause.join(', ')}
       WHERE id = $${paramCount - 1} AND restaurant_id = $${paramCount}
-      RETURNING id, title, description, category_id, created_by, is_public, is_featured, created_at, updated_at
+      RETURNING id, title, description, category_id, created_by, is_featured, created_at, updated_at
     `;
 
     const result = await pool.query(query, values);
@@ -196,14 +185,12 @@ export class DeckModel {
       return null;
     }
 
-    // Map database fields to API fields for consistency
     return {
       id: result.rows[0].id,
       title: result.rows[0].title,
       description: result.rows[0].description,
       categoryId: result.rows[0].category_id,
       createdBy: result.rows[0].created_by,
-      isPublic: result.rows[0].is_public,
       isFeatured: result.rows[0].is_featured,
       createdAt: result.rows[0].created_at,
       updatedAt: result.rows[0].updated_at

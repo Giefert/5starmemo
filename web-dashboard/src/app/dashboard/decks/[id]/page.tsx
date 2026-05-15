@@ -2,8 +2,8 @@
 
 import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { deckApi } from '@/lib/api';
-import { Deck, Card, RestaurantCardData } from '../../../../../../shared/types';
+import { deckApi, deckAccessApi, roleApi, userApi } from '@/lib/api';
+import { Deck, Card, RestaurantCardData, DeckAccess, StudentRoleSummary, UserListItem } from '../../../../../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft, Plus, Edit, Trash2 } from 'lucide-react';
@@ -32,12 +32,19 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
   const [deck, setDeck] = useState<Deck | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [isPublic, setIsPublic] = useState(false);
   const [isFeatured, setIsFeatured] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+
+  // Access editor state
+  const [allRoles, setAllRoles] = useState<StudentRoleSummary[]>([]);
+  const [allStudents, setAllStudents] = useState<UserListItem[]>([]);
+  const [selectedRoleIds, setSelectedRoleIds] = useState<Set<string>>(new Set());
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [savingAccess, setSavingAccess] = useState(false);
+  const [accessMessage, setAccessMessage] = useState('');
 
   // Card form state
   const [showCardForm, setShowCardForm] = useState(false);
@@ -66,16 +73,48 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
 
   const fetchDeck = async () => {
     try {
-      const data = await deckApi.getById(resolvedParams.id);
+      const [data, access, roles, students] = await Promise.all([
+        deckApi.getById(resolvedParams.id),
+        deckAccessApi.get(resolvedParams.id),
+        roleApi.getAll(),
+        userApi.getAll(),
+      ]);
       setDeck(data);
       setTitle(data.title);
       setDescription(data.description || '');
-      setIsPublic(data.isPublic);
       setIsFeatured(data.isFeatured);
+      setSelectedRoleIds(new Set(access.roles.map(r => r.id)));
+      setSelectedUserIds(new Set(access.users.map(u => u.id)));
+      setAllRoles(roles);
+      setAllStudents(students);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to fetch deck');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const toggleSet = (set: Set<string>, target: string, setter: (s: Set<string>) => void) => {
+    const next = new Set(set);
+    if (next.has(target)) next.delete(target);
+    else next.add(target);
+    setter(next);
+  };
+
+  const handleSaveAccess = async () => {
+    setSavingAccess(true);
+    setAccessMessage('');
+    try {
+      await deckAccessApi.set(resolvedParams.id, {
+        roleIds: Array.from(selectedRoleIds),
+        userIds: Array.from(selectedUserIds),
+      });
+      setAccessMessage('Access updated.');
+      setTimeout(() => setAccessMessage(''), 3000);
+    } catch (err: any) {
+      setAccessMessage(err.response?.data?.error || 'Failed to update access');
+    } finally {
+      setSavingAccess(false);
     }
   };
 
@@ -89,7 +128,6 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
       const updatedDeck = await deckApi.update(resolvedParams.id, {
         title,
         description: description || undefined,
-        isPublic,
         isFeatured
       });
       setDeck(prev => prev ? { ...prev, ...updatedDeck } : updatedDeck);
@@ -254,38 +292,17 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
               />
             </div>
 
-            <div className="space-y-3">
-              <div className="flex items-center">
-                <input
-                  id="isPublic"
-                  type="checkbox"
-                  checked={isPublic}
-                  onChange={(e) => {
-                    setIsPublic(e.target.checked);
-                    if (!e.target.checked) {
-                      setIsFeatured(false);
-                    }
-                  }}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <label htmlFor="isPublic" className="ml-2 block text-sm text-gray-900">
-                  Make this deck publicly available
-                </label>
-              </div>
-
-              <div className="flex items-center">
-                <input
-                  id="isFeatured"
-                  type="checkbox"
-                  checked={isFeatured}
-                  onChange={(e) => setIsFeatured(e.target.checked)}
-                  disabled={!isPublic}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                />
-                <label htmlFor="isFeatured" className={`ml-2 block text-sm ${!isPublic ? 'text-gray-400' : 'text-gray-900'}`}>
-                  Feature this deck (highlight as recommended content)
-                </label>
-              </div>
+            <div className="flex items-center">
+              <input
+                id="isFeatured"
+                type="checkbox"
+                checked={isFeatured}
+                onChange={(e) => setIsFeatured(e.target.checked)}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <label htmlFor="isFeatured" className="ml-2 block text-sm text-gray-900">
+                Feature this deck (highlight as recommended content)
+              </label>
             </div>
 
             <div className="flex justify-end">
@@ -294,6 +311,65 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
               </Button>
             </div>
           </form>
+        </div>
+
+        {/* Access Section */}
+        <div className="bg-white shadow rounded-lg mb-6">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-lg font-medium text-gray-900">Access</h2>
+            <p className="text-sm text-gray-500">Choose which roles and individual students can see this deck.</p>
+          </div>
+          <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-2">Roles ({selectedRoleIds.size} selected)</h3>
+              {allRoles.length === 0 ? (
+                <p className="text-sm text-gray-400 italic">No roles defined.</p>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
+                  {allRoles.map(r => (
+                    <label key={r.id} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedRoleIds.has(r.id)}
+                        onChange={() => toggleSet(selectedRoleIds, r.id, setSelectedRoleIds)}
+                        className="rounded border-gray-300"
+                      />
+                      <span className="text-sm text-gray-900">{r.name}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-2">Individual students ({selectedUserIds.size} selected)</h3>
+              {allStudents.length === 0 ? (
+                <p className="text-sm text-gray-400 italic">No students yet.</p>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
+                  {allStudents.map(s => (
+                    <label key={s.id} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedUserIds.has(s.id)}
+                        onChange={() => toggleSet(selectedUserIds, s.id, setSelectedUserIds)}
+                        className="rounded border-gray-300"
+                      />
+                      <span className="text-sm text-gray-900">{s.username}</span>
+                      <span className="text-xs text-gray-400">{s.email}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+            {accessMessage ? (
+              <span className="text-sm text-gray-600">{accessMessage}</span>
+            ) : <span />}
+            <Button onClick={handleSaveAccess} disabled={savingAccess}>
+              {savingAccess ? 'Saving…' : 'Save access'}
+            </Button>
+          </div>
         </div>
 
         {/* Cards Section */}

@@ -228,6 +228,21 @@ class ApiService {
     throw new Error(response.data.error || 'Failed to end study session');
   }
 
+  async resetFsrs(deckIds?: string[]): Promise<number> {
+    const headers = await this.getAuthHeaders();
+    const body = deckIds && deckIds.length > 0 ? { deckIds } : {};
+    const response = await apiClient.delete<ApiResponse<{ resetCount: number }>>(
+      `/progress/fsrs`,
+      { headers, data: body }
+    );
+
+    if (response.data.success && response.data.data) {
+      return response.data.data.resetCount;
+    }
+
+    throw new Error(response.data.error || 'Failed to reset progress');
+  }
+
   async getRecentSessions(limit: number = 10): Promise<StudySession[]> {
     const headers = await this.getAuthHeaders();
     const response = await apiClient.get<ApiResponse<StudySession[]>>(

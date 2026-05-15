@@ -15,6 +15,11 @@ export interface Restaurant {
 export type CurationKind = 'specials' | 'new_item' | 'featured' | 'in_season';
 export type CurationTargetType = 'card' | 'deck';
 
+// Per-card mastery bucket derived from the student's FSRS state, matching the
+// weak/learning/mastered classification used on StudentDeck. Cards the student
+// has never reviewed roll into 'weak' (same as the deck-list bucket math).
+export type MasteryLevel = 'weak' | 'learning' | 'mastered';
+
 export interface RestaurantCurationItem {
   targetType: CurationTargetType;
   targetId: string;
@@ -23,6 +28,8 @@ export interface RestaurantCurationItem {
   deckTitle?: string; // present when targetType === 'card'
   imageUrl?: string;  // card image | deck cover (first card with an image)
   category?: RestaurantCategory; // present when targetType === 'card'
+  mastery?: MasteryLevel; // present when targetType === 'card' and the payload
+                          // is built for a specific student (mobile bulletin)
 }
 
 // Read-only payload served to the student mobile app for the bulletin tab.
@@ -62,6 +69,8 @@ export interface CreateUserInput {
   username: string;
   password: string;
   role: 'student' | 'management';
+  roleIds?: string[];
+  deckIds?: string[];
 }
 
 export interface LoginInput {
@@ -80,7 +89,6 @@ export interface Deck {
   description?: string;
   categoryId?: string;
   createdBy: string;
-  isPublic: boolean;
   isFeatured: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -93,7 +101,6 @@ export interface CreateDeckInput {
   title: string;
   description?: string;
   categoryId?: string;
-  isPublic?: boolean;
   isFeatured?: boolean;
 }
 
@@ -359,6 +366,58 @@ export interface DeckWithStats extends Deck {
   totalStudents: number;
   totalSessions: number;
   averageRating: number;
+}
+
+// ============================================
+// Students, roles, and deck access (Users tab)
+// ============================================
+
+export interface StudentRoleSummary {
+  id: string;
+  name: string;
+  description?: string;
+  memberCount: number;
+  deckCount: number;
+}
+
+export interface StudentRoleDetail extends StudentRoleSummary {
+  members: Array<{ id: string; username: string; email: string }>;
+  decks: Array<{ id: string; title: string }>;
+}
+
+export interface CreateStudentRoleInput {
+  name: string;
+  description?: string;
+}
+
+export interface UpdateStudentRoleInput extends Partial<CreateStudentRoleInput> {}
+
+export interface UserListItem {
+  id: string;
+  email: string;
+  username: string;
+  createdAt: Date;
+  roles: Array<{ id: string; name: string }>;
+  directDeckCount: number;
+  totalAccessibleDeckCount: number;
+}
+
+export interface UserDetail {
+  id: string;
+  email: string;
+  username: string;
+  createdAt: Date;
+  updatedAt: Date;
+  roles: Array<{ id: string; name: string }>;
+  directDecks: Array<{ id: string; title: string }>;
+  // Decks the student inherits via roles. Includes the originating role so
+  // the dashboard can group/explain access in the UI.
+  roleDecks: Array<{ id: string; title: string; viaRoleId: string; viaRoleName: string }>;
+}
+
+export interface DeckAccess {
+  roles: Array<{ id: string; name: string }>;
+  users: Array<{ id: string; username: string; email: string }>;
 }
 
 export interface UserStats {

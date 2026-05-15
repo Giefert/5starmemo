@@ -3,6 +3,7 @@ import {
   BulletinPayload,
   CurationKind,
   CurationStudyUnit,
+  MasteryLevel,
   RestaurantCurationItem,
   StudyCardData,
   Card,
@@ -14,7 +15,10 @@ const KINDS: CurationKind[] = ['specials', 'new_item', 'featured', 'in_season'];
 export class BulletinModel {
   // Returns the restaurant header + all four curated lists for the student
   // bulletin in a single round trip. Read-only; no auth side effects.
-  static async getForRestaurant(restaurantId: string): Promise<BulletinPayload | null> {
+  static async getForRestaurant(
+    restaurantId: string,
+    userId: string,
+  ): Promise<BulletinPayload | null> {
     const restaurantResult = await pool.query(
       `SELECT id, name, slug, announcements
          FROM restaurants
@@ -35,6 +39,8 @@ export class BulletinModel {
          c.image_url AS card_image_url,
          c.restaurant_data->>'itemName' AS card_name,
          c.restaurant_data->>'category' AS card_category,
+         fc.state AS card_fsrs_state,
+         fc.stability AS card_fsrs_stability,
          dc.title AS card_deck_title,
          d.id AS deck_id,
          d.title AS deck_title,
@@ -47,13 +53,15 @@ export class BulletinModel {
        FROM restaurant_curations rc
        LEFT JOIN cards c
          ON rc.target_type = 'card' AND c.id = rc.target_id
+       LEFT JOIN fsrs_cards fc
+         ON rc.target_type = 'card' AND fc.card_id = c.id AND fc.user_id = $2
        LEFT JOIN decks dc
          ON rc.target_type = 'card' AND dc.id = c.deck_id
        LEFT JOIN decks d
          ON rc.target_type = 'deck' AND d.id = rc.target_id
        WHERE rc.restaurant_id = $1
        ORDER BY rc.kind ASC, rc.position ASC, rc.created_at ASC`,
-      [restaurantId]
+      [restaurantId, userId]
     );
 
     const curations: Record<CurationKind, RestaurantCurationItem[]> = {
@@ -77,6 +85,7 @@ export class BulletinModel {
           deckTitle: row.card_deck_title || '',
           imageUrl: row.card_image_url || undefined,
           category: row.card_category || undefined,
+          mastery: masteryFromFsrs(row.card_fsrs_state, row.card_fsrs_stability),
         });
       } else {
         if (!row.deck_id) continue; // dangling: deck was deleted
@@ -202,6 +211,16 @@ export class BulletinModel {
 
     return units;
   }
+}
+
+// Mirrors the bucket math in DeckModel.getAvailableDecks so a card's bulletin
+// badge agrees with the counts shown on the deck list.
+function masteryFromFsrs(state: string | null, stability: string | null): MasteryLevel {
+  if (state === 'relearning') return 'learning';
+  if (state === 'review') {
+    return parseFloat(stability ?? '0') >= 21 ? 'mastered' : 'learning';
+  }
+  return 'weak'; // null state, 'new', or 'learning'
 }
 
 function rowToStudyCard(row: any, userId: string): StudyCardData {

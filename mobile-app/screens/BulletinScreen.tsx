@@ -16,6 +16,7 @@ import apiService from '../services/api';
 import {
   BulletinPayload,
   CurationKind,
+  MasteryLevel,
   RestaurantCurationItem,
 } from '../types/shared';
 import { StudyScreen } from './StudyScreen';
@@ -266,7 +267,17 @@ function BulletinSection({
   );
 }
 
+const MASTERY_LABEL: Record<MasteryLevel, string> = {
+  weak: 'WEAK',
+  learning: 'LEARNING',
+  mastered: 'MASTERED',
+};
+
 function BulletinItemRow({ item }: { item: RestaurantCurationItem }) {
+  const isCard = item.targetType === 'card';
+  const mastery: MasteryLevel = item.mastery ?? 'weak';
+  const badgeText = isCard ? MASTERY_LABEL[mastery] : 'DECK';
+
   return (
     <View style={styles.itemRow}>
       <View style={styles.itemTextWrap}>
@@ -274,11 +285,7 @@ function BulletinItemRow({ item }: { item: RestaurantCurationItem }) {
           {item.name}
         </Text>
       </View>
-      <Text style={styles.itemBadge}>
-        {item.targetType === 'card'
-          ? (item.category ?? 'card').toUpperCase()
-          : 'DECK'}
-      </Text>
+      <Text style={styles.itemBadge}>{badgeText}</Text>
     </View>
   );
 }

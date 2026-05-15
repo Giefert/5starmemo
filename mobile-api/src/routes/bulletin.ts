@@ -13,7 +13,10 @@ const CURATION_KINDS: CurationKind[] = ['specials', 'new_item', 'featured', 'in_
 
 router.get('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const payload = await BulletinModel.getForRestaurant(req.user!.restaurantId);
+    const payload = await BulletinModel.getForRestaurant(
+      req.user!.restaurantId,
+      req.user!.id,
+    );
     if (!payload) {
       return res.status(404).json({ success: false, error: 'Restaurant not found' });
     }
