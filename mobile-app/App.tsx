@@ -8,6 +8,10 @@ import { LoginScreen } from './screens/LoginScreen';
 import TabNavigator from './navigation/TabNavigator';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { useFonts } from 'expo-font';
+import { Fraunces_600SemiBold } from '@expo-google-fonts/fraunces';
+import { Newsreader_500Medium_Italic } from '@expo-google-fonts/newsreader';
+import { Inter_700Bold } from '@expo-google-fonts/inter';
 
 const Stack = createStackNavigator();
 
@@ -40,6 +44,19 @@ function AppNavigator() {
 }
 
 export default function App() {
+  // Carte typography — Fraunces (serif display) + Newsreader (italic dek).
+  // On a load failure we fall through rather than hang on the splash; RN
+  // then renders with the system fallback.
+  const [fontsLoaded, fontError] = useFonts({
+    Fraunces_600SemiBold,
+    Newsreader_500Medium_Italic,
+    Inter_700Bold,
+  });
+
+  if (!fontsLoaded && !fontError) {
+    return <LoadingScreen />;
+  }
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
