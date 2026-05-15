@@ -79,6 +79,12 @@ export default function UsersListPage() {
               Manage Roles
             </Button>
           </Link>
+          <Link href="/dashboard/users/roles/new">
+            <Button variant="outline">
+              <Plus className="h-4 w-4 mr-2" />
+              New Role
+            </Button>
+          </Link>
           <Link href="/dashboard/users/new">
             <Button>
               <Plus className="h-4 w-4 mr-2" />

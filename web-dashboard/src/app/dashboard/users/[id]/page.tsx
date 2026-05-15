@@ -171,7 +171,7 @@ export default function StudentDetailPage() {
         <h2 className="text-lg font-semibold text-gray-900 mb-1">Roles</h2>
         <p className="text-sm text-gray-500 mb-4">Decks granted to any of these roles will be visible to this student.</p>
         {allRoles.length === 0 ? (
-          <p className="text-sm text-gray-400 italic">No roles defined. <Link href="/dashboard/users/roles/new" className="text-blue-600 hover:underline">Create one</Link>.</p>
+          <p className="text-sm text-gray-400 italic">No roles defined.</p>
         ) : (
           <>
             <div className="space-y-2 mb-4">
