@@ -6,7 +6,6 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
-  ScrollView,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,6 +14,17 @@ import { StudyCardData } from '../types/shared';
 import { StudyCard, LinkedTerm } from '../components/StudyCard';
 import { SwipeableCard } from '../components/SwipeableCard';
 import { GlossaryTermModal } from '../components/GlossaryTermModal';
+
+const COLORS = {
+  ink: '#14120F',
+  bgHair: '#28251F',
+  inkFaint: '#A89B7E',
+  paper: '#F4EEE1',
+  paperHair: '#D8CFB8',
+  onDark: '#E8E3D6',
+  onDarkMute: '#8A8578',
+  amber: '#E89A2B',
+};
 
 interface BrowseScreenProps {
   deckId: string;
@@ -67,35 +77,64 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({ deckId, deckTitle, o
     setIsFlipped(false);
   };
 
-  // Card detail view
+  const handleSwipe = () => {
+    // SwipeableCard only fires this for the active direction:
+    // left while on the question side, right while on the answer side.
+    setIsFlipped((flipped) => !flipped);
+  };
+
+  // Card detail view — mirrors the study session layout (edge-to-edge card,
+  // ink masthead, ink/paper flip affordances).
   if (selectedCard) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={handleBackToList} style={styles.backButton}>
-            <Text style={styles.backButtonText}>← Back</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {selectedCard.card.restaurantData?.itemName || 'Card'}
-          </Text>
-          <View style={styles.backButton} />
+      <View style={styles.studyContainer}>
+        {/* Masthead — ink ground */}
+        <View style={[styles.masthead, { paddingTop: insets.top + 4 }]}>
+          <View style={styles.mastheadRow}>
+            <TouchableOpacity
+              style={styles.exitButton}
+              onPress={handleBackToList}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.exitIcon}>←</Text>
+            </TouchableOpacity>
+            <Text style={styles.mastheadTitle} numberOfLines={1}>
+              {selectedCard.card.restaurantData?.itemName || 'Card'}
+            </Text>
+          </View>
         </View>
-        <View style={styles.cardDetailArea}>
-          <SwipeableCard onSwipe={() => setIsFlipped(!isFlipped)}>
+
+        <SwipeableCard onSwipe={handleSwipe} allowedDirection={isFlipped ? 'right' : 'left'}>
+          <View style={styles.cardArea}>
             <StudyCard
               cardData={selectedCard}
               isFlipped={isFlipped}
               linkedTerms={linkedTerms}
               onTermPress={setSelectedTerm}
             />
-          </SwipeableCard>
-        </View>
-        <Text style={styles.swipeHintText}>SWIPE TO FLIP CARD</Text>
+          </View>
+
+          {isFlipped ? (
+            <View style={[styles.gradingZonePaper, { paddingBottom: insets.bottom + 4 }]}>
+              <Text style={styles.swipeHintPaper}>Swipe right for question</Text>
+            </View>
+          ) : (
+            <View style={[styles.gradingZoneInk, { paddingBottom: insets.bottom + 4 }]}>
+              <TouchableOpacity
+                style={styles.showAnswerButton}
+                onPress={() => setIsFlipped(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.showAnswerText}>Swipe left to reveal · or tap</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </SwipeableCard>
+
         <GlossaryTermModal
           term={selectedTerm}
           onDismiss={() => setSelectedTerm(null)}
         />
-        <View style={{ height: insets.bottom + 16 }} />
       </View>
     );
   }
@@ -222,16 +261,72 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
   },
-  cardDetailArea: {
+  // ── Card detail view — study session layout ──────────────────
+  studyContainer: {
     flex: 1,
-    padding: 16,
+    backgroundColor: COLORS.ink,
   },
-  swipeHintText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#9CA3AF',
-    letterSpacing: 1,
+  masthead: {
+    backgroundColor: COLORS.ink,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+  },
+  mastheadRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 36,
+  },
+  exitButton: {
+    width: 28,
+    height: 28,
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  exitIcon: {
+    fontSize: 22,
+    color: COLORS.onDark,
+    fontWeight: '300',
+  },
+  mastheadTitle: {
+    position: 'absolute',
+    left: 28,
+    right: 28,
     textAlign: 'center',
-    marginBottom: 8,
+    fontSize: 10,
+    fontWeight: '600',
+    color: COLORS.onDarkMute,
+    textTransform: 'uppercase',
+    letterSpacing: 2.2,
+  },
+  cardArea: {
+    flex: 1,
+  },
+  gradingZoneInk: {
+    backgroundColor: COLORS.ink,
+    paddingTop: 4,
+  },
+  gradingZonePaper: {
+    backgroundColor: COLORS.paper,
+  },
+  showAnswerButton: {
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  showAnswerText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: COLORS.onDarkMute,
+    letterSpacing: 2.6,
+    textTransform: 'uppercase',
+  },
+  swipeHintPaper: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: COLORS.inkFaint,
+    letterSpacing: 2.6,
+    textTransform: 'uppercase',
+    textAlign: 'center',
+    paddingTop: 14,
+    paddingBottom: 6,
   },
 });

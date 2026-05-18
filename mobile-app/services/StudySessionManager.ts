@@ -122,6 +122,22 @@ export class StudySessionManager {
   }
 
   /**
+   * Advance to the next card without recording a review. Full-deck sessions
+   * browse every card rather than grade recall, so they have no rating to submit.
+   */
+  async advance(): Promise<void> {
+    if (!this.state.session || this.state.isComplete) {
+      throw new Error('No active study session');
+    }
+
+    this.state.studiedCount++;
+    this.state.currentCardIndex++;
+    if (this.state.currentCardIndex >= this.state.cards.length) {
+      await this.completeSession();
+    }
+  }
+
+  /**
    * Complete the current study session
    */
   private async completeSession(): Promise<void> {

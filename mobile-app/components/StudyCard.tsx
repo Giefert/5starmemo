@@ -13,6 +13,20 @@ import {
   isFishCard
 } from '../types/shared';
 
+const COLORS = {
+  ink: '#14120F',
+  inkSoft: '#1C1A16',
+  bgHair: '#28251F',
+  inkMute: '#6B6255',
+  inkFaint: '#A89B7E',
+  paper: '#F4EEE1',
+  paperHair: '#D8CFB8',
+  onDark: '#E8E3D6',
+  onDarkMute: '#8A8578',
+  amber: '#E89A2B',
+  red: '#D94B36',
+};
+
 export interface LinkedTerm {
   id: string;
   term: string;
@@ -105,27 +119,25 @@ const LinkedText: React.FC<{
   );
 };
 
-// Helper component to render wine characteristic meter bars
+// Wine characteristic meter — a typographer's ruler: a hairline rule with
+// end-ticks and a solid ink tick marking the level (1–5).
 const WineMeterBar: React.FC<{
   level: number;
   leftLabel: string;
   rightLabel: string;
 }> = ({ level, leftLabel, rightLabel }) => {
+  // Position the tick within the [0,1] track — 5 levels map to 10%…90%.
+  const pos = ((Math.min(5, Math.max(1, level)) - 1) / 4) * 0.8 + 0.1;
   return (
     <View style={styles.meterRow}>
       <Text style={styles.meterEndLabel}>{leftLabel}</Text>
-      <View style={styles.meterBarContainer}>
-        {[1, 2, 3, 4, 5].map((position) => (
-          <View
-            key={position}
-            style={[
-              styles.meterSegment,
-              position === level && styles.meterSegmentFilled
-            ]}
-          />
-        ))}
+      <View style={styles.meterTrack}>
+        <View style={styles.meterRule} />
+        <View style={[styles.meterEndTick, { left: 0 }]} />
+        <View style={[styles.meterEndTick, { right: 0 }]} />
+        <View style={[styles.meterTick, { left: `${pos * 100}%` }]} />
       </View>
-      <Text style={styles.meterEndLabel}>{rightLabel}</Text>
+      <Text style={[styles.meterEndLabel, styles.meterEndLabelRight]}>{rightLabel}</Text>
     </View>
   );
 };
@@ -134,25 +146,17 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
   const { card } = cardData;
 
   const imageUrl = card.imageUrl;
+  const itemName = card.restaurantData?.itemName;
 
-  return (
-    <View
-      style={styles.cardContainer}
-    >
-      {/* 1. Title Section - Always at top with padding */}
-      <View style={styles.contentPadding}>
-        <View style={styles.headerContainer}>
-          <Text style={styles.mainTitle}>
-            {card.restaurantData?.itemName}
-          </Text>
+  if (!isFlipped) {
+    // ── Front (question) — ink ground ──────────────────────────
+    return (
+      <View style={[styles.cardContainer, styles.cardFront]}>
+        <View style={styles.frontHeader}>
+          <Text style={styles.eyebrow}>Question</Text>
+          <Text style={styles.frontTitle}>{itemName}</Text>
         </View>
-        <View style={styles.divider} />
-      </View>
-
-      {/* 2. Image or Details - Fills remaining space */}
-      {!isFlipped ? (
-        // Image goes to bottom edge when not flipped
-        <View style={styles.imagePlaceholder}>
+        <View style={styles.imageArea}>
           {imageUrl ? (
             <Image
               source={{ uri: imageUrl }}
@@ -160,17 +164,25 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
               contentFit="contain"
             />
           ) : (
-            <View style={styles.emptyImageState}>
-              <Text style={styles.emptyImageText}>No Image</Text>
-            </View>
+            <Text style={styles.emptyImageText}>No Image</Text>
           )}
         </View>
-      ) : (
-        // Details with padding when flipped - min height matches image square
-        card.restaurantData && (
-          <View style={styles.detailsMinHeight}>
-            <View style={styles.detailsScroll}>
-            <View style={styles.contentPadding}>
+      </View>
+    );
+  }
+
+  // ── Back (answer) — warm paper ground ────────────────────────
+  return (
+    <View style={[styles.cardContainer, styles.cardBack]}>
+      <View style={styles.backHeader}>
+        <Text style={[styles.eyebrow, styles.eyebrowBack]}>Answer</Text>
+        <Text style={styles.backTitle}>{itemName}</Text>
+      </View>
+
+      {card.restaurantData && (
+        <>
+          <View style={styles.detailsScroll}>
+            <View style={styles.backBody}>
               <View style={styles.detailsContainer}>
             {/* Sake-specific fields */}
             {isSakeCard(card.restaurantData) && (
@@ -257,10 +269,10 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
 
                 {/* Allergens */}
                 {card.restaurantData.allergens && card.restaurantData.allergens.length > 0 && (
-                  <View style={styles.allergenContainer}>
-                    <Text style={styles.warningIcon}>⚠️</Text>
-                    <Text style={styles.allergenText}>
-                      Contains: <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.allergens.join(', ')} style={styles.allergenBold} />
+                  <View style={styles.allergenRow}>
+                    <Text style={styles.allergenLabel}>ALLERGENS</Text>
+                    <Text style={styles.allergenValue}>
+                      {card.restaurantData.allergens.join(' · ')}
                     </Text>
                   </View>
                 )}
@@ -288,28 +300,23 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
                   </View>
                 )}
 
-                {/* Appellation & Vintage Row - SECOND */}
-                {(card.restaurantData.appellation || card.restaurantData.vintage) && (
-                  <View style={styles.rowContainer}>
-                    {/* Appellation - Left */}
-                    {card.restaurantData.appellation && (
-                      <View style={styles.columnBlock}>
-                        <Text style={styles.label}>APPELLATION</Text>
-                        <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.appellation} style={styles.valueText} />
-                      </View>
-                    )}
-
-                    {/* Vintage - Right */}
-                    {card.restaurantData.vintage && (
-                      <View style={styles.columnBlock}>
-                        <Text style={styles.label}>VINTAGE</Text>
-                        <Text style={styles.valueText}>{card.restaurantData.vintage}</Text>
-                      </View>
-                    )}
+                {/* Appellation - SECOND */}
+                {card.restaurantData.appellation && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>APPELLATION</Text>
+                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.appellation} style={styles.valueText} />
                   </View>
                 )}
 
-                {/* Grape Varieties - THIRD */}
+                {/* Vintage - THIRD */}
+                {card.restaurantData.vintage && (
+                  <View style={styles.detailBlock}>
+                    <Text style={styles.label}>VINTAGE</Text>
+                    <Text style={styles.valueText}>{card.restaurantData.vintage}</Text>
+                  </View>
+                )}
+
+                {/* Grape Varieties */}
                 {card.restaurantData.grapeVarieties && card.restaurantData.grapeVarieties.length > 0 && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>GRAPE VARIETIES</Text>
@@ -317,7 +324,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
                   </View>
                 )}
 
-                {/* Region - FOURTH */}
+                {/* Region */}
                 {card.restaurantData.region && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>REGION</Text>
@@ -325,7 +332,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
                   </View>
                 )}
 
-                {/* Producer - FIFTH */}
+                {/* Producer */}
                 {card.restaurantData.producer && (
                   <View style={styles.detailBlock}>
                     <Text style={styles.label}>PRODUCER</Text>
@@ -355,10 +362,10 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
 
                 {/* Allergens */}
                 {card.restaurantData.allergens && card.restaurantData.allergens.length > 0 && (
-                  <View style={styles.allergenContainer}>
-                    <Text style={styles.warningIcon}>⚠️</Text>
-                    <Text style={styles.allergenText}>
-                      Contains: <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.allergens.join(', ')} style={styles.allergenBold} />
+                  <View style={styles.allergenRow}>
+                    <Text style={styles.allergenLabel}>ALLERGENS</Text>
+                    <Text style={styles.allergenValue}>
+                      {card.restaurantData.allergens.join(' · ')}
                     </Text>
                   </View>
                 )}
@@ -542,51 +549,51 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
                 )}
               </>
             )}
+              </View>
             </View>
-            </View>
-            </View>
-
-            {/* Wine Characteristic Meters - Pinned to bottom of card */}
-            {isWineCard(card.restaurantData) &&
-              (card.restaurantData.bodyLevel ||
-                card.restaurantData.sweetnessLevel ||
-                card.restaurantData.acidityLevel ||
-                card.restaurantData.tanninLevel) && (
-                <View style={styles.meterBottomWrapper}>
-                  <View style={styles.meterSection}>
-                    {card.restaurantData.sweetnessLevel && (
-                      <WineMeterBar
-                        level={card.restaurantData.sweetnessLevel}
-                        leftLabel="Dry"
-                        rightLabel="Sweet"
-                      />
-                    )}
-                    {card.restaurantData.acidityLevel && (
-                      <WineMeterBar
-                        level={card.restaurantData.acidityLevel}
-                        leftLabel="Soft"
-                        rightLabel="Acidic"
-                      />
-                    )}
-                    {card.restaurantData.bodyLevel && (
-                      <WineMeterBar
-                        level={card.restaurantData.bodyLevel}
-                        leftLabel="Light"
-                        rightLabel="Bold"
-                      />
-                    )}
-                    {card.restaurantData.tanninLevel && (
-                      <WineMeterBar
-                        level={card.restaurantData.tanninLevel}
-                        leftLabel="Smooth"
-                        rightLabel="Tannic"
-                      />
-                    )}
-                  </View>
-                </View>
-              )}
           </View>
-        )
+
+          {/* Wine Characteristic Meters - Pinned to bottom of card */}
+          {isWineCard(card.restaurantData) &&
+            (card.restaurantData.bodyLevel ||
+              card.restaurantData.sweetnessLevel ||
+              card.restaurantData.acidityLevel ||
+              card.restaurantData.tanninLevel) && (
+              <View style={styles.meterBottomWrapper}>
+                <Text style={styles.meterHeading}>ON THE PALATE</Text>
+                <View style={styles.meterSection}>
+                  {card.restaurantData.sweetnessLevel && (
+                    <WineMeterBar
+                      level={card.restaurantData.sweetnessLevel}
+                      leftLabel="Dry"
+                      rightLabel="Sweet"
+                    />
+                  )}
+                  {card.restaurantData.acidityLevel && (
+                    <WineMeterBar
+                      level={card.restaurantData.acidityLevel}
+                      leftLabel="Soft"
+                      rightLabel="Acidic"
+                    />
+                  )}
+                  {card.restaurantData.bodyLevel && (
+                    <WineMeterBar
+                      level={card.restaurantData.bodyLevel}
+                      leftLabel="Light"
+                      rightLabel="Bold"
+                    />
+                  )}
+                  {card.restaurantData.tanninLevel && (
+                    <WineMeterBar
+                      level={card.restaurantData.tanninLevel}
+                      leftLabel="Smooth"
+                      rightLabel="Tannic"
+                    />
+                  )}
+                </View>
+              </View>
+            )}
+        </>
       )}
     </View>
   );
@@ -594,170 +601,214 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
 
 const styles = StyleSheet.create({
   cardContainer: {
-    flex: 1, // Expand to fill cardArea
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24, // Softer, modern corners
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08, // Very subtle shadow
-    shadowRadius: 12,
-    elevation: 4,
-    overflow: 'hidden', // Ensures image stays within rounded corners
+    flex: 1,
     width: '100%',
   },
-  // Image container - expands to fill available space
-  imagePlaceholder: {
-    flex: 1, // Grow to fill remaining space after title
-    width: '100%',
-    backgroundColor: '#F0F0F0', // Placeholder color
-    justifyContent: 'center',
+  cardFront: {
+    backgroundColor: COLORS.ink,
+  },
+  cardBack: {
+    backgroundColor: COLORS.paper,
+  },
+  // ── Front ──────────────────────────────────────────────────
+  frontHeader: {
+    paddingHorizontal: 32,
+    paddingTop: 40,
+    paddingBottom: 24,
     alignItems: 'center',
   },
-  detailsMinHeight: {
-    flex: 1, // Grow to fill remaining space after title
+  frontTitle: {
+    fontFamily: 'Georgia',
+    fontSize: 40,
+    fontWeight: '500',
+    color: COLORS.paper,
+    textAlign: 'center',
+    letterSpacing: -1,
+    lineHeight: 44,
+  },
+  imageArea: {
+    flex: 1,
     width: '100%',
-    flexDirection: 'column',
-  },
-  detailsScroll: {
-    flex: 1, // Take up available space, pushing meters to the bottom
-  },
-  meterBottomWrapper: {
-    paddingHorizontal: 24,
-    paddingBottom: 20,
-    paddingTop: 12,
+    backgroundColor: COLORS.ink,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   cardImage: {
     width: '100%',
     height: '100%',
   },
-  emptyImageState: {
-    opacity: 0.3,
-  },
   emptyImageText: {
-    color: '#999',
+    fontSize: 11,
     fontWeight: '600',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    color: COLORS.onDarkMute,
   },
-  contentPadding: {
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 16,
-  },
-  headerContainer: {
-    alignItems: 'center',
+  // ── Shared eyebrow ─────────────────────────────────────────
+  eyebrow: {
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 2.2,
+    textTransform: 'uppercase',
+    color: COLORS.amber,
     marginBottom: 12,
-  },
-  mainTitle: {
-    fontSize: 28,
-    fontWeight: '800', // Heavy weight for hierarchy
-    color: '#2D2D2D', // Charcoal
     textAlign: 'center',
-    letterSpacing: -0.5,
   },
-  divider: {
-    height: 1,
-    backgroundColor: '#F0F0F0',
-    width: '40%',
-    alignSelf: 'center',
-    marginBottom: 12,
+  eyebrowBack: {
+    textAlign: 'left',
+    marginBottom: 10,
   },
-  detailsContainer: {
-    gap: 20, // Clean spacing between sections
+  // ── Back ───────────────────────────────────────────────────
+  backHeader: {
+    paddingHorizontal: 28,
+    paddingTop: 26,
+    paddingBottom: 14,
   },
-  detailBlock: {
-    marginBottom: 4,
+  backTitle: {
+    fontFamily: 'Georgia',
+    fontSize: 30,
+    fontWeight: '500',
+    color: COLORS.ink,
+    letterSpacing: -0.6,
+    lineHeight: 33,
   },
-  rowContainer: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 4,
-  },
-  columnBlock: {
+  detailsScroll: {
     flex: 1,
   },
+  backBody: {
+    paddingHorizontal: 28,
+    paddingTop: 14,
+    paddingBottom: 20,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.paperHair,
+  },
+  detailsContainer: {
+    gap: 0,
+  },
+  detailBlock: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.paperHair,
+  },
   label: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#9CA3AF', // Muted gray for metadata
-    marginBottom: 6,
-    letterSpacing: 1, // Uppercase needs spacing
+    width: 100,
+    fontSize: 10,
+    fontWeight: '600',
+    color: COLORS.inkFaint,
+    letterSpacing: 1.6,
     textTransform: 'uppercase',
+    marginRight: 16,
   },
   valueText: {
-    fontSize: 16,
-    color: '#4B5563',
-    lineHeight: 24,
+    flex: 1,
+    fontSize: 15,
+    color: COLORS.ink,
+    lineHeight: 23,
   },
   ingredientList: {
-    marginTop: 2,
+    flex: 1,
   },
   ingredientItem: {
-    fontSize: 16,
-    color: '#4B5563',
-    lineHeight: 26, // Generous line height for scanning
+    fontSize: 15,
+    color: COLORS.ink,
+    lineHeight: 24,
   },
-  // New Allergen Styling
-  allergenContainer: {
+  // ── Allergens — red small-caps label + values, no emoji ────
+  allergenRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-    backgroundColor: '#FFF8F1', // Very faint orange bg
-    padding: 12,
-    borderRadius: 8,
+    alignItems: 'flex-start',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.paperHair,
   },
-  warningIcon: {
-    fontSize: 16,
-    marginRight: 8,
-  },
-  allergenText: {
-    fontSize: 14,
-    color: '#D97706', // Warm Amber
-  },
-  allergenBold: {
+  allergenLabel: {
+    width: 100,
+    fontSize: 10,
     fontWeight: '700',
+    color: COLORS.red,
+    letterSpacing: 1.6,
+    textTransform: 'uppercase',
+    marginRight: 16,
   },
-  backText: {
-    fontSize: 18,
-    textAlign: 'center',
-    color: '#4B5563',
+  allergenValue: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '500',
+    color: COLORS.red,
+    lineHeight: 21,
   },
-  // Wine Meter Styles
-  meterSection: {
-    marginTop: 4,
-    paddingTop: 4,
+  // ── Wine meter — typographer's ruler ───────────────────────
+  meterBottomWrapper: {
+    paddingHorizontal: 28,
+    paddingTop: 14,
+    paddingBottom: 18,
     borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
-    gap: 0,
+    borderTopColor: COLORS.paperHair,
+  },
+  meterHeading: {
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 2.2,
+    textTransform: 'uppercase',
+    color: COLORS.inkFaint,
+    marginBottom: 10,
+  },
+  meterSection: {
+    gap: 2,
   },
   meterRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    paddingVertical: 5,
   },
   meterEndLabel: {
-    fontSize: 11,
-    color: '#6B7280',
-    width: 46,
+    fontSize: 10,
+    color: COLORS.inkMute,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    width: 54,
   },
-  meterBarContainer: {
+  meterEndLabelRight: {
+    textAlign: 'right',
+  },
+  meterTrack: {
     flex: 1,
-    flexDirection: 'row',
-    height: 8,
-    gap: 2,
+    height: 14,
+    marginHorizontal: 12,
+    justifyContent: 'center',
   },
-  meterSegment: {
-    flex: 1,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 2,
+  meterRule: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: COLORS.paperHair,
   },
-  meterSegmentFilled: {
-    backgroundColor: '#9CA3AF',
+  meterEndTick: {
+    position: 'absolute',
+    top: 3,
+    bottom: 3,
+    width: 1,
+    backgroundColor: COLORS.paperHair,
   },
+  meterTick: {
+    position: 'absolute',
+    top: 2,
+    width: 8,
+    height: 10,
+    marginLeft: -4,
+    backgroundColor: COLORS.ink,
+  },
+  // ── Inline markup ──────────────────────────────────────────
   highlight: {
-    backgroundColor: '#FDE68A',
+    backgroundColor: 'rgba(232, 154, 43, 0.22)',
   },
   linkedTerm: {
     textDecorationLine: 'underline',
-    textDecorationColor: '#9CA3AF',
-    color: '#374151',
+    textDecorationStyle: 'dotted',
+    textDecorationColor: COLORS.inkFaint,
+    color: COLORS.inkMute,
   },
 });

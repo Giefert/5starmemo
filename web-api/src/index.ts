@@ -22,6 +22,10 @@ import { runMigrations } from './migrate';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Behind Caddy reverse proxy — trust 1 hop so req.ip is the real client IP
+// (otherwise the rate limiter keys every request on Caddy's docker IP = one global bucket)
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet({
   crossOriginResourcePolicy: { 

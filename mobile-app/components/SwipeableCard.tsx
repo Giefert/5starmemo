@@ -8,10 +8,12 @@ const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.3;
 
 interface SwipeableCardProps {
   onSwipe: () => void;
+  /** The only direction that completes a swipe; the other direction snaps back. */
+  allowedDirection: 'left' | 'right';
   children: React.ReactNode;
 }
 
-export const SwipeableCard: React.FC<SwipeableCardProps> = ({ onSwipe, children }) => {
+export const SwipeableCard: React.FC<SwipeableCardProps> = ({ onSwipe, allowedDirection, children }) => {
   const slideAnim = useRef(new Animated.Value(0)).current;
   const isAnimating = useRef(false);
 
@@ -25,9 +27,10 @@ export const SwipeableCard: React.FC<SwipeableCardProps> = ({ onSwipe, children 
       if (isAnimating.current) return;
 
       const { translationX } = event;
+      const direction = translationX < 0 ? 'left' : 'right';
 
-      if (Math.abs(translationX) < SWIPE_THRESHOLD) {
-        // Snap back
+      if (Math.abs(translationX) < SWIPE_THRESHOLD || direction !== allowedDirection) {
+        // Snap back — too short, or swiped in the inactive direction
         Animated.spring(slideAnim, {
           toValue: 0,
           useNativeDriver: true,
@@ -37,7 +40,6 @@ export const SwipeableCard: React.FC<SwipeableCardProps> = ({ onSwipe, children 
 
       // Complete the swipe
       isAnimating.current = true;
-      const direction = translationX < 0 ? 'left' : 'right';
       const offScreen = direction === 'left' ? -SCREEN_WIDTH : SCREEN_WIDTH;
       const enterFrom = direction === 'left' ? SCREEN_WIDTH : -SCREEN_WIDTH;
 

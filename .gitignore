@@ -131,3 +131,12 @@ temp/
 
 # Claude Code artifacts (keep this for our project)
 !.claude/
+.claude/worktrees/
+.claude/settings.local.json
+
+# Runtime user uploads (live on the VPS / R2, not in git)
+uploads/images/
+
+# Design / engineering handoff docs
+*-HANDOFF.md
+design_handoff_*/

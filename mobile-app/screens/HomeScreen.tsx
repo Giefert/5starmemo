@@ -67,22 +67,15 @@ export const HomeScreen: React.FC = () => {
     loadData();
   }, []);
 
-  // Hide tab bar during study sessions
+  // Hide the tab bar during study sessions. The visible bar is the custom
+  // CarteTabBar in TabNavigator — `undefined` lets it render, `display: 'none'`
+  // is the flag it reads to hide itself.
   useEffect(() => {
     const shouldHideTabs = screenState === 'study' || screenState === 'completed' || screenState === 'browse';
     navigation.setOptions({
-      tabBarStyle: shouldHideTabs
-        ? { display: 'none' }
-        : {
-            backgroundColor: '#fff',
-            borderTopWidth: 1,
-            borderTopColor: '#E5E5EA',
-            height: 60 + insets.bottom,
-            paddingBottom: insets.bottom,
-            paddingTop: 8,
-          },
+      tabBarStyle: shouldHideTabs ? { display: 'none' } : undefined,
     });
-  }, [screenState, navigation, insets.bottom]);
+  }, [screenState, navigation]);
 
   const loadData = async () => {
     try {

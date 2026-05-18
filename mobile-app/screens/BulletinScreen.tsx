@@ -7,40 +7,49 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  Alert,
+  StatusBar,
+  LayoutChangeEvent,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import Svg, { G, Path, Rect, Defs, Pattern, LinearGradient, Stop } from 'react-native-svg';
 import { useAuth } from '../contexts/AuthContext';
 import apiService from '../services/api';
 import {
   BulletinPayload,
   CurationKind,
-  MasteryLevel,
   RestaurantCurationItem,
 } from '../types/shared';
-import { StudyScreen } from './StudyScreen';
-import { StudyCompletedScreen } from './StudyCompletedScreen';
+import { BrowseScreen } from './BrowseScreen';
 
 const COLORS = {
   ink: '#14120F',
-  inkSoft: '#1C1A16',
   bgHair: '#28251F',
+  inkMute: '#6B6255',
+  inkFaint: '#A89B7E',
   paper: '#F4EEE1',
+  paperHair: '#D8CFB8',
   onDark: '#E8E3D6',
-  onDarkMute: '#8A8578',
+  onDarkMuted: '#8A8578',
   amber: '#E89A2B',
   red: '#D94B36',
 };
 
-const SECTIONS: { kind: CurationKind; label: string; tone?: 'amber' }[] = [
+// The four curation sections, in fixed reading order. No counts, no tone —
+// each is just a heading that routes to its own browse list.
+const SECTIONS: { kind: CurationKind; label: string }[] = [
   { kind: 'new_item', label: 'New items' },
-  { kind: 'featured', label: 'Featured', tone: 'amber' },
+  { kind: 'featured', label: 'Featured' },
   { kind: 'specials', label: 'Specials' },
   { kind: 'in_season', label: 'In season' },
 ];
 
-type ScreenState = 'home' | 'study' | 'completed';
+// The announcement zone caps here; longer notices scroll internally behind
+// a paper-edge fade.
+const ANNOUNCE_MAX_H = 170;
+
+type ScreenState = 'home' | 'section' | 'browse';
 
 function isoWeekNumber(date: Date = new Date()): number {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -59,12 +68,10 @@ export default function BulletinScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [screenState, setScreenState] = useState<ScreenState>('home');
-  const [activeSection, setActiveSection] = useState<{ kind: CurationKind; label: string } | null>(null);
-  const [studyStats, setStudyStats] = useState<{
-    studied: number;
-    correct: number;
-    total: number;
-  } | null>(null);
+  const [activeSection, setActiveSection] = useState<{ kind: CurationKind; label: string } | null>(
+    null,
+  );
+  const [selectedDeck, setSelectedDeck] = useState<{ id: string; title: string } | null>(null);
 
   const loadBulletin = useCallback(async () => {
     try {
@@ -87,75 +94,63 @@ export default function BulletinScreen() {
     loadBulletin();
   }, [loadBulletin]);
 
-  // Hide tab bar during study sessions, like HomeScreen does.
+  // The masthead (and the section screen's ribbon) is dark behind the status
+  // bar — keep its text light while this tab is focused.
+  useFocusEffect(
+    useCallback(() => {
+      StatusBar.setBarStyle('light-content');
+      return () => StatusBar.setBarStyle('dark-content');
+    }, []),
+  );
+
+  // Hide the tab bar only on the Browse-mode card screen. The section browse
+  // list keeps the bar. `display: 'none'` is the flag CarteTabBar reads.
   useEffect(() => {
-    const shouldHideTabs = screenState === 'study' || screenState === 'completed';
     navigation.setOptions({
-      tabBarStyle: shouldHideTabs
-        ? { display: 'none' }
-        : {
-            backgroundColor: '#fff',
-            borderTopWidth: 1,
-            borderTopColor: '#E5E5EA',
-            height: 60 + insets.bottom,
-            paddingBottom: insets.bottom,
-            paddingTop: 8,
-          },
+      tabBarStyle: screenState === 'browse' ? { display: 'none' } : undefined,
     });
-  }, [screenState, navigation, insets.bottom]);
+  }, [screenState, navigation]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
     loadBulletin();
   };
 
-  const handleSectionPress = (kind: CurationKind, label: string) => {
-    const items = data?.curations[kind] ?? [];
-    if (items.length === 0) return;
-    Alert.alert(
-      label,
-      `Study the ${items.length} ${items.length === 1 ? 'item' : 'items'} in this section?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Study',
-          onPress: () => {
-            setActiveSection({ kind, label });
-            setScreenState('study');
-          },
-        },
-      ],
-    );
+  const handleOpenSection = (kind: CurationKind, label: string) => {
+    setActiveSection({ kind, label });
+    setScreenState('section');
   };
 
-  const handleStudyComplete = (stats: { studied: number; correct: number; total: number }) => {
-    setStudyStats(stats);
-    setScreenState('completed');
+  // A curation item routes into the existing Browse-mode card screen for its
+  // deck — `targetId` is the deck for deck items, `deckId` for card items.
+  const handleOpenItem = (item: RestaurantCurationItem) => {
+    const deckId = item.targetType === 'deck' ? item.targetId : item.deckId;
+    const title = item.targetType === 'deck' ? item.name : item.deckTitle ?? '';
+    if (!deckId) return;
+    setSelectedDeck({ id: deckId, title });
+    setScreenState('browse');
   };
 
-  const handleBackToHome = () => {
-    setScreenState('home');
-    setActiveSection(null);
-    setStudyStats(null);
-    loadBulletin();
-  };
-
-  if (screenState === 'study' && activeSection) {
+  if (screenState === 'browse' && selectedDeck) {
     return (
-      <StudyScreen
-        target={{ kind: 'curation', curationKind: activeSection.kind, title: activeSection.label }}
-        onComplete={handleStudyComplete}
-        onExit={handleBackToHome}
+      <BrowseScreen
+        deckId={selectedDeck.id}
+        deckTitle={selectedDeck.title}
+        onExit={() => setScreenState('section')}
       />
     );
   }
 
-  if (screenState === 'completed' && studyStats) {
+  if (screenState === 'section' && activeSection) {
     return (
-      <StudyCompletedScreen
-        stats={studyStats}
-        deckTitle={activeSection?.label}
-        onContinue={handleBackToHome}
+      <SectionBrowseList
+        label={activeSection.label}
+        items={data?.curations[activeSection.kind] ?? []}
+        onBack={() => {
+          setScreenState('home');
+          setActiveSection(null);
+        }}
+        onOpenItem={handleOpenItem}
       />
     );
   }
@@ -170,37 +165,35 @@ export default function BulletinScreen() {
   }
 
   const week = isoWeekNumber();
-  const restaurantName = (data?.restaurant.name ?? '').toUpperCase();
+  const restaurantName = data?.restaurant.name ?? '';
   const announcements = data?.restaurant.announcements ?? [];
+  const sectionsWithItems = SECTIONS.filter(
+    (s) => (data?.curations[s.kind] ?? []).length > 0,
+  );
 
   return (
     <View style={styles.container}>
-      <View style={[styles.masthead, { paddingTop: insets.top + 36 }]}>
+      {/* Dark masthead — the announcement zone and nothing else. */}
+      <View style={[styles.masthead, { paddingTop: insets.top + 14 }]}>
         <Text style={styles.eyebrow}>
           {restaurantName + ' · Week ' + week}
         </Text>
         <Text style={styles.headline}>Bulletin.</Text>
+        {announcements.length > 0 && <AnnouncementZone announcements={announcements} />}
       </View>
+
+      {/* Paper content band — the table of contents. */}
       <ScrollView
-        contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+        style={styles.body}
+        contentContainerStyle={styles.bodyContent}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={handleRefresh}
-            tintColor={COLORS.amber}
+            tintColor={COLORS.inkMute}
           />
         }
       >
-        {announcements.length > 0 && (
-          <View style={styles.announcementBlock}>
-            {announcements.map((line, i) => (
-              <Text key={i} style={styles.announcementLine}>
-                {line}
-              </Text>
-            ))}
-          </View>
-        )}
-
         {error ? (
           <View style={styles.errorBanner}>
             <Text style={styles.errorBannerText}>{error}</Text>
@@ -208,13 +201,12 @@ export default function BulletinScreen() {
         ) : null}
 
         <View style={styles.sections}>
-          {SECTIONS.map((section) => (
-            <BulletinSection
+          {sectionsWithItems.map((section, i) => (
+            <SectionLink
               key={section.kind}
-              label={section.label}
-              tone={section.tone}
-              items={data?.curations[section.kind] ?? []}
-              onPress={() => handleSectionPress(section.kind, section.label)}
+              title={section.label}
+              isLast={i === sectionsWithItems.length - 1}
+              onPress={() => handleOpenSection(section.kind, section.label)}
             />
           ))}
         </View>
@@ -223,70 +215,253 @@ export default function BulletinScreen() {
   );
 }
 
-function BulletinSection({
-  label,
-  tone,
-  items,
-  onPress,
-}: {
-  label: string;
-  tone?: 'amber';
-  items: RestaurantCurationItem[];
-  onPress: () => void;
-}) {
-  const countColor = tone === 'amber' ? COLORS.amber : COLORS.paper;
-  const disabled = items.length === 0;
+// ── Megaphone ────────────────────────────────────────────────
+// The announcement-zone marker — a movie-set bullhorn, not a generic
+// broadcast glyph. Filled paper, no stroke, rotated -45° so the bell
+// points up and reads as "shouting".
+function Megaphone({ size = 22, color = COLORS.paper }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 20 20">
+      <G rotation={-45} originX={10} originY={10} fill={color}>
+        {/* Cone body — narrow mouthpiece on the left, flared bell on the right. */}
+        <Path d="M3.5 8L13 5Q14.5 5 14.5 6L14.5 14Q14.5 15 13 15L3.5 12Z" />
+        {/* Back cap. */}
+        <Rect x={2} y={7.5} width={2} height={5} rx={0.7} />
+        {/* Squared loop handle with a punched-out hole (evenodd). */}
+        <Path
+          fillRule="evenodd"
+          d="M5 12H8Q8.5 12 8.5 12.5V15.5Q8.5 16 8 16H5Q4.5 16 4.5 15.5V12.5Q4.5 12 5 12ZM5.75 12.8H7.25V14.8H5.75Z"
+        />
+      </G>
+    </Svg>
+  );
+}
+
+// ── Announcement zone ────────────────────────────────────────
+// Adaptive: short notices size to content; anything past ANNOUNCE_MAX_H
+// caps and scrolls internally with a fade at the bottom edge. Height is
+// measured from the natural layout of the paragraph block.
+function AnnouncementZone({ announcements }: { announcements: string[] }) {
+  const [needsScroll, setNeedsScroll] = useState(false);
+
+  const onMeasure = (e: LayoutChangeEvent) => {
+    const tall = e.nativeEvent.layout.height > ANNOUNCE_MAX_H + 4;
+    if (tall !== needsScroll) setNeedsScroll(tall);
+  };
+
+  const paragraphs = (
+    <View onLayout={onMeasure}>
+      {announcements.map((p, i) => (
+        <Text
+          key={i}
+          style={[
+            styles.announceParagraph,
+            i === 0 ? styles.announceLead : styles.announceRest,
+          ]}
+        >
+          {p}
+        </Text>
+      ))}
+    </View>
+  );
 
   return (
-    <View style={styles.section}>
-      <TouchableOpacity
-        style={styles.sectionHeader}
-        onPress={onPress}
-        disabled={disabled}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.sectionLabel}>{label}</Text>
-        <Text style={[styles.sectionCount, { color: countColor }]}>
-          {items.length}
-        </Text>
-      </TouchableOpacity>
-
-      {items.length === 0 ? (
-        <Text style={styles.emptyText}>Nothing here yet.</Text>
-      ) : (
-        <View style={styles.itemsList}>
-          {items.map((item) => (
-            <BulletinItemRow
-              key={`${item.targetType}:${item.targetId}`}
-              item={item}
-            />
-          ))}
-        </View>
-      )}
+    <View style={styles.announceZone}>
+      <View style={styles.megaphoneWrap}>
+        <Megaphone size={22} color={COLORS.paper} />
+      </View>
+      <View style={styles.announceTextWrap}>
+        {needsScroll ? (
+          <View style={{ maxHeight: ANNOUNCE_MAX_H }}>
+            <ScrollView showsVerticalScrollIndicator={false}>{paragraphs}</ScrollView>
+            <Svg style={styles.announceFade} width="100%" height={22}>
+              <Defs>
+                <LinearGradient id="announceFade" x1="0" y1="0" x2="0" y2="1">
+                  <Stop offset="0" stopColor={COLORS.ink} stopOpacity={0} />
+                  <Stop offset="1" stopColor={COLORS.ink} stopOpacity={1} />
+                </LinearGradient>
+              </Defs>
+              <Rect width="100%" height="100%" fill="url(#announceFade)" />
+            </Svg>
+          </View>
+        ) : (
+          paragraphs
+        )}
+      </View>
     </View>
   );
 }
 
-const MASTERY_LABEL: Record<MasteryLevel, string> = {
-  weak: 'WEAK',
-  learning: 'LEARNING',
-  mastered: 'MASTERED',
-};
+// ── Section link ─────────────────────────────────────────────
+// Table-of-contents row: title, a leader of middle-dots filling the gap,
+// then a chevron. The whole row is the tap target.
+function SectionLink({
+  title,
+  isLast,
+  onPress,
+}: {
+  title: string;
+  isLast: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.sectionLink, !isLast && styles.sectionDivider]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <Text style={styles.leaderDots} numberOfLines={1}>
+        {'·'.repeat(60)}
+      </Text>
+      <Svg width={10} height={14} viewBox="0 0 10 14">
+        <Path
+          d="M2 2l5 5-5 5"
+          fill="none"
+          stroke={COLORS.ink}
+          strokeWidth={1.6}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </Svg>
+    </TouchableOpacity>
+  );
+}
 
-function BulletinItemRow({ item }: { item: RestaurantCurationItem }) {
-  const isCard = item.targetType === 'card';
-  const mastery: MasteryLevel = item.mastery ?? 'weak';
-  const badgeText = isCard ? MASTERY_LABEL[mastery] : 'DECK';
+// ── Section browse list ──────────────────────────────────────
+// Opens when a section heading is tapped: dark back ribbon, paper title
+// block, then a list of item rows.
+function SectionBrowseList({
+  label,
+  items,
+  onBack,
+  onOpenItem,
+}: {
+  label: string;
+  items: RestaurantCurationItem[];
+  onBack: () => void;
+  onOpenItem: (item: RestaurantCurationItem) => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const count = items.length;
 
   return (
-    <View style={styles.itemRow}>
-      <View style={styles.itemTextWrap}>
-        <Text style={styles.itemTitle} numberOfLines={2}>
+    <View style={styles.container}>
+      {/* Dark back ribbon. */}
+      <View style={[styles.ribbon, { paddingTop: insets.top + 8 }]}>
+        <TouchableOpacity
+          style={styles.ribbonBack}
+          onPress={onBack}
+          activeOpacity={0.7}
+        >
+          <Svg width={9} height={14} viewBox="0 0 9 14">
+            <Path
+              d="M7 1L2 7l5 6"
+              fill="none"
+              stroke={COLORS.onDarkMuted}
+              strokeWidth={1.6}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </Svg>
+          <Text style={styles.ribbonBackText}>Bulletin</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Paper title block. */}
+      <View style={styles.titleBlock}>
+        <Text style={styles.titleEyebrow}>This week's bulletin</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.titleName}>{label}.</Text>
+          <Text style={styles.titleCount}>
+            {count} {count === 1 ? 'item' : 'items'}
+          </Text>
+        </View>
+      </View>
+
+      {/* Items list. */}
+      <ScrollView style={styles.body} contentContainerStyle={styles.itemsList}>
+        {items.map((item, i) => (
+          <ItemRow
+            key={`${item.targetType}:${item.targetId}`}
+            item={item}
+            isLast={i === items.length - 1}
+            onPress={() => onOpenItem(item)}
+          />
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+// ── Striped placeholder ──────────────────────────────────────
+// The Carte "image goes here" device — a 45° repeating stripe between two
+// near-transparent ink tints. Used when an item has no photo.
+function StripePlaceholder({ size }: { size: number }) {
+  return (
+    <Svg width={size} height={size}>
+      <Defs>
+        <Pattern
+          id="carteStripe"
+          patternUnits="userSpaceOnUse"
+          width={12}
+          height={12}
+          patternTransform="rotate(45)"
+        >
+          <Rect width={12} height={12} fill="rgba(20,18,15,0.025)" />
+          <Rect width={6} height={12} fill="rgba(20,18,15,0.06)" />
+        </Pattern>
+      </Defs>
+      <Rect width={size} height={size} fill="url(#carteStripe)" />
+    </Svg>
+  );
+}
+
+function ItemRow({
+  item,
+  isLast,
+  onPress,
+}: {
+  item: RestaurantCurationItem;
+  isLast: boolean;
+  onPress: () => void;
+}) {
+  const deckLine = item.targetType === 'card' ? item.deckTitle : undefined;
+
+  return (
+    <TouchableOpacity
+      style={[styles.itemRow, !isLast && styles.itemDivider]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <View style={styles.thumb}>
+        {item.imageUrl ? (
+          <Image source={{ uri: item.imageUrl }} style={styles.thumbImage} contentFit="cover" />
+        ) : (
+          <StripePlaceholder size={56} />
+        )}
+      </View>
+      <View style={styles.itemText}>
+        <Text style={styles.itemName} numberOfLines={2}>
           {item.name}
         </Text>
+        {deckLine ? (
+          <Text style={styles.itemDeck} numberOfLines={1}>
+            from {deckLine}
+          </Text>
+        ) : null}
       </View>
-      <Text style={styles.itemBadge}>{badgeText}</Text>
-    </View>
+      <Svg width={8} height={14} viewBox="0 0 8 14" style={styles.itemChevron}>
+        <Path
+          d="M1 1l5 6-5 6"
+          fill="none"
+          stroke={COLORS.inkFaint}
+          strokeWidth={1.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </Svg>
+    </TouchableOpacity>
   );
 }
 
@@ -301,45 +476,81 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 12,
-    color: COLORS.onDarkMute,
+    color: COLORS.onDarkMuted,
     fontSize: 14,
     fontStyle: 'italic',
   },
+
+  // ── Dark masthead ──────────────────────────────────────────
   masthead: {
     backgroundColor: COLORS.ink,
-    paddingHorizontal: 24,
-    paddingBottom: 24,
+    paddingHorizontal: 26,
+    paddingBottom: 22,
   },
   eyebrow: {
     color: COLORS.amber,
-    fontSize: 11,
-    letterSpacing: 2.4,
-    marginBottom: 12,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10.5,
+    letterSpacing: 2.31,
+    marginBottom: 8,
     textTransform: 'uppercase',
   },
   headline: {
-    color: COLORS.paper,
-    fontSize: 56,
-    lineHeight: 56,
-    fontFamily: 'Georgia',
-    letterSpacing: -1.5,
-  },
-  announcementBlock: {
-    paddingHorizontal: 24,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: COLORS.bgHair,
-    paddingTop: 14,
-    paddingBottom: 14,
-    gap: 6,
-  },
-  announcementLine: {
     color: COLORS.onDark,
-    fontSize: 20,
-    lineHeight: 20,
+    fontFamily: 'Fraunces_500Medium',
+    fontSize: 44,
+    lineHeight: 46,
+    letterSpacing: -1.1,
+  },
+
+  // ── Announcement zone ──────────────────────────────────────
+  announceZone: {
+    marginTop: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.bgHair,
+    flexDirection: 'row',
+    gap: 14,
+    alignItems: 'flex-start',
+  },
+  megaphoneWrap: {
+    flexShrink: 0,
+    marginLeft: -2,
+  },
+  announceTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  announceFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  announceParagraph: {
+    color: COLORS.onDark,
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  announceLead: {
+    fontFamily: 'Inter_500Medium',
+  },
+  announceRest: {
+    fontFamily: 'Inter_400Regular',
+    marginTop: 10,
+  },
+
+  // ── Paper content band ─────────────────────────────────────
+  body: {
+    flex: 1,
+    backgroundColor: COLORS.paper,
+  },
+  bodyContent: {
+    flexGrow: 1,
   },
   errorBanner: {
     backgroundColor: COLORS.red,
-    paddingHorizontal: 24,
+    paddingHorizontal: 26,
     paddingVertical: 10,
   },
   errorBannerText: {
@@ -347,59 +558,134 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   sections: {
-    paddingHorizontal: 24,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: COLORS.bgHair,
+    paddingHorizontal: 26,
+    paddingTop: 4,
+    paddingBottom: 16,
   },
-  section: {
-    paddingVertical: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: COLORS.bgHair,
+  sectionLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 22,
   },
-  sectionHeader: {
+  sectionDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.paperHair,
+  },
+  sectionTitle: {
+    color: COLORS.ink,
+    fontFamily: 'Fraunces_600SemiBold',
+    fontSize: 24,
+    letterSpacing: -0.43,
+    flexShrink: 0,
+  },
+  leaderDots: {
+    flex: 1,
+    color: COLORS.inkFaint,
+    fontSize: 14,
+    letterSpacing: 5.6,
+  },
+
+  // ── Section browse list — ribbon ───────────────────────────
+  ribbon: {
+    backgroundColor: COLORS.ink,
+    paddingHorizontal: 22,
+    paddingBottom: 16,
+  },
+  ribbonBack: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 4,
+    alignSelf: 'flex-start',
+  },
+  ribbonBackText: {
+    color: COLORS.onDarkMuted,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10,
+    letterSpacing: 2.2,
+    textTransform: 'uppercase',
+  },
+
+  // ── Section browse list — title block ──────────────────────
+  titleBlock: {
+    backgroundColor: COLORS.paper,
+    paddingTop: 18,
+    paddingHorizontal: 26,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.paperHair,
+  },
+  titleEyebrow: {
+    color: COLORS.amber,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10,
+    letterSpacing: 2.2,
+    textTransform: 'uppercase',
+    marginBottom: 6,
+  },
+  titleRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    justifyContent: 'space-between',
-    marginBottom: 12,
+    gap: 12,
   },
-  sectionLabel: {
-    color: COLORS.onDark,
-    fontSize: 16,
-    letterSpacing: 0.4,
-    fontWeight: '600',
+  titleName: {
+    color: COLORS.ink,
+    fontFamily: 'Fraunces_500Medium',
+    fontSize: 36,
+    letterSpacing: -0.79,
   },
-  sectionCount: {
-    fontFamily: 'Georgia',
-    fontSize: 28,
-    letterSpacing: -0.5,
+  titleCount: {
+    color: COLORS.inkMute,
+    fontFamily: 'Newsreader_500Medium_Italic',
+    fontSize: 15,
   },
-  emptyText: {
-    color: COLORS.onDarkMute,
-    fontStyle: 'italic',
-    fontSize: 13,
-    paddingVertical: 8,
-  },
+
+  // ── Section browse list — item rows ────────────────────────
   itemsList: {
-    gap: 10,
+    paddingHorizontal: 26,
+    flexGrow: 1,
   },
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
+    gap: 16,
+    paddingVertical: 14,
   },
-  itemTextWrap: {
+  itemDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.paperHair,
+  },
+  thumb: {
+    width: 56,
+    height: 56,
+    borderWidth: 1,
+    borderColor: COLORS.paperHair,
+    flexShrink: 0,
+    overflow: 'hidden',
+  },
+  thumbImage: {
+    width: '100%',
+    height: '100%',
+  },
+  itemText: {
     flex: 1,
+    minWidth: 0,
   },
-  itemTitle: {
-    color: COLORS.onDarkMute,
-    fontSize: 15,
-    marginBottom: 2,
+  itemName: {
+    color: COLORS.ink,
+    fontFamily: 'Fraunces_500Medium',
+    fontSize: 22,
+    letterSpacing: -0.35,
+    lineHeight: 24,
   },
-  itemBadge: {
-    color: COLORS.onDarkMute,
-    fontSize: 10,
-    letterSpacing: 1.2,
-    fontWeight: '600',
+  itemDeck: {
+    color: COLORS.inkMute,
+    fontFamily: 'Newsreader_500Medium_Italic',
+    fontSize: 13,
+    marginTop: 4,
+  },
+  itemChevron: {
+    flexShrink: 0,
   },
 });

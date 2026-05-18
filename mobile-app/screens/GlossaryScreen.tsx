@@ -1,24 +1,67 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  FlatList,
-  TouchableOpacity,
+  SectionList,
   TextInput,
   ActivityIndicator,
   RefreshControl,
   ScrollView,
+  Pressable,
+  PanResponder,
+  Animated,
+  Easing,
+  StatusBar,
+  KeyboardAvoidingView,
+  Platform,
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
+import Svg, { Circle, Line, Path } from 'react-native-svg';
 import RenderHtml from 'react-native-render-html';
 import apiService from '../services/api';
 import { GlossaryCategory, GlossaryTermSummary, GlossaryTerm, GlossarySection } from '../types/shared';
 import { stripHtml, cleanHtml, customHTMLElementModels } from '../utils/html';
+import GlossaryIndexSheet, { IndexSheetCategory } from '../components/GlossaryIndexSheet';
 
 type ViewState = 'list' | 'detail';
+
+// Carte tokens — shared verbatim with BulletinScreen / HomeScreen so the
+// Reference tab reads as a sibling of Study and Bulletin.
+const COLORS = {
+  ink: '#14120F',
+  bgHair: '#28251F',
+  paper: '#F4EEE1',
+  paperSoft: '#FBF7EC',
+  paperHair: '#D8CFB8',
+  paperHairLt: '#E6DFCB',
+  inkMute: '#6B6255',
+  inkFaint: '#A89B7E',
+  onDark: '#E8E3D6',
+  onDarkMute: '#8A8578',
+  amber: '#E89A2B',
+  red: '#D94B36',
+};
+
+const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+
+interface TermSection {
+  key: string;
+  title: string;
+  count: number;
+  data: GlossaryTermSummary[];
+}
+
+const byTerm = (a: GlossaryTermSummary, b: GlossaryTermSummary) =>
+  a.term.localeCompare(b.term, undefined, { sensitivity: 'base' });
+
+// First letter of a term, normalized to A–Z; anything else buckets under '#'.
+function firstLetter(term: string): string {
+  const c = (term.trim()[0] || '#').toUpperCase();
+  return /[A-Z]/.test(c) ? c : '#';
+}
 
 export default function GlossaryScreen() {
   const insets = useSafeAreaInsets();
@@ -43,7 +86,16 @@ export default function GlossaryScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [error, setError] = useState('');
+  // Index dropdown (Encyclopedia only). `isFilterVisible` is reused as its
+  // open/closed flag; `indexAnchorY` is the window-space Y it unfurls from.
   const [isFilterVisible, setIsFilterVisible] = useState(false);
+  const [indexAnchorY, setIndexAnchorY] = useState(0);
+
+  const indexRowRef = useRef<View>(null);
+  const listRef = useRef<SectionList<GlossaryTermSummary, TermSection>>(null);
+  const lastJumpTarget = useRef<number | null>(null);
+  const railHeight = useRef(0);
+  const chevronAnim = useRef(new Animated.Value(0)).current;
 
   // Debounce search
   useEffect(() => {
@@ -56,6 +108,22 @@ export default function GlossaryScreen() {
   useEffect(() => {
     loadData();
   }, [activeSection, selectedCategory, debouncedSearch]);
+
+  // The masthead is dark behind the status bar — keep its text light.
+  useFocusEffect(
+    useCallback(() => {
+      StatusBar.setBarStyle('light-content');
+    }, []),
+  );
+
+  useEffect(() => {
+    Animated.timing(chevronAnim, {
+      toValue: isFilterVisible ? 1 : 0,
+      duration: 150,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [isFilterVisible, chevronAnim]);
 
   const loadData = useCallback(async () => {
     try {
@@ -115,105 +183,207 @@ export default function GlossaryScreen() {
     setSelectedTerm(null);
   };
 
-  // Render category dropdown
-  const renderCategoryDropdown = () => (
-    <View style={styles.dropdown}>
-      <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
-        <TouchableOpacity
-          style={[styles.dropdownItem, !selectedCategory && styles.dropdownItemActive]}
-          onPress={() => setSelectedCategory(undefined)}
-        >
-          <Text style={[styles.dropdownItemText, !selectedCategory && styles.dropdownItemTextActive]}>
-            All
+  // ── Section assembly ────────────────────────────────────────
+  // Glossary: flat A–Z buckets. Encyclopedia: category chapters in the
+  // server's category order, entries alphabetized within each.
+  const sections = useMemo<TermSection[]>(() => {
+    if (activeSection === 'glossary') {
+      const buckets = new Map<string, GlossaryTermSummary[]>();
+      for (const t of terms) {
+        const key = firstLetter(t.term);
+        const arr = buckets.get(key);
+        if (arr) arr.push(t);
+        else buckets.set(key, [t]);
+      }
+      return [...buckets.keys()]
+        .sort()
+        .map(key => {
+          const data = buckets.get(key)!.slice().sort(byTerm);
+          return { key, title: key, count: data.length, data };
+        });
+    }
+
+    const buckets = new Map<string, GlossaryTermSummary[]>();
+    for (const t of terms) {
+      const key = t.categoryName || 'Other';
+      const arr = buckets.get(key);
+      if (arr) arr.push(t);
+      else buckets.set(key, [t]);
+    }
+    const ordered: TermSection[] = [];
+    for (const cat of categories) {
+      const data = buckets.get(cat.name);
+      if (data) {
+        ordered.push({ key: cat.id, title: cat.name, count: data.length, data: data.slice().sort(byTerm) });
+        buckets.delete(cat.name);
+      }
+    }
+    // Anything not matched to a known category (incl. 'Other') trails.
+    for (const [key, data] of buckets) {
+      ordered.push({ key, title: key, count: data.length, data: data.slice().sort(byTerm) });
+    }
+    return ordered;
+  }, [terms, categories, activeSection]);
+
+  // Letters that actually have entries — drives the rail's full/dim state.
+  const presentLetters = useMemo(() => {
+    const set = new Set<string>();
+    if (activeSection === 'glossary') {
+      for (const s of sections) set.add(s.title);
+    }
+    return set;
+  }, [sections, activeSection]);
+
+  // Categories for the Index sheet — every category, counted against the
+  // currently-loaded (possibly filtered) term set.
+  const sheetCategories = useMemo<IndexSheetCategory[]>(() => {
+    const counts = new Map<string, number>();
+    for (const t of terms) {
+      const key = t.categoryName || 'Other';
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    return categories.map(cat => ({
+      id: cat.id,
+      name: cat.name,
+      count: counts.get(cat.name) || 0,
+    }));
+  }, [categories, terms]);
+
+  const scrollToSection = useCallback((sectionIndex: number) => {
+    if (sectionIndex < 0 || sectionIndex >= sections.length) return;
+    lastJumpTarget.current = sectionIndex;
+    listRef.current?.scrollToLocation({
+      sectionIndex,
+      itemIndex: 0,
+      viewPosition: 0,
+      animated: true,
+    });
+  }, [sections.length]);
+
+  // ── A–Z rail scrubbing ──────────────────────────────────────
+  const jumpToTouch = useCallback((locationY: number) => {
+    const h = railHeight.current || 1;
+    const ratio = Math.min(Math.max(locationY / h, 0), 0.9999);
+    const letter = ALPHABET[Math.floor(ratio * ALPHABET.length)];
+    // First section at or after the scrubbed letter.
+    let target = sections.findIndex(s => s.title >= letter);
+    if (target === -1) target = sections.length - 1;
+    scrollToSection(target);
+  }, [sections, scrollToSection]);
+
+  const railPan = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: e => jumpToTouch(e.nativeEvent.locationY),
+        onPanResponderMove: e => jumpToTouch(e.nativeEvent.locationY),
+      }),
+    [jumpToTouch],
+  );
+
+  const handleSelectCategory = (categoryName: string) => {
+    setIsFilterVisible(false);
+    const target = sections.findIndex(s => s.title === categoryName);
+    if (target >= 0) {
+      // Let the sheet's dismissal settle before scrolling.
+      setTimeout(() => scrollToSection(target), 200);
+    }
+  };
+
+  // ── Renderers ───────────────────────────────────────────────
+  const renderSectionHeader = ({ section }: { section: TermSection }) => {
+    if (activeSection === 'glossary') {
+      return (
+        <View style={styles.letterHeader}>
+          <Text style={styles.letterGlyph}>{section.title}</Text>
+          <Text style={styles.letterCount}>
+            {section.count} {section.count === 1 ? 'entry' : 'entries'}
           </Text>
-          {!selectedCategory && <Ionicons name="checkmark" size={18} color="#007AFF" />}
-        </TouchableOpacity>
-        {categories.map(cat => {
-          const isActive = selectedCategory === cat.id;
-          return (
-            <TouchableOpacity
-              key={cat.id}
-              style={[styles.dropdownItem, isActive && styles.dropdownItemActive]}
-              onPress={() => setSelectedCategory(isActive ? undefined : cat.id)}
-            >
-              <View style={styles.dropdownItemLabel}>
-                {cat.color && <View style={[styles.dropdownColorDot, { backgroundColor: cat.color }]} />}
-                <Text style={[styles.dropdownItemText, isActive && styles.dropdownItemTextActive]}>
-                  {cat.name} ({cat.termCount || 0})
-                </Text>
-              </View>
-              {isActive && <Ionicons name="checkmark" size={18} color="#007AFF" />}
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-    </View>
-  );
-
-  // Render term item
-  const renderTermItem = ({ item }: { item: GlossaryTermSummary }) => (
-    <TouchableOpacity
-      style={styles.termCard}
-      onPress={() => handleTermPress(item.id)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.termHeader}>
-        <Text style={styles.termTitle}>{item.term}</Text>
-        {item.categoryName && (
-          <View style={[
-            styles.termCategoryBadge,
-            { backgroundColor: item.categoryColor ? `${item.categoryColor}20` : '#e5e7eb' }
-          ]}>
-            <Text style={[
-              styles.termCategoryText,
-              { color: item.categoryColor || '#374151' }
-            ]}>
-              {item.categoryName}
-            </Text>
-          </View>
-        )}
+        </View>
+      );
+    }
+    return (
+      <View style={styles.catHeader}>
+        <View style={styles.catRule} />
+        <View style={styles.catRuleTip} />
+        <View style={styles.catHeaderRow}>
+          <Text style={styles.catName}>{section.title}</Text>
+          <Text style={styles.catCount}>
+            {section.count} {section.count === 1 ? 'entry' : 'entries'}
+          </Text>
+        </View>
       </View>
-      <Text style={styles.termDefinition} numberOfLines={2}>
-        {stripHtml(item.definition)}
-      </Text>
-      {item.linkedCardCount > 0 && (
-        <Text style={styles.termMeta}>
-          {item.linkedCardCount} linked card{item.linkedCardCount !== 1 ? 's' : ''}
-        </Text>
-      )}
-    </TouchableOpacity>
-  );
+    );
+  };
 
-  // Term Detail View
+  const renderTermItem = ({
+    item,
+    index,
+    section,
+  }: {
+    item: GlossaryTermSummary;
+    index: number;
+    section: TermSection;
+  }) => {
+    const isLastSection = section.key === sections[sections.length - 1]?.key;
+    const isLastRow = index === section.data.length - 1;
+    const definition = stripHtml(item.definition);
+    return (
+      <Pressable
+        onPress={() => handleTermPress(item.id)}
+        style={({ pressed }) => [
+          styles.termRow,
+          !(isLastSection && isLastRow) && styles.termRowDivider,
+          pressed && styles.termRowPressed,
+        ]}
+      >
+        {activeSection === 'glossary' && !!item.categoryName && (
+          <Text style={styles.termEyebrow}>{item.categoryName}</Text>
+        )}
+        <Text style={styles.termName}>{item.term}</Text>
+        {!!definition && (
+          <Text style={styles.termDefinition} numberOfLines={2}>
+            {definition}
+          </Text>
+        )}
+        {item.linkedCardCount > 0 && (
+          <Text style={styles.termMeta}>
+            {item.linkedCardCount} linked card{item.linkedCardCount !== 1 ? 's' : ''}
+          </Text>
+        )}
+      </Pressable>
+    );
+  };
+
+  // ── Detail view ─────────────────────────────────────────────
   if (viewState === 'detail') {
     return (
-      <View style={styles.container}>
-        <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-          <TouchableOpacity onPress={handleBackToList} style={styles.backButton}>
-            <Text style={styles.backButtonText}>← Back</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Term Details</Text>
+      <View style={styles.screen}>
+        <View style={[styles.detailHeader, { paddingTop: insets.top + 14 }]}>
+          <Pressable onPress={handleBackToList} hitSlop={12}>
+            <Text style={styles.backLink}>← Back</Text>
+          </Pressable>
         </View>
 
         {isLoadingDetail ? (
-          <View style={styles.centerContainer}>
-            <ActivityIndicator size="large" color="#007AFF" />
+          <View style={styles.stateBlock}>
+            <ActivityIndicator color={COLORS.inkMute} />
           </View>
         ) : selectedTerm ? (
-          <ScrollView style={styles.detailContent} showsVerticalScrollIndicator={false}>
-            <Text style={styles.detailTerm}>{selectedTerm.term}</Text>
+          <ScrollView
+            style={styles.detailBody}
+            contentContainerStyle={{ padding: 26, paddingBottom: insets.bottom + 32 }}
+            showsVerticalScrollIndicator={false}
+          >
             {selectedTerm.category && (
-              <View style={[
-                styles.detailCategoryBadge,
-                { backgroundColor: selectedTerm.category.color ? `${selectedTerm.category.color}20` : '#e5e7eb' }
-              ]}>
-                <Text style={{ color: selectedTerm.category.color || '#374151' }}>
-                  {selectedTerm.category.name}
-                </Text>
-              </View>
+              <Text style={styles.detailEyebrow}>{selectedTerm.category.name}</Text>
             )}
+            <Text style={styles.detailTerm}>{selectedTerm.term}</Text>
+            <View style={styles.detailRule} />
+
             <RenderHtml
-              contentWidth={width - 40}
+              contentWidth={width - 52}
               source={{ html: cleanHtml(selectedTerm.definition) }}
               baseStyle={styles.detailDefinition}
               enableExperimentalMarginCollapsing={true}
@@ -222,469 +392,627 @@ export default function GlossaryScreen() {
                 p: { marginVertical: 4 },
                 ul: { marginVertical: 8, paddingLeft: 0 },
                 li: { marginVertical: 0, paddingVertical: 2 },
-                strong: { fontWeight: '600' },
+                strong: { fontFamily: 'Inter_700Bold' },
                 em: { fontStyle: 'italic' },
                 u: { textDecorationLine: 'underline' },
-                // Keep heading support for backwards compatibility with existing content
-                h1: { fontSize: 31, fontWeight: 'bold', marginVertical: 8, lineHeight: 40 },
-                h2: { fontSize: 25, fontWeight: 'bold', marginVertical: 6, lineHeight: 32 },
-                h3: { fontSize: 20, fontWeight: '600', marginVertical: 4, lineHeight: 28 },
+                // Headings render in the display serif so the entry reads
+                // editorial, not like a web page.
+                h1: { fontFamily: 'Fraunces_600SemiBold', fontSize: 26, marginVertical: 8, lineHeight: 32, color: COLORS.ink },
+                h2: { fontFamily: 'Fraunces_600SemiBold', fontSize: 22, marginVertical: 6, lineHeight: 28, color: COLORS.ink },
+                h3: { fontFamily: 'Fraunces_500Medium', fontSize: 19, marginVertical: 4, lineHeight: 26, color: COLORS.ink },
               }}
               classesStyles={{
-                'font-large': { fontSize: 20 },
-                'font-larger': { fontSize: 24 },
-                'font-largest': { fontSize: 32 },
+                'font-large': { fontSize: 19 },
+                'font-larger': { fontSize: 23 },
+                'font-largest': { fontSize: 30 },
               }}
               renderersProps={{
-                ul: {
-                  markerBoxStyle: {
-                    paddingTop: 2,
-                    paddingRight: 8,
-                  },
-                },
-                ol: {
-                  markerBoxStyle: {
-                    paddingTop: 2,
-                    paddingRight: 8,
-                  },
-                },
+                ul: { markerBoxStyle: { paddingTop: 2, paddingRight: 8 } },
+                ol: { markerBoxStyle: { paddingTop: 2, paddingRight: 8 } },
               }}
             />
 
             {selectedTerm.linkedCards && selectedTerm.linkedCards.length > 0 && (
-              <View style={styles.linkedCardsSection}>
-                <Text style={styles.sectionTitle}>
-                  Related Cards ({selectedTerm.linkedCards.length})
+              <View style={styles.linkedSection}>
+                <Text style={styles.linkedEyebrow}>
+                  Related cards · {selectedTerm.linkedCards.length}
                 </Text>
                 {selectedTerm.linkedCards.map(link => (
-                  <View key={link.id} style={styles.linkedCardItem}>
-                    <Text style={styles.linkedCardName}>
+                  <View key={link.id} style={styles.linkedRow}>
+                    <Text style={styles.linkedName}>
                       {link.card?.restaurantData?.itemName || 'Unknown Card'}
                     </Text>
                     {link.matchField && (
-                      <Text style={styles.linkedCardMeta}>
-                        Matched on: {link.matchField}
-                      </Text>
+                      <Text style={styles.linkedMeta}>matched on {link.matchField}</Text>
                     )}
                   </View>
                 ))}
               </View>
             )}
-            <View style={{ height: insets.bottom + 20 }} />
           </ScrollView>
         ) : null}
       </View>
     );
   }
 
-  // List View
+  // ── List view ───────────────────────────────────────────────
+  const placeholder =
+    activeSection === 'encyclopedia' ? 'Search the encyclopedia…' : 'Search the glossary…';
+  const indexHint = sheetCategories.map(c => c.name).join('  ·  ');
+
+  const renderListState = () => {
+    if (error) {
+      return (
+        <View style={styles.stateBlock}>
+          <Text style={styles.stateEyebrow}>Something went wrong</Text>
+          <Text style={styles.stateLine}>{error}</Text>
+          <Pressable onPress={loadData} hitSlop={8}>
+            <Text style={styles.retryLink}>Tap to retry</Text>
+          </Pressable>
+        </View>
+      );
+    }
+    if (isLoading && !isRefreshing) {
+      return (
+        <View style={styles.stateBlock}>
+          <ActivityIndicator color={COLORS.inkMute} />
+        </View>
+      );
+    }
+    return (
+      <View style={styles.stateBlock}>
+        <Text style={styles.stateEyebrow}>Nothing to show</Text>
+        <Text style={styles.stateLine}>
+          {searchQuery
+            ? `No matches for “${searchQuery}”.`
+            : activeSection === 'encyclopedia'
+            ? 'The encyclopedia is empty for now — check back later.'
+            : 'The glossary is empty for now — check back later.'}
+        </Text>
+      </View>
+    );
+  };
+
   return (
-    <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <Text style={styles.title}>Reference</Text>
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      {/* Dark masthead — sibling of the Bulletin masthead. */}
+      <View style={[styles.titleBlock, { paddingTop: insets.top + 14 }]}>
+        <Text style={styles.titleEyebrow}>THE REFERENCE SHELF</Text>
+        <Text style={styles.titleHeadline}>Reference.</Text>
       </View>
 
-      {/* Section Toggle */}
-      <View style={styles.toggleBar}>
-        <View style={styles.toggle}>
-          <TouchableOpacity
-            style={[styles.toggleOption, activeSection === 'glossary' && styles.toggleOptionActive]}
-            onPress={() => handleSectionChange('glossary')}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.toggleText, activeSection === 'glossary' && styles.toggleTextActive]}>
-              Glossary
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.toggleOption, activeSection === 'encyclopedia' && styles.toggleOptionActive]}
-            onPress={() => handleSectionChange('encyclopedia')}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.toggleText, activeSection === 'encyclopedia' && styles.toggleTextActive]}>
-              Encyclopedia
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Search & Filter Controls */}
-      <View style={styles.filtersContainer}>
-        <View style={styles.filterToolbar}>
-          <View style={styles.searchBar}>
-            <Ionicons name="search" size={18} color="#666" style={styles.searchIcon} />
-            <TextInput
-              style={styles.searchBarInput}
-              placeholder="Search terms..."
-              placeholderTextColor="#999"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              returnKeyType="search"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={8}>
-                <Ionicons name="close-circle" size={18} color="#999" />
-              </TouchableOpacity>
-            )}
-          </View>
-          {categories.length > 0 && (
-            <TouchableOpacity
-              style={[styles.toolbarButton, (isFilterVisible || selectedCategory) && styles.toolbarButtonActive]}
-              onPress={() => setIsFilterVisible(!isFilterVisible)}
+      {/* Sub-tab strip */}
+      <View style={styles.subtabStrip}>
+        {(['glossary', 'encyclopedia'] as GlossarySection[]).map(section => {
+          const active = activeSection === section;
+          return (
+            <Pressable
+              key={section}
+              onPress={() => handleSectionChange(section)}
+              style={[styles.subtab, active && styles.subtabActive]}
             >
-              <Ionicons
-                name="filter"
-                size={16}
-                color={isFilterVisible || selectedCategory ? '#fff' : '#666'}
-                style={{ marginRight: 4 }}
-              />
-              <Text style={[
-                styles.filterButtonText,
-                (isFilterVisible || selectedCategory) && styles.filterButtonTextActive,
-              ]}>
-                Filter{selectedCategory ? ' (1)' : ''}
+              <Text style={[styles.subtabLabel, active && styles.subtabLabelActive]}>
+                {section === 'glossary' ? 'Glossary' : 'Encyclopedia'}
               </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-        {isFilterVisible && categories.length > 0 && renderCategoryDropdown()}
+            </Pressable>
+          );
+        })}
       </View>
 
-      {/* Error Message */}
-      {error ? (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity onPress={loadData}>
-            <Text style={styles.retryText}>Tap to retry</Text>
-          </TouchableOpacity>
-        </View>
-      ) : isLoading && !isRefreshing ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.loadingText}>Loading glossary...</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={terms}
-          renderItem={renderTermItem}
-          keyExtractor={item => item.id}
-          contentContainerStyle={[
-            styles.listContent,
-            { paddingBottom: insets.bottom + 20 }
-          ]}
-          refreshControl={
-            <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
-          }
-          ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>No terms found</Text>
-              <Text style={styles.emptyStateSubtext}>
-                {searchQuery
-                  ? 'Try a different search term'
-                  : selectedCategory
-                  ? 'No terms in this category yet'
-                  : 'Check back later for new content'}
-              </Text>
-            </View>
-          }
-        />
+      {/* Index trigger row — Encyclopedia only */}
+      {activeSection === 'encyclopedia' && sheetCategories.length > 0 && (
+        <Pressable
+          ref={indexRowRef}
+          style={styles.indexRow}
+          onPress={() => {
+            if (isFilterVisible) {
+              setIsFilterVisible(false);
+              return;
+            }
+            // Measure the row so the dropdown unfurls from its top edge.
+            indexRowRef.current?.measureInWindow((_x, y) => {
+              setIndexAnchorY(y);
+              setIsFilterVisible(true);
+            });
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Open category index"
+        >
+          <Text style={[styles.indexEyebrow, isFilterVisible && styles.indexEyebrowOpen]}>
+            INDEX
+          </Text>
+          <Text style={styles.indexHint} numberOfLines={1}>
+            {indexHint}
+          </Text>
+          <Animated.View
+            style={{
+              transform: [
+                {
+                  rotate: chevronAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ['0deg', '180deg'],
+                  }),
+                },
+              ],
+            }}
+          >
+            <Svg width={11} height={7} viewBox="0 0 11 7">
+              <Path
+                d="M1 1 L5.5 5.5 L10 1"
+                stroke={isFilterVisible ? COLORS.amber : COLORS.ink}
+                strokeWidth={1.6}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="none"
+              />
+            </Svg>
+          </Animated.View>
+        </Pressable>
       )}
-    </View>
+
+      {/* The list */}
+      <View style={styles.listArea}>
+        {sections.length === 0 ? (
+          <ScrollView
+            contentContainerStyle={{ flexGrow: 1 }}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={handleRefresh}
+                tintColor={COLORS.inkMute}
+              />
+            }
+          >
+            {renderListState()}
+          </ScrollView>
+        ) : (
+          <SectionList
+            ref={listRef}
+            sections={sections}
+            keyExtractor={item => item.id}
+            renderItem={renderTermItem}
+            renderSectionHeader={renderSectionHeader}
+            stickySectionHeadersEnabled={activeSection === 'encyclopedia'}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 32 }}
+            onScrollToIndexFailed={() => {
+              const target = lastJumpTarget.current;
+              if (target == null) return;
+              setTimeout(() => {
+                listRef.current?.scrollToLocation({
+                  sectionIndex: target,
+                  itemIndex: 0,
+                  viewPosition: 0,
+                  animated: true,
+                });
+              }, 120);
+            }}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={handleRefresh}
+                tintColor={COLORS.inkMute}
+              />
+            }
+          />
+        )}
+
+        {/* A–Z rail — Glossary only */}
+        {activeSection === 'glossary' && sections.length > 0 && (
+          <View
+            style={styles.rail}
+            onLayout={e => {
+              railHeight.current = e.nativeEvent.layout.height;
+            }}
+            {...railPan.panHandlers}
+          >
+            {ALPHABET.map(letter => {
+              const present = presentLetters.has(letter);
+              return (
+                <Text
+                  key={letter}
+                  accessibilityLabel={`Jump to letter ${letter}`}
+                  style={[styles.railLetter, !present && styles.railLetterDim]}
+                >
+                  {letter}
+                </Text>
+              );
+            })}
+          </View>
+        )}
+      </View>
+
+      {/* Search row — pinned to the bottom of the page */}
+      <View style={styles.searchRow}>
+        <Svg width={15} height={15} viewBox="0 0 15 15">
+          <Circle cx={6.3} cy={6.3} r={4.6} stroke={COLORS.inkFaint} strokeWidth={1.4} fill="none" />
+          <Line x1={9.7} y1={9.7} x2={13.6} y2={13.6} stroke={COLORS.inkFaint} strokeWidth={1.4} strokeLinecap="round" />
+        </Svg>
+        <TextInput
+          style={styles.searchInput}
+          placeholder={placeholder}
+          placeholderTextColor={COLORS.inkFaint}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          returnKeyType="search"
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        {searchQuery.length > 0 && (
+          <Pressable onPress={() => setSearchQuery('')} hitSlop={10}>
+            <Text style={styles.searchClear}>CLEAR</Text>
+          </Pressable>
+        )}
+      </View>
+
+      <GlossaryIndexSheet
+        visible={isFilterVisible && activeSection === 'encyclopedia'}
+        anchorY={indexAnchorY}
+        categories={sheetCategories}
+        countNoun={searchQuery ? 'matches' : 'entries'}
+        onClose={() => setIsFilterVisible(false)}
+        onSelect={handleSelectCategory}
+      />
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: COLORS.paper,
   },
-  header: {
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    backgroundColor: '#fff',
+
+  // ── Dark masthead ──────────────────────────────────────────
+  titleBlock: {
+    backgroundColor: COLORS.ink,
+    paddingHorizontal: 26,
+    paddingBottom: 18,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: COLORS.bgHair,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#333',
+  titleEyebrow: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10,
+    letterSpacing: 2.2,
+    textTransform: 'uppercase',
+    color: COLORS.amber,
+    marginBottom: 6,
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#333',
+  titleHeadline: {
+    fontFamily: 'Fraunces_500Medium',
+    fontSize: 44,
+    lineHeight: 44,
+    letterSpacing: -1.1,
+    color: COLORS.onDark,
   },
-  backButton: {
-    marginBottom: 8,
-  },
-  backButtonText: {
-    color: '#007AFF',
-    fontSize: 16,
-  },
-  toggleBar: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-  },
-  toggle: {
+
+  // ── Sub-tab strip ──────────────────────────────────────────
+  subtabStrip: {
     flexDirection: 'row',
-    backgroundColor: '#EFEFF4',
-    borderRadius: 8,
-    padding: 2,
+    backgroundColor: COLORS.ink,
+    paddingHorizontal: 26,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.bgHair,
   },
-  toggleOption: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-    borderRadius: 6,
+  subtab: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    paddingVertical: 14,
+    marginRight: 28,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+    marginBottom: -1,
   },
-  toggleOptionActive: {
-    backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+  subtabActive: {
+    borderBottomColor: COLORS.amber,
   },
-  toggleText: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: '#666',
+  subtabLabel: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    letterSpacing: 1.98,
+    textTransform: 'uppercase',
+    color: COLORS.onDarkMute,
   },
-  toggleTextActive: {
-    color: '#007AFF',
-    fontWeight: '600',
+  subtabLabelActive: {
+    color: COLORS.onDark,
   },
-  filtersContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-  },
-  filterToolbar: {
+
+  // ── Search row ─────────────────────────────────────────────
+  searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    backgroundColor: COLORS.paper,
+    paddingHorizontal: 26,
+    paddingTop: 14,
+    paddingBottom: 14,
   },
-  searchBar: {
+  searchInput: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f0f0f0',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchBarInput: {
-    flex: 1,
-    fontSize: 15,
-    color: '#333',
+    marginLeft: 10,
     padding: 0,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 15,
+    color: COLORS.ink,
   },
-  toolbarButton: {
+  searchClear: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10,
+    letterSpacing: 1.4,
+    color: COLORS.inkFaint,
+  },
+
+  // ── Index trigger row ──────────────────────────────────────
+  indexRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#f0f0f0',
-  },
-  toolbarButtonActive: {
-    backgroundColor: '#007AFF',
-  },
-  filterButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#666',
-  },
-  filterButtonTextActive: {
-    color: '#fff',
-  },
-  dropdown: {
-    marginTop: 10,
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  dropdownScroll: {
-    maxHeight: 280,
-  },
-  dropdownItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
+    paddingHorizontal: 26,
     paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e5e7eb',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.paperHair,
   },
-  dropdownItemActive: {
-    backgroundColor: '#f5f9ff',
+  indexEyebrow: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10,
+    letterSpacing: 2.2,
+    textTransform: 'uppercase',
+    color: COLORS.ink,
+    marginRight: 12,
   },
-  dropdownItemLabel: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  indexEyebrowOpen: {
+    color: COLORS.amber,
+  },
+  indexHint: {
     flex: 1,
+    fontFamily: 'Newsreader_500Medium_Italic',
+    fontSize: 13,
+    color: COLORS.inkMute,
+    marginRight: 12,
   },
-  dropdownColorDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+
+  // ── List area ──────────────────────────────────────────────
+  listArea: {
+    flex: 1,
+    position: 'relative',
+  },
+
+  // Glossary letter header
+  letterHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    paddingHorizontal: 26,
+    paddingTop: 20,
+    paddingBottom: 8,
+    backgroundColor: COLORS.paper,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.paperHairLt,
+  },
+  letterGlyph: {
+    fontFamily: 'Fraunces_600SemiBold',
+    fontSize: 28,
+    letterSpacing: -0.4,
+    color: COLORS.ink,
     marginRight: 10,
   },
-  dropdownItemText: {
-    fontSize: 15,
-    color: '#333',
+  letterCount: {
+    fontFamily: 'JetBrainsMono_400Regular',
+    fontSize: 10,
+    color: COLORS.inkFaint,
+    fontVariant: ['tabular-nums'],
   },
-  dropdownItemTextActive: {
-    color: '#007AFF',
-    fontWeight: '600',
+
+  // Encyclopedia category header
+  catHeader: {
+    paddingHorizontal: 26,
+    paddingTop: 18,
+    paddingBottom: 10,
+    backgroundColor: COLORS.paper,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.paperHair,
   },
-  listContent: {
-    padding: 12,
-    paddingTop: 8,
+  catRule: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 2,
+    backgroundColor: COLORS.ink,
   },
-  termCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
+  catRuleTip: {
+    position: 'absolute',
+    top: 0,
+    left: 26,
+    width: 60,
+    height: 2,
+    backgroundColor: COLORS.amber,
   },
-  termHeader: {
+  catHeaderRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-    flexWrap: 'wrap',
-    gap: 8,
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
   },
-  termTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1a1a1a',
+  catName: {
+    fontFamily: 'Fraunces_500Medium',
+    fontSize: 26,
+    letterSpacing: -0.52,
+    color: COLORS.ink,
   },
-  termCategoryBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+  catCount: {
+    fontFamily: 'JetBrainsMono_400Regular',
+    fontSize: 11,
+    color: COLORS.inkMute,
+    fontVariant: ['tabular-nums'],
   },
-  termCategoryText: {
-    fontSize: 12,
-    fontWeight: '500',
+
+  // Term row
+  termRow: {
+    paddingHorizontal: 26,
+    paddingTop: 16,
+    paddingBottom: 18,
+  },
+  termRowDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.paperHair,
+  },
+  termRowPressed: {
+    opacity: 0.55,
+  },
+  termEyebrow: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 9,
+    letterSpacing: 1.98,
+    textTransform: 'uppercase',
+    color: COLORS.inkMute,
+    marginBottom: 6,
+  },
+  termName: {
+    fontFamily: 'Fraunces_500Medium',
+    fontSize: 22,
+    letterSpacing: -0.33,
+    lineHeight: 24,
+    color: COLORS.ink,
   },
   termDefinition: {
+    fontFamily: 'Newsreader_500Medium_Italic',
     fontSize: 14,
-    color: '#666',
     lineHeight: 20,
-  },
-  termMeta: {
-    fontSize: 12,
-    color: '#999',
+    color: COLORS.inkMute,
     marginTop: 8,
   },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  termMeta: {
+    fontFamily: 'JetBrainsMono_400Regular',
+    fontSize: 10,
+    color: COLORS.inkFaint,
+    marginTop: 8,
+    fontVariant: ['tabular-nums'],
+  },
+
+  // ── A–Z rail ───────────────────────────────────────────────
+  rail: {
+    position: 'absolute',
+    top: 8,
+    bottom: 8,
+    right: 2,
+    width: 22,
     alignItems: 'center',
+    justifyContent: 'space-evenly',
   },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#666',
+  railLetter: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 9,
+    color: COLORS.ink,
   },
-  errorContainer: {
-    padding: 20,
-    alignItems: 'center',
+  railLetterDim: {
+    color: COLORS.inkFaint,
+    opacity: 0.55,
   },
-  errorText: {
-    color: '#dc2626',
+
+  // ── State blocks (loading / empty / error) ─────────────────
+  stateBlock: {
+    paddingHorizontal: 26,
+    paddingTop: 56,
+    paddingBottom: 56,
+    alignItems: 'flex-start',
+  },
+  stateEyebrow: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10,
+    letterSpacing: 2.2,
+    textTransform: 'uppercase',
+    color: COLORS.amber,
     marginBottom: 8,
-    textAlign: 'center',
   },
-  retryText: {
-    color: '#007AFF',
-    fontWeight: '600',
+  stateLine: {
+    fontFamily: 'Newsreader_500Medium_Italic',
+    fontSize: 15,
+    lineHeight: 22,
+    color: COLORS.inkMute,
   },
-  emptyState: {
-    padding: 32,
-    alignItems: 'center',
+  retryLink: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+    color: COLORS.ink,
+    marginTop: 14,
   },
-  emptyStateText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1a1a1a',
-    marginBottom: 8,
+
+  // ── Detail view ────────────────────────────────────────────
+  detailHeader: {
+    paddingHorizontal: 26,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.paperHair,
   },
-  emptyStateSubtext: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
+  backLink: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+    color: COLORS.inkMute,
   },
-  detailContent: {
+  detailBody: {
     flex: 1,
-    padding: 20,
+  },
+  detailEyebrow: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10,
+    letterSpacing: 2.2,
+    textTransform: 'uppercase',
+    color: COLORS.inkMute,
+    marginBottom: 8,
   },
   detailTerm: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1a1a1a',
-    marginBottom: 12,
+    fontFamily: 'Fraunces_600SemiBold',
+    fontSize: 34,
+    lineHeight: 38,
+    letterSpacing: -0.8,
+    color: COLORS.ink,
   },
-  detailCategoryBadge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
+  detailRule: {
+    height: 1,
+    backgroundColor: COLORS.paperHair,
+    marginTop: 18,
     marginBottom: 20,
   },
   detailDefinition: {
+    fontFamily: 'Inter_400Regular',
     fontSize: 16,
-    color: '#333',
-    lineHeight: 24,
-    marginBottom: 24,
+    lineHeight: 25,
+    color: COLORS.ink,
   },
-  linkedCardsSection: {
-    marginTop: 16,
+  linkedSection: {
+    marginTop: 28,
+    borderTopWidth: 2,
+    borderTopColor: COLORS.ink,
+    paddingTop: 16,
   },
-  sectionTitle: {
+  linkedEyebrow: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10,
+    letterSpacing: 2.2,
+    textTransform: 'uppercase',
+    color: COLORS.inkMute,
+    marginBottom: 4,
+  },
+  linkedRow: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.paperHair,
+  },
+  linkedName: {
+    fontFamily: 'Fraunces_500Medium',
     fontSize: 18,
-    fontWeight: '600',
-    color: '#1a1a1a',
-    marginBottom: 12,
+    letterSpacing: -0.28,
+    color: COLORS.ink,
   },
-  linkedCardItem: {
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 10,
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  linkedCardName: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#1a1a1a',
-  },
-  linkedCardMeta: {
-    fontSize: 12,
-    color: '#666',
+  linkedMeta: {
+    fontFamily: 'JetBrainsMono_400Regular',
+    fontSize: 10,
+    color: COLORS.inkFaint,
     marginTop: 4,
   },
 });

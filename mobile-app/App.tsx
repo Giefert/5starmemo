@@ -9,9 +9,10 @@ import TabNavigator from './navigation/TabNavigator';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFonts } from 'expo-font';
-import { Fraunces_600SemiBold } from '@expo-google-fonts/fraunces';
+import { Fraunces_500Medium, Fraunces_600SemiBold } from '@expo-google-fonts/fraunces';
 import { Newsreader_500Medium_Italic } from '@expo-google-fonts/newsreader';
-import { Inter_700Bold } from '@expo-google-fonts/inter';
+import { Inter_400Regular, Inter_500Medium, Inter_700Bold } from '@expo-google-fonts/inter';
+import { JetBrainsMono_400Regular } from '@expo-google-fonts/jetbrains-mono';
 
 const Stack = createStackNavigator();
 
@@ -48,9 +49,13 @@ export default function App() {
   // On a load failure we fall through rather than hang on the splash; RN
   // then renders with the system fallback.
   const [fontsLoaded, fontError] = useFonts({
+    Fraunces_500Medium,
     Fraunces_600SemiBold,
     Newsreader_500Medium_Italic,
+    Inter_400Regular,
+    Inter_500Medium,
     Inter_700Bold,
+    JetBrainsMono_400Regular,
   });
 
   if (!fontsLoaded && !fontError) {

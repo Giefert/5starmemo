@@ -17,6 +17,10 @@ import pool from './config/database';
 const app = express();
 const PORT = process.env.PORT || 3002;
 
+// Behind Caddy reverse proxy — trust 1 hop so req.ip is the real client IP
+// (otherwise the rate limiter keys every request on Caddy's docker IP = one global bucket)
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet());
 
@@ -32,7 +36,7 @@ app.use(cors({ origin: corsOrigins, credentials: true }));
 // Rate limiting (more lenient for mobile)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200, // limit each IP to 200 requests per windowMs (higher for mobile)
+  max: 1000, // per client IP; a restaurant on shared WiFi NATs to one IP
   message: {
     success: false,
     error: 'Too many requests from this IP, please try again later.'
