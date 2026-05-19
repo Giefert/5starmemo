@@ -51,14 +51,6 @@ const ANNOUNCE_MAX_H = 170;
 
 type ScreenState = 'home' | 'section' | 'browse';
 
-function isoWeekNumber(date: Date = new Date()): number {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const day = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - day);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  return Math.ceil(((d.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7);
-}
-
 export default function BulletinScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
@@ -164,7 +156,6 @@ export default function BulletinScreen() {
     );
   }
 
-  const week = isoWeekNumber();
   const restaurantName = data?.restaurant.name ?? '';
   const announcements = data?.restaurant.announcements ?? [];
   const sectionsWithItems = SECTIONS.filter(
@@ -175,9 +166,7 @@ export default function BulletinScreen() {
     <View style={styles.container}>
       {/* Dark masthead — the announcement zone and nothing else. */}
       <View style={[styles.masthead, { paddingTop: insets.top + 14 }]}>
-        <Text style={styles.eyebrow}>
-          {restaurantName + ' · Week ' + week}
-        </Text>
+        <Text style={styles.eyebrow}>{restaurantName}</Text>
         <Text style={styles.headline}>Bulletin.</Text>
         {announcements.length > 0 && <AnnouncementZone announcements={announcements} />}
       </View>
@@ -485,21 +474,21 @@ const styles = StyleSheet.create({
   masthead: {
     backgroundColor: COLORS.ink,
     paddingHorizontal: 26,
-    paddingBottom: 22,
+    paddingBottom: 18,
   },
   eyebrow: {
     color: COLORS.amber,
     fontFamily: 'Inter_700Bold',
-    fontSize: 10.5,
-    letterSpacing: 2.31,
-    marginBottom: 8,
+    fontSize: 10,
+    letterSpacing: 2.2,
+    marginBottom: 6,
     textTransform: 'uppercase',
   },
   headline: {
     color: COLORS.onDark,
     fontFamily: 'Fraunces_500Medium',
     fontSize: 44,
-    lineHeight: 46,
+    lineHeight: 44,
     letterSpacing: -1.1,
   },
 

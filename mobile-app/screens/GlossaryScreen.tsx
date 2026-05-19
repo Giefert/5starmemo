@@ -22,6 +22,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 import RenderHtml from 'react-native-render-html';
 import apiService from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { GlossaryCategory, GlossaryTermSummary, GlossaryTerm, GlossarySection } from '../types/shared';
 import { stripHtml, cleanHtml, customHTMLElementModels } from '../utils/html';
 import GlossaryIndexSheet, { IndexSheetCategory } from '../components/GlossaryIndexSheet';
@@ -66,6 +67,7 @@ function firstLetter(term: string): string {
 export default function GlossaryScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const { restaurant } = useAuth();
 
   // Data state
   const [categories, setCategories] = useState<GlossaryCategory[]>([]);
@@ -480,7 +482,7 @@ export default function GlossaryScreen() {
     >
       {/* Dark masthead — sibling of the Bulletin masthead. */}
       <View style={[styles.titleBlock, { paddingTop: insets.top + 14 }]}>
-        <Text style={styles.titleEyebrow}>THE REFERENCE SHELF</Text>
+        <Text style={styles.titleEyebrow}>{restaurant?.name ?? ''}</Text>
         <Text style={styles.titleHeadline}>Reference.</Text>
       </View>
 
@@ -671,8 +673,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.ink,
     paddingHorizontal: 26,
     paddingBottom: 18,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.bgHair,
   },
   titleEyebrow: {
     fontFamily: 'Inter_700Bold',

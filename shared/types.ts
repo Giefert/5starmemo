@@ -81,6 +81,10 @@ export interface LoginInput {
 export interface AuthResponse {
   user: Omit<User, 'password'>;
   token: string;
+  // The session's active restaurant — present on student (mobile) login,
+  // absent on management (web) login. Today a user belongs to exactly one;
+  // when multi-restaurant lands this becomes the active selection.
+  restaurant?: Pick<Restaurant, 'id' | 'name'>;
 }
 
 export interface Deck {

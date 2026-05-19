@@ -50,14 +50,15 @@ router.post('/login', authLimiter,
         });
       }
 
-      const { password_hash, ...user } = userWithPassword;
+      const { password_hash, restaurantName, ...user } = userWithPassword;
       const token = generateToken(user);
 
       const response: ApiResponse<AuthResponse> = {
         success: true,
         data: {
           user,
-          token
+          token,
+          restaurant: { id: user.restaurantId, name: restaurantName }
         },
         message: 'Login successful'
       };

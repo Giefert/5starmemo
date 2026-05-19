@@ -61,7 +61,7 @@ export const HomeScreen: React.FC = () => {
     total: number;
   } | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const { logout } = useAuth();
+  const { logout, restaurant } = useAuth();
 
   useEffect(() => {
     loadData();
@@ -218,9 +218,10 @@ export const HomeScreen: React.FC = () => {
 
   return (
     <View style={styles.screen}>
-      {/* Dark masthead — compressed: title + segmented toggle */}
-      <View style={[styles.masthead, { paddingTop: insets.top + 6 }]}>
-        <Text style={styles.mastheadTitle}>Study</Text>
+      {/* Dark masthead — shared title block + segmented toggle */}
+      <View style={[styles.masthead, { paddingTop: insets.top + 14 }]}>
+        <Text style={styles.eyebrow}>{restaurant?.name ?? ''}</Text>
+        <Text style={styles.mastheadTitle}>Study.</Text>
 
         <View style={styles.toggleBar}>
           {MODE_LABELS.map((label, i) => {
@@ -363,15 +364,22 @@ const styles = StyleSheet.create({
   // ── Masthead ───────────────────────────────────────────────
   masthead: {
     backgroundColor: COLORS.bg,
-    paddingHorizontal: 24,
+    paddingHorizontal: 26,
+  },
+  eyebrow: {
+    color: COLORS.amber,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10,
+    letterSpacing: 2.2,
+    marginBottom: 6,
+    textTransform: 'uppercase',
   },
   mastheadTitle: {
-    fontFamily: 'Fraunces_600SemiBold',
-    fontSize: 30,
-    color: COLORS.paper,
-    letterSpacing: -0.6,
-    marginTop: 6,
-    lineHeight: 34,
+    fontFamily: 'Fraunces_500Medium',
+    fontSize: 44,
+    color: COLORS.onDark,
+    letterSpacing: -1.1,
+    lineHeight: 44,
   },
 
   toggleBar: {

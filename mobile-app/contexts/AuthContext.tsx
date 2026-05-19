@@ -1,13 +1,19 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import { User, LoginInput } from '../types/shared';
+import { User, LoginInput, Restaurant } from '../types/shared';
 import apiService from '../services/api';
+
+// The session's active restaurant. Mutable so a future Settings restaurant
+// switcher can update it in place — no re-login needed.
+type ActiveRestaurant = Pick<Restaurant, 'id' | 'name'>;
 
 interface AuthContextType {
   user: User | null;
+  restaurant: ActiveRestaurant | null;
   isLoading: boolean;
   login: (credentials: LoginInput) => Promise<void>;
   logout: () => Promise<void>;
+  setRestaurant: (restaurant: ActiveRestaurant) => Promise<void>;
   isAuthenticated: boolean;
 }
 
@@ -27,6 +33,7 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [restaurant, setRestaurantState] = useState<ActiveRestaurant | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -47,11 +54,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           await apiService.getStudyStats();
           // Token is valid, set user
           setUser(JSON.parse(userData));
+          const restaurantData = await SecureStore.getItemAsync('restaurantData');
+          if (restaurantData) setRestaurantState(JSON.parse(restaurantData));
         } catch (error) {
           // Token is invalid, clear stored credentials
           console.log('Stored token is invalid, clearing credentials');
           await SecureStore.deleteItemAsync('authToken');
           await SecureStore.deleteItemAsync('userData');
+          await SecureStore.deleteItemAsync('restaurantData');
         }
       }
     } catch (error) {
@@ -65,9 +75,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setIsLoading(true);
       const authResponse = await apiService.login(credentials);
-      
+
       await SecureStore.setItemAsync('userData', JSON.stringify(authResponse.user));
       setUser(authResponse.user);
+      if (authResponse.restaurant) {
+        await SecureStore.setItemAsync('restaurantData', JSON.stringify(authResponse.restaurant));
+        setRestaurantState(authResponse.restaurant);
+      }
     } catch (error) {
       throw error;
     } finally {
@@ -80,7 +94,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setIsLoading(true);
       await apiService.logout();
       await SecureStore.deleteItemAsync('userData');
+      await SecureStore.deleteItemAsync('restaurantData');
       setUser(null);
+      setRestaurantState(null);
     } catch (error) {
       console.warn('Logout error:', error);
     } finally {
@@ -88,11 +104,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // Switch the session's active restaurant — the entry point a future
+  // Settings switcher calls. Persisted so the choice survives a relaunch.
+  const setRestaurant = async (next: ActiveRestaurant) => {
+    await SecureStore.setItemAsync('restaurantData', JSON.stringify(next));
+    setRestaurantState(next);
+  };
+
   const value: AuthContextType = {
     user,
+    restaurant,
     isLoading,
     login,
     logout,
+    setRestaurant,
     isAuthenticated: !!user,
   };
 
