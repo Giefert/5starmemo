@@ -25,7 +25,6 @@ import { BrowseScreen } from './BrowseScreen';
 
 const COLORS = {
   ink: '#14120F',
-  bgHair: '#28251F',
   inkMute: '#6B6255',
   inkFaint: '#A89B7E',
   paper: '#F4EEE1',
@@ -165,7 +164,13 @@ export default function BulletinScreen() {
   return (
     <View style={styles.container}>
       {/* Dark masthead — the announcement zone and nothing else. */}
-      <View style={[styles.masthead, { paddingTop: insets.top + 14 }]}>
+      <View
+        style={[
+          styles.masthead,
+          { paddingTop: insets.top + 14 },
+          announcements.length > 0 ? styles.mastheadAnnounce : styles.mastheadBare,
+        ]}
+      >
         <Text style={styles.eyebrow}>{restaurantName}</Text>
         <Text style={styles.headline}>Bulletin.</Text>
         {announcements.length > 0 && <AnnouncementZone announcements={announcements} />}
@@ -256,26 +261,34 @@ function AnnouncementZone({ announcements }: { announcements: string[] }) {
 
   return (
     <View style={styles.announceZone}>
-      <View style={styles.megaphoneWrap}>
-        <Megaphone size={22} color={COLORS.paper} />
+      <View style={styles.announceRow}>
+        <View style={styles.megaphoneWrap}>
+          <Megaphone size={22} color={COLORS.paper} />
+        </View>
+        <View style={styles.announceTextWrap}>
+          {needsScroll ? (
+            <View style={{ maxHeight: ANNOUNCE_MAX_H }}>
+              <ScrollView showsVerticalScrollIndicator={false}>{paragraphs}</ScrollView>
+              <Svg style={styles.announceFade} width="100%" height={22}>
+                <Defs>
+                  <LinearGradient id="announceFade" x1="0" y1="0" x2="0" y2="1">
+                    <Stop offset="0" stopColor={COLORS.ink} stopOpacity={0} />
+                    <Stop offset="1" stopColor={COLORS.ink} stopOpacity={1} />
+                  </LinearGradient>
+                </Defs>
+                <Rect width="100%" height="100%" fill="url(#announceFade)" />
+              </Svg>
+            </View>
+          ) : (
+            paragraphs
+          )}
+        </View>
       </View>
-      <View style={styles.announceTextWrap}>
-        {needsScroll ? (
-          <View style={{ maxHeight: ANNOUNCE_MAX_H }}>
-            <ScrollView showsVerticalScrollIndicator={false}>{paragraphs}</ScrollView>
-            <Svg style={styles.announceFade} width="100%" height={22}>
-              <Defs>
-                <LinearGradient id="announceFade" x1="0" y1="0" x2="0" y2="1">
-                  <Stop offset="0" stopColor={COLORS.ink} stopOpacity={0} />
-                  <Stop offset="1" stopColor={COLORS.ink} stopOpacity={1} />
-                </LinearGradient>
-              </Defs>
-              <Rect width="100%" height="100%" fill="url(#announceFade)" />
-            </Svg>
-          </View>
-        ) : (
-          paragraphs
-        )}
+      {/* Editorial end mark — closes the notice like a column break. */}
+      <View style={styles.announceEndMark}>
+        <View style={styles.announceEndDot} />
+        <View style={styles.announceEndDot} />
+        <View style={styles.announceEndDot} />
       </View>
     </View>
   );
@@ -474,7 +487,13 @@ const styles = StyleSheet.create({
   masthead: {
     backgroundColor: COLORS.ink,
     paddingHorizontal: 26,
+  },
+  mastheadBare: {
     paddingBottom: 18,
+  },
+  // Tighter with an announcement — the end-mark dots sit near the bottom edge.
+  mastheadAnnounce: {
+    paddingBottom: 8,
   },
   eyebrow: {
     color: COLORS.amber,
@@ -494,13 +513,24 @@ const styles = StyleSheet.create({
 
   // ── Announcement zone ──────────────────────────────────────
   announceZone: {
-    marginTop: 20,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.bgHair,
+    marginTop: 14,
+  },
+  announceRow: {
     flexDirection: 'row',
     gap: 14,
     alignItems: 'flex-start',
+  },
+  announceEndMark: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 9,
+    marginTop: 14,
+  },
+  announceEndDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: COLORS.onDarkMuted,
   },
   megaphoneWrap: {
     flexShrink: 0,

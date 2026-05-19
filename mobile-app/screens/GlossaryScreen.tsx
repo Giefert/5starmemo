@@ -1,4 +1,11 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from 'react';
 import {
   View,
   Text,
@@ -55,6 +62,11 @@ interface TermSection {
   data: GlossaryTermSummary[];
 }
 
+interface SectionData {
+  categories: GlossaryCategory[];
+  terms: GlossaryTermSummary[];
+}
+
 const byTerm = (a: GlossaryTermSummary, b: GlossaryTermSummary) =>
   a.term.localeCompare(b.term, undefined, { sensitivity: 'base' });
 
@@ -69,18 +81,23 @@ export default function GlossaryScreen() {
   const { width } = useWindowDimensions();
   const { restaurant } = useAuth();
 
-  // Data state
-  const [categories, setCategories] = useState<GlossaryCategory[]>([]);
-  const [terms, setTerms] = useState<GlossaryTermSummary[]>([]);
+  // Data state — both sections are preloaded once and cached, so switching
+  // sub-tabs or typing a search never triggers a refetch that would briefly
+  // render stale data and visibly reshuffle the list.
+  const [cache, setCache] = useState<Record<GlossarySection, SectionData | null>>({
+    glossary: null,
+    encyclopedia: null,
+  });
   const [selectedTerm, setSelectedTerm] = useState<GlossaryTerm | null>(null);
 
   // Section state
   const [activeSection, setActiveSection] = useState<GlossarySection>('glossary');
 
   // Filter state
-  const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
   const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  // Encyclopedia-only: the category the list is narrowed to. `undefined`
+  // shows every category. Cycled by swiping the paper area left/right.
+  const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
 
   // UI state
   const [viewState, setViewState] = useState<ViewState>('list');
@@ -93,23 +110,23 @@ export default function GlossaryScreen() {
   const [isFilterVisible, setIsFilterVisible] = useState(false);
   const [indexAnchorY, setIndexAnchorY] = useState(0);
 
+  // Encyclopedia category swipe — `dragX` tracks the in-progress horizontal
+  // drag; `isSwiping` mounts the neighbouring category pages so they slide
+  // in alongside the gesture instead of popping into place on release.
+  const [isSwiping, setIsSwiping] = useState(false);
+  const dragX = useRef(new Animated.Value(0)).current;
+
   const indexRowRef = useRef<View>(null);
   const listRef = useRef<SectionList<GlossaryTermSummary, TermSection>>(null);
   const lastJumpTarget = useRef<number | null>(null);
   const railHeight = useRef(0);
   const chevronAnim = useRef(new Animated.Value(0)).current;
 
-  // Debounce search
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchQuery);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
-
+  // Preload both sections once when the screen mounts.
   useEffect(() => {
     loadData();
-  }, [activeSection, selectedCategory, debouncedSearch]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // The masthead is dark behind the status bar — keep its text light.
   useFocusEffect(
@@ -131,18 +148,18 @@ export default function GlossaryScreen() {
     try {
       if (!isRefreshing) setIsLoading(true);
 
-      const [categoriesData, termsData] = await Promise.all([
-        apiService.getGlossaryCategories(activeSection),
-        apiService.getGlossaryTerms({
-          section: activeSection,
-          categoryId: selectedCategory,
-          search: debouncedSearch || undefined,
-          limit: 100
-        })
-      ]);
+      const [glossaryCats, glossaryTerms, encyclopediaCats, encyclopediaTerms] =
+        await Promise.all([
+          apiService.getGlossaryCategories('glossary'),
+          apiService.getGlossaryTerms({ section: 'glossary', limit: 100 }),
+          apiService.getGlossaryCategories('encyclopedia'),
+          apiService.getGlossaryTerms({ section: 'encyclopedia', limit: 100 }),
+        ]);
 
-      setCategories(categoriesData);
-      setTerms(termsData.terms);
+      setCache({
+        glossary: { categories: glossaryCats, terms: glossaryTerms.terms },
+        encyclopedia: { categories: encyclopediaCats, terms: encyclopediaTerms.terms },
+      });
       setError('');
     } catch (err: any) {
       setError(err.message || 'Failed to load glossary');
@@ -150,14 +167,13 @@ export default function GlossaryScreen() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [activeSection, selectedCategory, debouncedSearch, isRefreshing]);
+  }, [isRefreshing]);
 
   const handleSectionChange = (newSection: GlossarySection) => {
     if (newSection === activeSection) return;
     setActiveSection(newSection);
-    setSelectedCategory(undefined);
     setSearchQuery('');
-    setDebouncedSearch('');
+    setSelectedCategory(undefined);
     setIsFilterVisible(false);
   };
 
@@ -185,7 +201,62 @@ export default function GlossaryScreen() {
     setSelectedTerm(null);
   };
 
+  // ── Derived data ────────────────────────────────────────────
+  const sectionData = cache[activeSection];
+  const categories = sectionData?.categories ?? [];
+
+  // Search runs client-side over the cached term list. The screen only ever
+  // loads the first 100 terms per section, so there is nothing off-screen to
+  // miss, and filtering in memory keeps tab and search changes instant.
+  const terms = useMemo<GlossaryTermSummary[]>(() => {
+    const all = sectionData?.terms ?? [];
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return all;
+    return all.filter(
+      t =>
+        t.term.toLowerCase().includes(q) ||
+        stripHtml(t.definition).toLowerCase().includes(q),
+    );
+  }, [sectionData, searchQuery]);
+
   // ── Section assembly ────────────────────────────────────────
+  // Encyclopedia chapters for a given category scope (`undefined` = all).
+  // Pulled out of the `sections` memo so a swipe can prebuild the pages
+  // adjacent to the current one and drag them in.
+  const buildEncyclopediaSections = useCallback(
+    (category: string | undefined): TermSection[] => {
+      const scoped = category
+        ? terms.filter(t => (t.categoryName || 'Other') === category)
+        : terms;
+      const buckets = new Map<string, GlossaryTermSummary[]>();
+      for (const t of scoped) {
+        const key = t.categoryName || 'Other';
+        const arr = buckets.get(key);
+        if (arr) arr.push(t);
+        else buckets.set(key, [t]);
+      }
+      const ordered: TermSection[] = [];
+      for (const cat of categories) {
+        const data = buckets.get(cat.name);
+        if (data) {
+          ordered.push({
+            key: cat.id,
+            title: cat.name,
+            count: data.length,
+            data: data.slice().sort(byTerm),
+          });
+          buckets.delete(cat.name);
+        }
+      }
+      // Anything not matched to a known category (incl. 'Other') trails.
+      for (const [key, data] of buckets) {
+        ordered.push({ key, title: key, count: data.length, data: data.slice().sort(byTerm) });
+      }
+      return ordered;
+    },
+    [terms, categories],
+  );
+
   // Glossary: flat A–Z buckets. Encyclopedia: category chapters in the
   // server's category order, entries alphabetized within each.
   const sections = useMemo<TermSection[]>(() => {
@@ -204,28 +275,8 @@ export default function GlossaryScreen() {
           return { key, title: key, count: data.length, data };
         });
     }
-
-    const buckets = new Map<string, GlossaryTermSummary[]>();
-    for (const t of terms) {
-      const key = t.categoryName || 'Other';
-      const arr = buckets.get(key);
-      if (arr) arr.push(t);
-      else buckets.set(key, [t]);
-    }
-    const ordered: TermSection[] = [];
-    for (const cat of categories) {
-      const data = buckets.get(cat.name);
-      if (data) {
-        ordered.push({ key: cat.id, title: cat.name, count: data.length, data: data.slice().sort(byTerm) });
-        buckets.delete(cat.name);
-      }
-    }
-    // Anything not matched to a known category (incl. 'Other') trails.
-    for (const [key, data] of buckets) {
-      ordered.push({ key, title: key, count: data.length, data: data.slice().sort(byTerm) });
-    }
-    return ordered;
-  }, [terms, categories, activeSection]);
+    return buildEncyclopediaSections(selectedCategory);
+  }, [terms, activeSection, selectedCategory, buildEncyclopediaSections]);
 
   // Letters that actually have entries — drives the rail's full/dim state.
   const presentLetters = useMemo(() => {
@@ -284,6 +335,91 @@ export default function GlossaryScreen() {
     [jumpToTouch],
   );
 
+  // ── Encyclopedia category swipe ─────────────────────────────
+  // Swiping the paper area left/right cycles through
+  // [all entries → category 1 → … → category N] and wraps. The current
+  // page and the page being swiped toward both translate with the finger.
+  const categoryNames = useMemo(() => categories.map(c => c.name), [categories]);
+  const cycle = useMemo<(string | undefined)[]>(
+    () => [undefined, ...categoryNames],
+    [categoryNames],
+  );
+  const cycleIndex = useMemo(() => {
+    const i = cycle.indexOf(selectedCategory);
+    return i < 0 ? 0 : i;
+  }, [cycle, selectedCategory]);
+
+  // The two pages adjacent to the current one, kept ready so a swipe can
+  // drag the incoming category in rather than rebuilding mid-gesture.
+  const prevSections = useMemo(
+    () => buildEncyclopediaSections(cycle[(cycleIndex - 1 + cycle.length) % cycle.length]),
+    [buildEncyclopediaSections, cycle, cycleIndex],
+  );
+  const nextSections = useMemo(
+    () => buildEncyclopediaSections(cycle[(cycleIndex + 1) % cycle.length]),
+    [buildEncyclopediaSections, cycle, cycleIndex],
+  );
+
+  // Snap the drag to rest: dir +1 advances a category, -1 goes back, 0
+  // returns to the current page. For a committed move the page swap is
+  // applied only once the slide has carried the target page to centre.
+  const settleSwipe = useCallback(
+    (dir: -1 | 0 | 1) => {
+      const toValue = dir === 1 ? -width : dir === -1 ? width : 0;
+      Animated.timing(dragX, {
+        toValue,
+        duration: 210,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start(() => {
+        if (dir !== 0) {
+          setSelectedCategory(cycle[(cycleIndex + dir + cycle.length) % cycle.length]);
+        } else {
+          dragX.setValue(0);
+        }
+        setIsSwiping(false);
+      });
+    },
+    [dragX, width, cycle, cycleIndex],
+  );
+
+  const swipePan = useMemo(
+    () =>
+      PanResponder.create({
+        // Only claim clearly horizontal drags so vertical scrolling is untouched.
+        onMoveShouldSetPanResponder: (_e, g) =>
+          activeSection === 'encyclopedia' &&
+          categoryNames.length > 0 &&
+          Math.abs(g.dx) > 14 &&
+          Math.abs(g.dx) > Math.abs(g.dy) * 1.4,
+        onPanResponderGrant: () => {
+          dragX.stopAnimation();
+          setIsSwiping(true);
+        },
+        // Clamp to a single page so an over-drag can't reveal blank paper.
+        onPanResponderMove: (_e, g) =>
+          dragX.setValue(Math.max(-width, Math.min(width, g.dx))),
+        // Keep the gesture once it is horizontal so a stray vertical nudge
+        // can't hand it back to the list mid-swipe.
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderRelease: (_e, g) => {
+          const pass = width * 0.26;
+          if (g.dx <= -pass || (g.dx < -24 && g.vx <= -0.35)) settleSwipe(1);
+          else if (g.dx >= pass || (g.dx > 24 && g.vx >= 0.35)) settleSwipe(-1);
+          else settleSwipe(0);
+        },
+        onPanResponderTerminate: () => settleSwipe(0),
+      }),
+    [activeSection, categoryNames.length, width, dragX, settleSwipe],
+  );
+
+  // After a committed swipe the new category renders while `dragX` still
+  // holds the slide's end value; reset it before paint so the page that
+  // just slid into centre stays put instead of jumping back.
+  useLayoutEffect(() => {
+    dragX.setValue(0);
+  }, [selectedCategory, activeSection, dragX]);
+
   const handleSelectCategory = (categoryName: string) => {
     setIsFilterVisible(false);
     const target = sections.findIndex(s => s.title === categoryName);
@@ -319,7 +455,9 @@ export default function GlossaryScreen() {
     );
   };
 
-  const renderTermItem = ({
+  // Bound to a specific page's section list so the trailing divider is
+  // suppressed against that page's own last row, not the centre page's.
+  const makeRenderItem = (pageSections: TermSection[]) => ({
     item,
     index,
     section,
@@ -328,7 +466,7 @@ export default function GlossaryScreen() {
     index: number;
     section: TermSection;
   }) => {
-    const isLastSection = section.key === sections[sections.length - 1]?.key;
+    const isLastSection = section.key === pageSections[pageSections.length - 1]?.key;
     const isLastRow = index === section.data.length - 1;
     const definition = stripHtml(item.definition);
     return (
@@ -440,7 +578,6 @@ export default function GlossaryScreen() {
   // ── List view ───────────────────────────────────────────────
   const placeholder =
     activeSection === 'encyclopedia' ? 'Search the encyclopedia…' : 'Search the glossary…';
-  const indexHint = sheetCategories.map(c => c.name).join('  ·  ');
 
   const renderListState = () => {
     if (error) {
@@ -475,6 +612,67 @@ export default function GlossaryScreen() {
     );
   };
 
+  // One swipe page. `current` wires the centre page to the list ref and the
+  // pull-to-refresh / scroll-failure handlers; neighbour pages are transient
+  // and only there to slide in alongside the gesture.
+  const renderPage = (pageSections: TermSection[], current: boolean) => {
+    if (pageSections.length === 0) {
+      return (
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1 }}
+          refreshControl={
+            current ? (
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={handleRefresh}
+                tintColor={COLORS.inkMute}
+              />
+            ) : undefined
+          }
+        >
+          {renderListState()}
+        </ScrollView>
+      );
+    }
+    return (
+      <SectionList
+        ref={current ? listRef : undefined}
+        sections={pageSections}
+        keyExtractor={item => item.id}
+        renderItem={makeRenderItem(pageSections)}
+        renderSectionHeader={renderSectionHeader}
+        stickySectionHeadersEnabled={activeSection === 'encyclopedia'}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 32 }}
+        onScrollToIndexFailed={
+          current
+            ? () => {
+                const target = lastJumpTarget.current;
+                if (target == null) return;
+                setTimeout(() => {
+                  listRef.current?.scrollToLocation({
+                    sectionIndex: target,
+                    itemIndex: 0,
+                    viewPosition: 0,
+                    animated: true,
+                  });
+                }, 120);
+              }
+            : undefined
+        }
+        refreshControl={
+          current ? (
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              tintColor={COLORS.inkMute}
+            />
+          ) : undefined
+        }
+      />
+    );
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.screen}
@@ -494,11 +692,13 @@ export default function GlossaryScreen() {
             <Pressable
               key={section}
               onPress={() => handleSectionChange(section)}
-              style={[styles.subtab, active && styles.subtabActive]}
+              hitSlop={8}
+              style={styles.subtab}
             >
               <Text style={[styles.subtabLabel, active && styles.subtabLabelActive]}>
                 {section === 'glossary' ? 'Glossary' : 'Encyclopedia'}
               </Text>
+              <View style={[styles.subtabUnderline, active && styles.subtabUnderlineActive]} />
             </Pressable>
           );
         })}
@@ -527,7 +727,14 @@ export default function GlossaryScreen() {
             INDEX
           </Text>
           <Text style={styles.indexHint} numberOfLines={1}>
-            {indexHint}
+            {sheetCategories.map((c, i) => (
+              <Text key={c.id}>
+                {i > 0 ? '  ·  ' : ''}
+                <Text style={c.name === selectedCategory ? styles.indexHintActive : null}>
+                  {c.name}
+                </Text>
+              </Text>
+            ))}
           </Text>
           <Animated.View
             style={{
@@ -555,51 +762,33 @@ export default function GlossaryScreen() {
         </Pressable>
       )}
 
-      {/* The list */}
-      <View style={styles.listArea}>
-        {sections.length === 0 ? (
-          <ScrollView
-            contentContainerStyle={{ flexGrow: 1 }}
-            refreshControl={
-              <RefreshControl
-                refreshing={isRefreshing}
-                onRefresh={handleRefresh}
-                tintColor={COLORS.inkMute}
-              />
-            }
+      {/* The list — encyclopedia swipes drag the neighbouring category in */}
+      <View style={styles.listArea} {...swipePan.panHandlers}>
+        {isSwiping && (
+          <Animated.View
+            key="swipe-prev"
+            pointerEvents="none"
+            style={[styles.swipePage, { left: -width, transform: [{ translateX: dragX }] }]}
           >
-            {renderListState()}
-          </ScrollView>
-        ) : (
-          <SectionList
-            ref={listRef}
-            sections={sections}
-            keyExtractor={item => item.id}
-            renderItem={renderTermItem}
-            renderSectionHeader={renderSectionHeader}
-            stickySectionHeadersEnabled={activeSection === 'encyclopedia'}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 32 }}
-            onScrollToIndexFailed={() => {
-              const target = lastJumpTarget.current;
-              if (target == null) return;
-              setTimeout(() => {
-                listRef.current?.scrollToLocation({
-                  sectionIndex: target,
-                  itemIndex: 0,
-                  viewPosition: 0,
-                  animated: true,
-                });
-              }, 120);
-            }}
-            refreshControl={
-              <RefreshControl
-                refreshing={isRefreshing}
-                onRefresh={handleRefresh}
-                tintColor={COLORS.inkMute}
-              />
-            }
-          />
+            {renderPage(prevSections, false)}
+          </Animated.View>
+        )}
+
+        <Animated.View
+          key="swipe-cur"
+          style={[styles.swipePage, { transform: [{ translateX: dragX }] }]}
+        >
+          {renderPage(sections, true)}
+        </Animated.View>
+
+        {isSwiping && (
+          <Animated.View
+            key="swipe-next"
+            pointerEvents="none"
+            style={[styles.swipePage, { left: width, transform: [{ translateX: dragX }] }]}
+          >
+            {renderPage(nextSections, false)}
+          </Animated.View>
         )}
 
         {/* A–Z rail — Glossary only */}
@@ -672,7 +861,7 @@ const styles = StyleSheet.create({
   titleBlock: {
     backgroundColor: COLORS.ink,
     paddingHorizontal: 26,
-    paddingBottom: 18,
+    paddingBottom: 22,
   },
   titleEyebrow: {
     fontFamily: 'Inter_700Bold',
@@ -699,26 +888,28 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.bgHair,
   },
   subtab: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    paddingVertical: 14,
-    marginRight: 28,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-    marginBottom: -1,
-  },
-  subtabActive: {
-    borderBottomColor: COLORS.amber,
+    marginRight: 22,
+    alignItems: 'center',
   },
   subtabLabel: {
     fontFamily: 'Inter_700Bold',
-    fontSize: 11,
-    letterSpacing: 1.98,
+    fontSize: 10,
+    letterSpacing: 1.8,
     textTransform: 'uppercase',
     color: COLORS.onDarkMute,
+    paddingBottom: 11,
   },
   subtabLabelActive: {
     color: COLORS.onDark,
+  },
+  subtabUnderline: {
+    height: 1.5,
+    width: '100%',
+    backgroundColor: 'transparent',
+    marginTop: -1.5,
+  },
+  subtabUnderlineActive: {
+    backgroundColor: COLORS.amber,
   },
 
   // ── Search row ─────────────────────────────────────────────
@@ -751,8 +942,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 26,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.paperHair,
   },
   indexEyebrow: {
     fontFamily: 'Inter_700Bold',
@@ -772,11 +961,24 @@ const styles = StyleSheet.create({
     color: COLORS.inkMute,
     marginRight: 12,
   },
+  indexHintActive: {
+    color: COLORS.ink,
+  },
 
   // ── List area ──────────────────────────────────────────────
   listArea: {
     flex: 1,
     position: 'relative',
+    overflow: 'hidden',
+  },
+  // Each swipe page fills the list area; neighbours are offset one full
+  // width to the side and slid in by the gesture's translateX.
+  swipePage: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    width: '100%',
   },
 
   // Glossary letter header

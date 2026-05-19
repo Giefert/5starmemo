@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path, Rect, Defs, Pattern } from 'react-native-svg';
 import apiService from '../services/api';
 import { StudyCardData } from '../types/shared';
 import { StudyCard, LinkedTerm } from '../components/StudyCard';
@@ -18,6 +19,7 @@ import { GlossaryTermModal } from '../components/GlossaryTermModal';
 const COLORS = {
   ink: '#14120F',
   bgHair: '#28251F',
+  inkMute: '#6B6255',
   inkFaint: '#A89B7E',
   paper: '#F4EEE1',
   paperHair: '#D8CFB8',
@@ -139,128 +141,257 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({ deckId, deckTitle, o
     );
   }
 
-  // Card list view
+  // Card list view — Carte browse list, shared shape with the Bulletin tab's
+  // section browse list: dark back ribbon, paper title block, item rows.
+  const count = cards.length;
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onExit} style={styles.backButton}>
-          <Text style={styles.backButtonText}>← Back</Text>
+    <View style={styles.container}>
+      {/* Dark back ribbon. */}
+      <View style={[styles.ribbon, { paddingTop: insets.top + 8 }]}>
+        <TouchableOpacity style={styles.ribbonBack} onPress={onExit} activeOpacity={0.7}>
+          <Svg width={9} height={14} viewBox="0 0 9 14">
+            <Path
+              d="M7 1L2 7l5 6"
+              fill="none"
+              stroke={COLORS.onDarkMute}
+              strokeWidth={1.6}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </Svg>
+          <Text style={styles.ribbonBackText}>Back</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>{deckTitle}</Text>
-        <View style={styles.backButton} />
       </View>
 
+      {/* Paper title block. */}
+      <View style={styles.titleBlock}>
+        <Text style={styles.titleEyebrow}>Browsing the deck</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.titleName}>{deckTitle}</Text>
+          <Text style={styles.titleCount}>
+            {count} {count === 1 ? 'card' : 'cards'}
+          </Text>
+        </View>
+      </View>
+
+      {/* Cards list. */}
       {isLoading ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
+        <View style={[styles.body, styles.centerContainer]}>
+          <ActivityIndicator size="large" color={COLORS.amber} />
         </View>
       ) : cards.length === 0 ? (
-        <View style={styles.centerContainer}>
+        <View style={[styles.body, styles.centerContainer]}>
           <Text style={styles.emptyText}>No cards in this deck</Text>
         </View>
       ) : (
         <FlatList
+          style={styles.body}
           data={cards}
           keyExtractor={(item) => item.card.id}
-          contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}
-          renderItem={({ item }) => {
-            const imageUrl = item.card.imageUrl;
-            return (
-              <TouchableOpacity
-                style={styles.cardItem}
-                onPress={() => handleSelectCard(item)}
-              >
-                {imageUrl ? (
-                  <Image source={{ uri: imageUrl }} style={styles.thumbnail} contentFit="contain" />
-                ) : (
-                  <View style={[styles.thumbnail, styles.thumbnailPlaceholder]}>
-                    <Text style={styles.thumbnailPlaceholderText}>No img</Text>
-                  </View>
-                )}
-                <Text style={styles.cardName} numberOfLines={2}>
-                  {item.card.restaurantData?.itemName || 'Untitled Card'}
-                </Text>
-              </TouchableOpacity>
-            );
-          }}
+          contentContainerStyle={[styles.itemsList, { paddingBottom: insets.bottom + 16 }]}
+          renderItem={({ item, index }) => (
+            <CardRow
+              card={item}
+              isLast={index === cards.length - 1}
+              onPress={() => handleSelectCard(item)}
+            />
+          )}
         />
       )}
     </View>
   );
 };
 
+// ── Striped placeholder ──────────────────────────────────────
+// The Carte "image goes here" device — a 45° repeating stripe between two
+// near-transparent ink tints. Used when a card has no photo.
+function StripePlaceholder({ size }: { size: number }) {
+  return (
+    <Svg width={size} height={size}>
+      <Defs>
+        <Pattern
+          id="carteStripe"
+          patternUnits="userSpaceOnUse"
+          width={12}
+          height={12}
+          patternTransform="rotate(45)"
+        >
+          <Rect width={12} height={12} fill="rgba(20,18,15,0.025)" />
+          <Rect width={6} height={12} fill="rgba(20,18,15,0.06)" />
+        </Pattern>
+      </Defs>
+      <Rect width={size} height={size} fill="url(#carteStripe)" />
+    </Svg>
+  );
+}
+
+// ── Card row ─────────────────────────────────────────────────
+// Item row: square thumbnail, card name, chevron. The whole row taps
+// through to the card detail view.
+function CardRow({
+  card,
+  isLast,
+  onPress,
+}: {
+  card: StudyCardData;
+  isLast: boolean;
+  onPress: () => void;
+}) {
+  const imageUrl = card.card.imageUrl;
+  const name = card.card.restaurantData?.itemName || 'Untitled Card';
+
+  return (
+    <TouchableOpacity
+      style={[styles.itemRow, !isLast && styles.itemDivider]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <View style={styles.thumb}>
+        {imageUrl ? (
+          <Image source={{ uri: imageUrl }} style={styles.thumbImage} contentFit="cover" />
+        ) : (
+          <StripePlaceholder size={56} />
+        )}
+      </View>
+      <View style={styles.itemText}>
+        <Text style={styles.itemName} numberOfLines={2}>
+          {name}
+        </Text>
+      </View>
+      <Svg width={8} height={14} viewBox="0 0 8 14" style={styles.itemChevron}>
+        <Path
+          d="M1 1l5 6-5 6"
+          fill="none"
+          stroke={COLORS.inkFaint}
+          strokeWidth={1.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </Svg>
+    </TouchableOpacity>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: COLORS.ink,
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  header: {
+  emptyText: {
+    color: COLORS.inkMute,
+    fontFamily: 'Newsreader_500Medium_Italic',
+    fontSize: 15,
+  },
+
+  // ── Dark back ribbon ─────────────────────────────────────────
+  ribbon: {
+    backgroundColor: COLORS.ink,
+    paddingHorizontal: 22,
+    paddingBottom: 16,
+  },
+  ribbonBack: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    gap: 8,
+    paddingVertical: 4,
+    alignSelf: 'flex-start',
+  },
+  ribbonBackText: {
+    color: COLORS.onDarkMute,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10,
+    letterSpacing: 2.2,
+    textTransform: 'uppercase',
+  },
+
+  // ── Paper title block ────────────────────────────────────────
+  titleBlock: {
+    backgroundColor: COLORS.paper,
+    paddingTop: 18,
+    paddingHorizontal: 26,
+    paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    borderBottomColor: COLORS.paperHair,
   },
-  backButton: {
-    width: 70,
+  titleEyebrow: {
+    color: COLORS.amber,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10,
+    letterSpacing: 2.2,
+    textTransform: 'uppercase',
+    marginBottom: 6,
   },
-  backButtonText: {
-    fontSize: 16,
-    color: '#007AFF',
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 12,
   },
-  headerTitle: {
+  titleName: {
+    flexShrink: 1,
+    color: COLORS.ink,
+    fontFamily: 'Fraunces_500Medium',
+    fontSize: 36,
+    letterSpacing: -0.79,
+  },
+  titleCount: {
+    flexShrink: 0,
+    color: COLORS.inkMute,
+    fontFamily: 'Newsreader_500Medium_Italic',
+    fontSize: 15,
+  },
+
+  // ── Item rows ────────────────────────────────────────────────
+  body: {
     flex: 1,
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1a1a1a',
-    textAlign: 'center',
+    backgroundColor: COLORS.paper,
   },
-  cardItem: {
+  itemsList: {
+    paddingHorizontal: 26,
+    flexGrow: 1,
+  },
+  itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    marginHorizontal: 16,
-    marginTop: 12,
-    padding: 12,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
+    gap: 16,
+    paddingVertical: 14,
   },
-  thumbnail: {
+  itemDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.paperHair,
+  },
+  thumb: {
     width: 56,
     height: 56,
-    borderRadius: 8,
-    marginRight: 12,
+    borderWidth: 1,
+    borderColor: COLORS.paperHair,
+    flexShrink: 0,
+    overflow: 'hidden',
   },
-  thumbnailPlaceholder: {
-    backgroundColor: '#F0F0F0',
-    justifyContent: 'center',
-    alignItems: 'center',
+  thumbImage: {
+    width: '100%',
+    height: '100%',
   },
-  thumbnailPlaceholderText: {
-    fontSize: 10,
-    color: '#999',
-  },
-  cardName: {
+  itemText: {
     flex: 1,
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#1a1a1a',
+    minWidth: 0,
   },
-  emptyText: {
-    fontSize: 16,
-    color: '#666',
+  itemName: {
+    color: COLORS.ink,
+    fontFamily: 'Fraunces_500Medium',
+    fontSize: 22,
+    letterSpacing: -0.35,
+    lineHeight: 24,
   },
+  itemChevron: {
+    flexShrink: 0,
+  },
+
   // ── Card detail view — study session layout ──────────────────
   studyContainer: {
     flex: 1,
