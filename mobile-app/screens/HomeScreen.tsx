@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,9 +8,10 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Svg, { Path } from 'react-native-svg';
 import { useAuth } from '../contexts/AuthContext';
 import { StudentDeck } from '../types/shared';
@@ -66,6 +67,13 @@ export const HomeScreen: React.FC = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  // The masthead is dark behind the status bar — keep its text light.
+  useFocusEffect(
+    useCallback(() => {
+      StatusBar.setBarStyle('light-content');
+    }, []),
+  );
 
   // Hide the tab bar during study sessions. The visible bar is the custom
   // CarteTabBar in TabNavigator — `undefined` lets it render, `display: 'none'`

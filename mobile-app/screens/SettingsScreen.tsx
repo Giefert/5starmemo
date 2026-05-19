@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,8 +10,10 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 import apiService from '../services/api';
 import { StudentDeck } from '../types/shared';
@@ -30,6 +32,13 @@ export default function SettingsScreen() {
   const [selectedDeckIds, setSelectedDeckIds] = useState<Set<string>>(new Set());
   const [isLoadingDecks, setIsLoadingDecks] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+
+  // Settings has a light background — keep the status bar text dark.
+  useFocusEffect(
+    useCallback(() => {
+      StatusBar.setBarStyle('dark-content');
+    }, []),
+  );
 
   const handleExportData = async () => {
     setIsExporting(true);

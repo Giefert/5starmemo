@@ -249,7 +249,7 @@ function CardRow({
     >
       <View style={styles.thumb}>
         {imageUrl ? (
-          <Image source={{ uri: imageUrl }} style={styles.thumbImage} contentFit="cover" />
+          <Image source={{ uri: imageUrl }} style={styles.thumbImage} contentFit="contain" />
         ) : (
           <StripePlaceholder size={56} />
         )}

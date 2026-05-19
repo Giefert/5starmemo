@@ -90,7 +90,6 @@ export default function BulletinScreen() {
   useFocusEffect(
     useCallback(() => {
       StatusBar.setBarStyle('light-content');
-      return () => StatusBar.setBarStyle('dark-content');
     }, []),
   );
 
@@ -313,7 +312,7 @@ function SectionLink({
       activeOpacity={0.7}
     >
       <Text style={styles.sectionTitle}>{title}</Text>
-      <Text style={styles.leaderDots} numberOfLines={1}>
+      <Text style={styles.leaderDots} numberOfLines={1} ellipsizeMode="clip">
         {'·'.repeat(60)}
       </Text>
       <Svg width={10} height={14} viewBox="0 0 10 14">
