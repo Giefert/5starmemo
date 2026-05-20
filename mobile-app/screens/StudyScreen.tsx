@@ -7,7 +7,9 @@ import {
   Alert,
   TouchableOpacity,
 } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BlurView } from 'expo-blur';
 import { studySessionManager } from '../services/StudySessionManager';
 import { StudyCard, LinkedTerm } from '../components/StudyCard';
 import { SwipeableCard } from '../components/SwipeableCard';
@@ -64,6 +66,9 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
   const [isFlipped, setIsFlipped] = useState(false);
   const [linkedTerms, setLinkedTerms] = useState<LinkedTerm[]>([]);
   const [selectedTerm, setSelectedTerm] = useState<LinkedTerm | null>(null);
+  // Tracks card IDs whose answer has been revealed at least once this session.
+  // Once a card is in this set, its answer is no longer blurred during peeks.
+  const [revealedCards, setRevealedCards] = useState<Set<string>>(new Set());
   const [progress, setProgress] = useState({
     current: 0,
     total: 0,
@@ -92,9 +97,20 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
     }
   }, [currentCard]);
 
+  useEffect(() => {
+    if (!isFlipped || !currentCard) return;
+    setRevealedCards((prev) => {
+      if (prev.has(currentCard.card.id)) return prev;
+      const next = new Set(prev);
+      next.add(currentCard.card.id);
+      return next;
+    });
+  }, [isFlipped, currentCard]);
+
   const startStudySession = async () => {
     try {
       setIsLoading(true);
+      setRevealedCards(new Set());
       await studySessionManager.startSession(target);
       updateCurrentState();
     } catch (error) {
@@ -124,20 +140,6 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
         total: progressInfo.total,
       });
     }
-  };
-
-  const handleSwipe = () => {
-    // SwipeableCard only fires this for the active direction:
-    // left while on the question side, right while on the answer side.
-    if (!isFlipped) {
-      handleCardFlip();
-    } else {
-      setIsFlipped(false);
-    }
-  };
-
-  const handleCardFlip = () => {
-    setIsFlipped(true);
   };
 
   const handleRating = async (rating: 1 | 2 | 3 | 4) => {
@@ -251,52 +253,101 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
         </View>
       </View>
 
-      {/* Main card zone — card and grading zone slide together */}
-      <SwipeableCard onSwipe={handleSwipe} allowedDirection={isFlipped ? 'right' : 'left'}>
-        <View style={styles.cardArea}>
-          <StudyCard
-            cardData={currentCard}
-            isFlipped={isFlipped}
-            linkedTerms={linkedTerms}
-            onTermPress={setSelectedTerm}
-          />
-        </View>
-
-        {/* Bottom grading zone — slides away with the card */}
-        {isFlipped ? (
-          <View style={[styles.gradingZonePaper, { paddingBottom: insets.bottom + 4 }]}>
-            {isGraded ? (
-              <RatingButtons
-                onRating={handleRating}
-                disabled={isSubmitting}
+      {/* Main card zone — front and back slide together so the reverse side
+          follows the user's finger during the swipe. */}
+      <SwipeableCard
+        key={currentCard.card.id}
+        isFlipped={isFlipped}
+        onFlippedChange={setIsFlipped}
+        front={
+          <View style={styles.face}>
+            <View style={styles.cardArea}>
+              <StudyCard
+                cardData={currentCard}
+                isFlipped={false}
+                linkedTerms={linkedTerms}
+                onTermPress={setSelectedTerm}
               />
-            ) : (
+            </View>
+            <View style={[styles.gradingZoneInk, { paddingBottom: insets.bottom + 4 }]}>
               <TouchableOpacity
-                style={styles.nextButton}
-                onPress={handleNext}
-                disabled={isSubmitting}
+                style={styles.showAnswerButton}
+                onPress={() => setIsFlipped(true)}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.nextButtonText, isSubmitting && styles.nextButtonTextDisabled]}>
-                  Next Card
-                </Text>
-                {!isSubmitting && <View style={styles.nextButtonMarker} />}
+                <Svg width={44} height={10} viewBox="0 0 44 10">
+                  <Path
+                    d="M 1 5 L 43 5 M 35 1 L 43 5 L 35 9"
+                    stroke={COLORS.onDarkMute}
+                    strokeWidth={1}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    fill="none"
+                  />
+                </Svg>
               </TouchableOpacity>
-            )}
-            <Text style={styles.swipeHintPaper}>Swipe right for question</Text>
+            </View>
           </View>
-        ) : (
-          <View style={[styles.gradingZoneInk, { paddingBottom: insets.bottom + 4 }]}>
-            <TouchableOpacity
-              style={styles.showAnswerButton}
-              onPress={handleCardFlip}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.showAnswerText}>Swipe left to reveal · or tap</Text>
-            </TouchableOpacity>
+        }
+        back={
+          <View style={styles.backFace}>
+            <View style={styles.cardArea}>
+              <StudyCard
+                cardData={currentCard}
+                isFlipped={true}
+                linkedTerms={linkedTerms}
+                onTermPress={setSelectedTerm}
+              />
+              {/* Blur the answer until this card has been revealed at least
+                  once this session — keeps a partial-drag peek illegible. */}
+              {!revealedCards.has(currentCard.card.id) && (
+                <BlurView
+                  intensity={30}
+                  tint="light"
+                  style={StyleSheet.absoluteFill}
+                  pointerEvents="none"
+                />
+              )}
+            </View>
+            <View style={[styles.gradingZonePaper, { paddingBottom: insets.bottom + 4 }]}>
+              {isGraded ? (
+                <RatingButtons
+                  onRating={handleRating}
+                  disabled={isSubmitting}
+                />
+              ) : (
+                <TouchableOpacity
+                  style={styles.nextButton}
+                  onPress={handleNext}
+                  disabled={isSubmitting}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.nextButtonText, isSubmitting && styles.nextButtonTextDisabled]}>
+                    Next Card
+                  </Text>
+                  {!isSubmitting && <View style={styles.nextButtonMarker} />}
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={styles.swipeHintTap}
+                onPress={() => setIsFlipped(false)}
+                activeOpacity={0.7}
+              >
+                <Svg width={44} height={10} viewBox="0 0 44 10">
+                  <Path
+                    d="M 43 5 L 1 5 M 9 1 L 1 5 L 9 9"
+                    stroke={COLORS.inkFaint}
+                    strokeWidth={1}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    fill="none"
+                  />
+                </Svg>
+              </TouchableOpacity>
+            </View>
           </View>
-        )}
-      </SwipeableCard>
+        }
+      />
 
       <GlossaryTermModal
         term={selectedTerm}
@@ -386,6 +437,14 @@ const styles = StyleSheet.create({
   progressMarkerPassed: {
     backgroundColor: COLORS.ink,
   },
+  face: {
+    flex: 1,
+  },
+  backFace: {
+    flex: 1,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
   cardArea: {
     flex: 1,
   },
@@ -425,22 +484,10 @@ const styles = StyleSheet.create({
     height: 8,
     backgroundColor: COLORS.inkFaint,
   },
-  showAnswerText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: COLORS.onDarkMute,
-    letterSpacing: 2.6,
-    textTransform: 'uppercase',
-  },
-  swipeHintPaper: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: COLORS.inkFaint,
-    letterSpacing: 2.6,
-    textTransform: 'uppercase',
-    textAlign: 'center',
+  swipeHintTap: {
     paddingTop: 14,
     paddingBottom: 6,
+    alignItems: 'center',
   },
   loadingText: {
     marginTop: 14,

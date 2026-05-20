@@ -79,12 +79,6 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({ deckId, deckTitle, o
     setIsFlipped(false);
   };
 
-  const handleSwipe = () => {
-    // SwipeableCard only fires this for the active direction:
-    // left while on the question side, right while on the answer side.
-    setIsFlipped((flipped) => !flipped);
-  };
-
   // Card detail view — mirrors the study session layout (edge-to-edge card,
   // ink masthead, ink/paper flip affordances).
   if (selectedCard) {
@@ -101,37 +95,76 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({ deckId, deckTitle, o
               <Text style={styles.exitIcon}>←</Text>
             </TouchableOpacity>
             <Text style={styles.mastheadTitle} numberOfLines={1}>
-              {selectedCard.card.restaurantData?.itemName || 'Card'}
+              {deckTitle}
             </Text>
           </View>
         </View>
 
-        <SwipeableCard onSwipe={handleSwipe} allowedDirection={isFlipped ? 'right' : 'left'}>
-          <View style={styles.cardArea}>
-            <StudyCard
-              cardData={selectedCard}
-              isFlipped={isFlipped}
-              linkedTerms={linkedTerms}
-              onTermPress={setSelectedTerm}
-            />
-          </View>
-
-          {isFlipped ? (
-            <View style={[styles.gradingZonePaper, { paddingBottom: insets.bottom + 4 }]}>
-              <Text style={styles.swipeHintPaper}>Swipe right for question</Text>
+        <SwipeableCard
+          key={selectedCard.card.id}
+          isFlipped={isFlipped}
+          onFlippedChange={setIsFlipped}
+          front={
+            <View style={styles.face}>
+              <View style={styles.cardArea}>
+                <StudyCard
+                  cardData={selectedCard}
+                  isFlipped={false}
+                  linkedTerms={linkedTerms}
+                  onTermPress={setSelectedTerm}
+                />
+              </View>
+              <View style={[styles.gradingZoneInk, { paddingBottom: insets.bottom + 4 }]}>
+                <TouchableOpacity
+                  style={styles.showAnswerButton}
+                  onPress={() => setIsFlipped(true)}
+                  activeOpacity={0.7}
+                >
+                  <Svg width={44} height={10} viewBox="0 0 44 10">
+                    <Path
+                      d="M 1 5 L 43 5 M 35 1 L 43 5 L 35 9"
+                      stroke={COLORS.onDarkMute}
+                      strokeWidth={1}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      fill="none"
+                    />
+                  </Svg>
+                </TouchableOpacity>
+              </View>
             </View>
-          ) : (
-            <View style={[styles.gradingZoneInk, { paddingBottom: insets.bottom + 4 }]}>
-              <TouchableOpacity
-                style={styles.showAnswerButton}
-                onPress={() => setIsFlipped(true)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.showAnswerText}>Swipe left to reveal · or tap</Text>
-              </TouchableOpacity>
+          }
+          back={
+            <View style={styles.backFace}>
+              <View style={styles.cardArea}>
+                <StudyCard
+                  cardData={selectedCard}
+                  isFlipped={true}
+                  linkedTerms={linkedTerms}
+                  onTermPress={setSelectedTerm}
+                />
+              </View>
+              <View style={[styles.gradingZonePaper, { paddingBottom: insets.bottom + 4 }]}>
+                <TouchableOpacity
+                  style={styles.swipeHintTap}
+                  onPress={() => setIsFlipped(false)}
+                  activeOpacity={0.7}
+                >
+                  <Svg width={44} height={10} viewBox="0 0 44 10">
+                    <Path
+                      d="M 43 5 L 1 5 M 9 1 L 1 5 L 9 9"
+                      stroke={COLORS.inkFaint}
+                      strokeWidth={1}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      fill="none"
+                    />
+                  </Svg>
+                </TouchableOpacity>
+              </View>
             </View>
-          )}
-        </SwipeableCard>
+          }
+        />
 
         <GlossaryTermModal
           term={selectedTerm}
@@ -429,6 +462,14 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 2.2,
   },
+  face: {
+    flex: 1,
+  },
+  backFace: {
+    flex: 1,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
   cardArea: {
     flex: 1,
   },
@@ -443,21 +484,9 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: 'center',
   },
-  showAnswerText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: COLORS.onDarkMute,
-    letterSpacing: 2.6,
-    textTransform: 'uppercase',
-  },
-  swipeHintPaper: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: COLORS.inkFaint,
-    letterSpacing: 2.6,
-    textTransform: 'uppercase',
-    textAlign: 'center',
+  swipeHintTap: {
     paddingTop: 14,
     paddingBottom: 6,
+    alignItems: 'center',
   },
 });
