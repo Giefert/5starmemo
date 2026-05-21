@@ -5,25 +5,8 @@ import Link from 'next/link';
 import { userApi } from '@/lib/api';
 import { UserListItem } from '../../../../../shared/types';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, Edit, Users as UsersIcon, Tag } from 'lucide-react';
-
-// Deterministic pastel chip color for a role name. Same role always gets the
-// same hue, so admins can scan a column of chips and recognise roles by color.
-function roleChipColor(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
-  const palette = [
-    'bg-amber-100 text-amber-800',
-    'bg-sky-100 text-sky-800',
-    'bg-emerald-100 text-emerald-800',
-    'bg-rose-100 text-rose-800',
-    'bg-violet-100 text-violet-800',
-    'bg-cyan-100 text-cyan-800',
-    'bg-lime-100 text-lime-800',
-    'bg-fuchsia-100 text-fuchsia-800',
-  ];
-  return palette[Math.abs(hash) % palette.length];
-}
+import { Plus, Trash2, Edit, Users as UsersIcon } from 'lucide-react';
+import { RolesManager, roleChipColor } from '@/components/admin/roles-manager';
 
 export default function UsersListPage() {
   const [students, setStudents] = useState<UserListItem[]>([]);
@@ -44,6 +27,16 @@ export default function UsersListPage() {
       setError(err.response?.data?.error || 'Failed to load students');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Silent refresh used after a role changes, so the table's role chips stay
+  // accurate without flashing the full-page loading state.
+  const refreshStudents = async () => {
+    try {
+      setStudents(await userApi.getAll());
+    } catch {
+      /* leave the existing list in place on a transient error */
     }
   };
 
@@ -72,26 +65,12 @@ export default function UsersListPage() {
           <h1 className="text-3xl font-bold text-gray-900">Students</h1>
           <p className="text-gray-600">Manage student accounts, role membership, and deck access.</p>
         </div>
-        <div className="flex gap-2">
-          <Link href="/dashboard/users/roles">
-            <Button variant="outline">
-              <Tag className="h-4 w-4 mr-2" />
-              Manage Roles
-            </Button>
-          </Link>
-          <Link href="/dashboard/users/roles/new">
-            <Button variant="outline">
-              <Plus className="h-4 w-4 mr-2" />
-              New Role
-            </Button>
-          </Link>
-          <Link href="/dashboard/users/new">
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              New Student
-            </Button>
-          </Link>
-        </div>
+        <Link href="/dashboard/users/new">
+          <Button>
+            <Plus className="h-4 w-4 mr-2" />
+            New Student
+          </Button>
+        </Link>
       </div>
 
       {error && (
@@ -99,6 +78,8 @@ export default function UsersListPage() {
           {error}
         </div>
       )}
+
+      <RolesManager onChange={refreshStudents} />
 
       {students.length === 0 ? (
         <div className="bg-white rounded-lg shadow p-12 text-center">

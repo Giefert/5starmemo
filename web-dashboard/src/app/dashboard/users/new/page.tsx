@@ -104,7 +104,7 @@ export default function NewStudentPage() {
           <h2 className="text-lg font-semibold text-gray-900 mb-1">Roles</h2>
           <p className="text-sm text-gray-500 mb-4">Roles bundle deck access. A student gets the union of decks from every role they belong to.</p>
           {roles.length === 0 ? (
-            <p className="text-sm text-gray-400 italic">No roles yet. <Link href="/dashboard/users/roles/new" className="text-blue-600 hover:underline">Create one</Link>.</p>
+            <p className="text-sm text-gray-400 italic">No roles yet. <Link href="/dashboard/users" className="text-blue-600 hover:underline">Create one</Link> on the Users page.</p>
           ) : (
             <div className="space-y-2">
               {roles.map(r => (
