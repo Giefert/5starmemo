@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   Alert,
   Share,
   ActivityIndicator,
@@ -14,14 +13,91 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import Svg, { Path } from 'react-native-svg';
 import { useAuth } from '../contexts/AuthContext';
 import apiService from '../services/api';
 import { StudentDeck } from '../types/shared';
 import PrivacyPolicyScreen from './PrivacyPolicyScreen';
 
+// Carte tokens — shared verbatim with HomeScreen / BulletinScreen / GlossaryScreen
+// so the Settings tab reads as a sibling of Study, Bulletin and Reference.
+const COLORS = {
+  ink: '#14120F',
+  bgHair: '#28251F',
+  paper: '#F4EEE1',
+  paperSoft: '#FBF7EC',
+  paperHair: '#D8CFB8',
+  inkMute: '#6B6255',
+  inkFaint: '#A89B7E',
+  onDark: '#E8E3D6',
+  onDarkMute: '#8A8578',
+  amber: '#E89A2B',
+  red: '#D94B36',
+};
+
+// Right-pointing navigation chevron — same glyph as the Bulletin item rows.
+function Chevron() {
+  return (
+    <Svg width={8} height={14} viewBox="0 0 8 14">
+      <Path
+        d="M1 1l5 6-5 6"
+        fill="none"
+        stroke={COLORS.inkFaint}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+// Left-pointing back chevron — matches the back buttons on the other tabs.
+function BackChevron() {
+  return (
+    <Svg width={9} height={14} viewBox="0 0 9 14">
+      <Path
+        d="M7 1L2 7l5 6"
+        fill="none"
+        stroke={COLORS.onDarkMute}
+        strokeWidth={1.6}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+// A ruled editorial row: Fraunces label on paper with a trailing chevron, or a
+// spinner while its action is in flight. Rows stack inside a `group` whose
+// hairlines fence them off.
+function NavRow({
+  label,
+  onPress,
+  busy,
+}: {
+  label: string;
+  onPress: () => void;
+  busy?: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={busy}
+      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+    >
+      <Text style={styles.rowLabel}>{label}</Text>
+      {busy ? (
+        <ActivityIndicator size="small" color={COLORS.inkFaint} />
+      ) : (
+        <Chevron />
+      )}
+    </Pressable>
+  );
+}
+
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { logout } = useAuth();
+  const { logout, restaurant } = useAuth();
   const [isExporting, setIsExporting] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
@@ -33,10 +109,11 @@ export default function SettingsScreen() {
   const [isLoadingDecks, setIsLoadingDecks] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
 
-  // Settings has a light background — keep the status bar text dark.
+  // The masthead is dark behind the status bar — keep its text light, matching
+  // the other tabs.
   useFocusEffect(
     useCallback(() => {
-      StatusBar.setBarStyle('dark-content');
+      StatusBar.setBarStyle('light-content');
     }, []),
   );
 
@@ -153,29 +230,36 @@ export default function SettingsScreen() {
 
   if (showDeleteAccount) {
     return (
-      <View style={styles.container}>
-        <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-          <TouchableOpacity
+      <View style={styles.screen}>
+        <View style={[styles.subHeader, { paddingTop: insets.top + 14 }]}>
+          <Pressable
             onPress={() => setShowDeleteAccount(false)}
-            style={styles.backButton}
+            hitSlop={12}
             disabled={isDeleting}
+            style={styles.backRow}
           >
-            <Text style={styles.backButtonText}>‹ Back</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>Delete Account</Text>
+            <BackChevron />
+            <Text style={styles.backLink}>My Account</Text>
+          </Pressable>
         </View>
+        <Text style={styles.pageTitle}>Delete Account</Text>
         <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
+          style={styles.body}
+          contentContainerStyle={[styles.warningContent, { paddingBottom: insets.bottom + 24 }]}
         >
           <Text style={styles.warningHeading}>This cannot be undone.</Text>
-          <Text style={styles.warningBody}>
-            Deleting your account will permanently erase:
-          </Text>
+          <Text style={styles.warningBody}>Deleting your account will permanently erase:</Text>
           <View style={styles.warningList}>
-            <Text style={styles.warningListItem}>• Your login and profile</Text>
-            <Text style={styles.warningListItem}>• All study progress and FSRS ratings</Text>
-            <Text style={styles.warningListItem}>• Your study history and session stats</Text>
+            {[
+              'Your login and profile',
+              'All study progress and FSRS ratings',
+              'Your study history and session stats',
+            ].map((item) => (
+              <View key={item} style={styles.warningItem}>
+                <View style={styles.warningBullet} />
+                <Text style={styles.warningItemText}>{item}</Text>
+              </View>
+            ))}
           </View>
           <Text style={styles.warningBody}>
             You will be signed out immediately. If you change your mind later, you'll
@@ -187,17 +271,17 @@ export default function SettingsScreen() {
             that keeps your account.
           </Text>
 
-          <TouchableOpacity
-            style={styles.destructiveButton}
+          <Pressable
+            style={({ pressed }) => [styles.destructiveButton, pressed && styles.buttonPressed]}
             onPress={handleDeleteAccount}
             disabled={isDeleting}
           >
             {isDeleting ? (
-              <ActivityIndicator size="small" color="#fff" />
+              <ActivityIndicator size="small" color={COLORS.paper} />
             ) : (
               <Text style={styles.destructiveButtonText}>Delete Account</Text>
             )}
-          </TouchableOpacity>
+          </Pressable>
         </ScrollView>
       </View>
     );
@@ -205,79 +289,53 @@ export default function SettingsScreen() {
 
   if (showAccount) {
     return (
-      <View style={styles.container}>
-        <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-          <TouchableOpacity onPress={() => setShowAccount(false)} style={styles.backButton}>
-            <Text style={styles.backButtonText}>‹ Back</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>My Account</Text>
+      <View style={styles.screen}>
+        <View style={[styles.subHeader, { paddingTop: insets.top + 14 }]}>
+          <Pressable onPress={() => setShowAccount(false)} hitSlop={12} style={styles.backRow}>
+            <BackChevron />
+            <Text style={styles.backLink}>Settings</Text>
+          </Pressable>
         </View>
-        <View style={styles.content}>
-          <TouchableOpacity
-            style={styles.row}
-            onPress={handleExportData}
-            disabled={isExporting}
-          >
-            <Text style={styles.rowText}>Export My Data</Text>
-            {isExporting ? (
-              <ActivityIndicator size="small" color="#999" />
-            ) : (
-              <Text style={styles.rowChevron}>›</Text>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.row, { marginTop: 1 }]}
-            onPress={() => setShowDeleteAccount(true)}
-          >
-            <Text style={styles.rowText}>Delete Account</Text>
-            <Text style={styles.rowChevron}>›</Text>
-          </TouchableOpacity>
+        <View style={styles.body}>
+          <Text style={styles.pageTitle}>My Account</Text>
+          <View style={styles.group}>
+            <NavRow label="Export My Data" onPress={handleExportData} busy={isExporting} />
+            <NavRow label="Delete Account" onPress={() => setShowDeleteAccount(true)} />
+          </View>
         </View>
-        <View style={{ height: insets.bottom + 16 }} />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <Text style={styles.title}>Settings</Text>
+    <View style={styles.screen}>
+      {/* Dark masthead — sibling of the Study masthead. */}
+      <View style={[styles.masthead, { paddingTop: insets.top + 14 }]}>
+        <Text style={styles.eyebrow}>{restaurant?.name ?? ''}</Text>
+        <Text style={styles.headline}>Settings.</Text>
+        {/* Empty band standing in for the Study tab's toggle / Reference tab's
+            sub-tab strip, so this masthead is the same height — and carries the
+            same bottom hairline — even with no controls to host. */}
+        <View style={styles.mastheadStrip} />
       </View>
-      <View style={styles.content}>
-        <TouchableOpacity
-          style={styles.row}
-          onPress={openResetModal}
+
+      <View style={styles.body}>
+        <View style={styles.group}>
+          <NavRow label="Reset Study Progress" onPress={openResetModal} />
+        </View>
+
+        <View style={[styles.group, styles.groupSpaced]}>
+          <NavRow label="My Account" onPress={() => setShowAccount(true)} />
+          <NavRow label="Privacy Policy" onPress={() => setShowPrivacy(true)} />
+        </View>
+
+        <Pressable
+          style={({ pressed }) => [styles.logoutButton, pressed && styles.buttonPressed]}
+          onPress={handleLogout}
         >
-          <Text style={styles.rowText}>Reset Study Progress</Text>
-          <Text style={styles.rowChevron}>›</Text>
-        </TouchableOpacity>
-
-        <View style={styles.groupSeparator} />
-
-        <TouchableOpacity
-          style={styles.row}
-          onPress={() => setShowAccount(true)}
-        >
-          <Text style={styles.rowText}>My Account</Text>
-          <Text style={styles.rowChevron}>›</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.row, { marginTop: 1 }]}
-          onPress={() => setShowPrivacy(true)}
-        >
-          <Text style={styles.rowText}>Privacy Policy</Text>
-          <Text style={styles.rowChevron}>›</Text>
-        </TouchableOpacity>
-
-        <View style={styles.separator} />
-
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutButtonText}>Log Out</Text>
-        </TouchableOpacity>
+        </Pressable>
       </View>
-      <View style={{ height: insets.bottom + 16 }} />
 
       <Modal
         visible={showResetModal}
@@ -290,7 +348,7 @@ export default function SettingsScreen() {
           onPress={() => !isResetting && setShowResetModal(false)}
         >
           <Pressable style={styles.modalCard} onPress={() => {}}>
-            <View style={[styles.modalHeader, { paddingTop: 16 }]}>
+            <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Reset Study Progress</Text>
               <Text style={styles.modalSubtitle}>
                 Select decks to reset, or reset everything at once. This clears your
@@ -300,11 +358,11 @@ export default function SettingsScreen() {
 
             {isLoadingDecks ? (
               <View style={styles.modalLoading}>
-                <ActivityIndicator size="large" color="#999" />
+                <ActivityIndicator size="large" color={COLORS.inkMute} />
               </View>
             ) : (
               <>
-                <TouchableOpacity
+                <Pressable
                   style={styles.selectAllRow}
                   onPress={toggleSelectAll}
                   disabled={decks.length === 0}
@@ -313,7 +371,7 @@ export default function SettingsScreen() {
                     {allSelected && <Text style={styles.checkmark}>✓</Text>}
                   </View>
                   <Text style={styles.selectAllText}>Select all decks</Text>
-                </TouchableOpacity>
+                </Pressable>
 
                 <ScrollView style={styles.deckList} contentContainerStyle={{ paddingBottom: 8 }}>
                   {decks.length === 0 ? (
@@ -322,7 +380,7 @@ export default function SettingsScreen() {
                     decks.map((deck) => {
                       const isSelected = selectedDeckIds.has(deck.id);
                       return (
-                        <TouchableOpacity
+                        <Pressable
                           key={deck.id}
                           style={styles.deckRow}
                           onPress={() => toggleDeck(deck.id)}
@@ -330,12 +388,10 @@ export default function SettingsScreen() {
                           <View style={[styles.checkbox, isSelected && styles.checkboxChecked]}>
                             {isSelected && <Text style={styles.checkmark}>✓</Text>}
                           </View>
-                          <View style={styles.deckInfo}>
-                            <Text style={styles.deckTitle} numberOfLines={1}>
-                              {deck.title}
-                            </Text>
-                          </View>
-                        </TouchableOpacity>
+                          <Text style={styles.deckTitle} numberOfLines={1}>
+                            {deck.title}
+                          </Text>
+                        </Pressable>
                       );
                     })
                   )}
@@ -344,26 +400,26 @@ export default function SettingsScreen() {
             )}
 
             <View style={[styles.modalActions, { paddingBottom: insets.bottom + 16 }]}>
-              <TouchableOpacity
+              <Pressable
                 style={[styles.actionButton, styles.actionSecondary]}
                 onPress={() => setShowResetModal(false)}
                 disabled={isResetting}
               >
                 <Text style={styles.actionSecondaryText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+              </Pressable>
+              <Pressable
                 style={[styles.actionButton, styles.actionPrimary]}
                 onPress={handleResetConfirm}
                 disabled={isResetting || isLoadingDecks || decks.length === 0}
               >
                 {isResetting ? (
-                  <ActivityIndicator size="small" color="#fff" />
+                  <ActivityIndicator size="small" color={COLORS.paper} />
                 ) : (
                   <Text style={styles.actionPrimaryText}>
                     Reset Selected{selectedDeckIds.size > 0 ? ` (${selectedDeckIds.size})` : ''}
                   </Text>
                 )}
-              </TouchableOpacity>
+              </Pressable>
             </View>
           </Pressable>
         </Pressable>
@@ -373,149 +429,238 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: COLORS.paper,
   },
-  header: {
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    backgroundColor: '#fff',
+
+  // ── Dark masthead ──────────────────────────────────────────
+  masthead: {
+    backgroundColor: COLORS.ink,
+    paddingHorizontal: 26,
+  },
+  // Stands in for the toggle band the Study and Reference mastheads carry:
+  // a 22px drop from the headline, then a label-height band closed by the
+  // bgHair hairline. Heightless of any control, but exactly as tall.
+  mastheadStrip: {
+    marginTop: 22,
+    height: 24,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: COLORS.bgHair,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#333',
+  eyebrow: {
+    color: COLORS.amber,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10,
+    letterSpacing: 2.2,
+    marginBottom: 6,
+    textTransform: 'uppercase',
   },
-  backButton: {
-    paddingVertical: 4,
-    marginBottom: 4,
+  headline: {
+    color: COLORS.onDark,
+    fontFamily: 'Fraunces_500Medium',
+    fontSize: 44,
+    lineHeight: 44,
+    letterSpacing: -1.1,
   },
-  backButtonText: {
-    fontSize: 17,
-    color: '#007AFF',
+
+  // ── Sub-page header (My Account / Delete Account) ──────────
+  // Slim dark bar carrying only the back link; the page title sits on paper
+  // below, the way a Glossary entry's title does.
+  subHeader: {
+    backgroundColor: COLORS.ink,
+    paddingHorizontal: 26,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.bgHair,
   },
-  content: {
-    padding: 20,
+  backRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    alignSelf: 'flex-start',
+  },
+  backLink: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    letterSpacing: 1.6,
+    textTransform: 'uppercase',
+    color: COLORS.onDarkMute,
+  },
+  pageTitle: {
+    color: COLORS.ink,
+    fontFamily: 'Fraunces_600SemiBold',
+    fontSize: 34,
+    lineHeight: 38,
+    letterSpacing: -0.8,
+    paddingHorizontal: 26,
+    paddingTop: 24,
+    paddingBottom: 16,
+  },
+
+  // ── Paper body ─────────────────────────────────────────────
+  body: {
+    flex: 1,
+    backgroundColor: COLORS.paper,
+  },
+
+  // ── Ruled rows ─────────────────────────────────────────────
+  group: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.paperHair,
+  },
+  groupSpaced: {
+    marginTop: 28,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 8,
+    justifyContent: 'space-between',
+    paddingHorizontal: 26,
+    paddingVertical: 22,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.paperHair,
   },
-  rowText: {
-    flex: 1,
-    fontSize: 16,
-    color: '#1a1a1a',
+  rowPressed: {
+    backgroundColor: COLORS.paperSoft,
   },
-  rowChevron: {
-    fontSize: 20,
-    color: '#999',
+  rowLabel: {
+    fontFamily: 'Fraunces_500Medium',
+    fontSize: 21,
+    color: COLORS.ink,
+    letterSpacing: -0.3,
   },
-  separator: {
-    height: 32,
-  },
-  groupSeparator: {
-    height: 24,
+
+  // ── Buttons ────────────────────────────────────────────────
+  buttonPressed: {
+    opacity: 0.7,
   },
   logoutButton: {
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 8,
+    marginTop: 36,
+    marginHorizontal: 26,
+    paddingVertical: 18,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#dc3545',
+    borderColor: COLORS.red,
   },
   logoutButtonText: {
-    color: '#dc3545',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  warningHeading: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#dc3545',
-    marginBottom: 12,
-  },
-  warningBody: {
-    fontSize: 15,
-    color: '#1a1a1a',
-    lineHeight: 22,
-    marginBottom: 12,
-  },
-  warningEmphasis: {
-    fontWeight: '600',
-  },
-  warningList: {
-    marginBottom: 12,
-    paddingLeft: 4,
-  },
-  warningListItem: {
-    fontSize: 15,
-    color: '#1a1a1a',
-    lineHeight: 22,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    letterSpacing: 2.4,
+    textTransform: 'uppercase',
+    color: COLORS.red,
   },
   destructiveButton: {
-    marginTop: 16,
-    padding: 16,
-    borderRadius: 8,
+    marginTop: 28,
+    paddingVertical: 18,
     alignItems: 'center',
-    backgroundColor: '#dc3545',
+    backgroundColor: COLORS.red,
   },
   destructiveButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    letterSpacing: 2.4,
+    textTransform: 'uppercase',
+    color: COLORS.paper,
   },
+
+  // ── Delete-account warning ─────────────────────────────────
+  warningContent: {
+    paddingHorizontal: 26,
+    paddingTop: 4,
+  },
+  warningHeading: {
+    fontFamily: 'Fraunces_600SemiBold',
+    fontSize: 24,
+    color: COLORS.red,
+    letterSpacing: -0.4,
+    marginBottom: 14,
+  },
+  warningBody: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 15,
+    color: COLORS.inkMute,
+    lineHeight: 23,
+    marginBottom: 14,
+  },
+  warningEmphasis: {
+    fontFamily: 'Inter_500Medium',
+    color: COLORS.ink,
+  },
+  warningList: {
+    marginBottom: 14,
+  },
+  warningItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  warningBullet: {
+    width: 5,
+    height: 5,
+    marginTop: 8,
+    marginRight: 12,
+    backgroundColor: COLORS.inkFaint,
+  },
+  warningItemText: {
+    flex: 1,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 15,
+    color: COLORS.inkMute,
+    lineHeight: 23,
+  },
+
+  // ── Reset bottom sheet ─────────────────────────────────────
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(20,18,15,0.5)',
     justifyContent: 'flex-end',
   },
   modalCard: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    backgroundColor: COLORS.paper,
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
     maxHeight: '85%',
   },
   modalHeader: {
-    paddingHorizontal: 20,
-    paddingBottom: 12,
+    paddingHorizontal: 26,
+    paddingTop: 22,
+    paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: COLORS.paperHair,
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1a1a1a',
+    fontFamily: 'Fraunces_600SemiBold',
+    fontSize: 24,
+    color: COLORS.ink,
+    letterSpacing: -0.5,
   },
   modalSubtitle: {
-    marginTop: 6,
-    fontSize: 13,
-    color: '#666',
-    lineHeight: 18,
+    marginTop: 8,
+    fontFamily: 'Newsreader_500Medium_Italic',
+    fontSize: 14,
+    color: COLORS.inkMute,
+    lineHeight: 20,
   },
   modalLoading: {
-    padding: 32,
+    padding: 36,
     alignItems: 'center',
   },
   selectAllRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    backgroundColor: '#fafafa',
+    paddingHorizontal: 26,
+    paddingVertical: 16,
+    backgroundColor: COLORS.paperSoft,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: COLORS.paperHair,
   },
   selectAllText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1a1a1a',
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    letterSpacing: 1.6,
+    textTransform: 'uppercase',
+    color: COLORS.ink,
   },
   deckList: {
     maxHeight: 320,
@@ -523,73 +668,78 @@ const styles = StyleSheet.create({
   deckRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingHorizontal: 26,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: COLORS.paperHair,
   },
   checkbox: {
     width: 22,
     height: 22,
-    borderRadius: 4,
-    borderWidth: 2,
-    borderColor: '#bbb',
-    marginRight: 12,
+    borderWidth: 1.5,
+    borderColor: COLORS.inkFaint,
+    marginRight: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: 'transparent',
   },
   checkboxChecked: {
-    backgroundColor: '#dc3545',
-    borderColor: '#dc3545',
+    backgroundColor: COLORS.red,
+    borderColor: COLORS.red,
   },
   checkmark: {
-    color: '#fff',
+    color: COLORS.paper,
     fontSize: 14,
     fontWeight: '700',
     lineHeight: 16,
   },
-  deckInfo: {
-    flex: 1,
-  },
   deckTitle: {
-    fontSize: 15,
-    color: '#1a1a1a',
+    flex: 1,
+    fontFamily: 'Fraunces_500Medium',
+    fontSize: 17,
+    color: COLORS.ink,
+    letterSpacing: -0.2,
   },
   emptyText: {
-    padding: 20,
-    textAlign: 'center',
-    color: '#999',
+    paddingHorizontal: 26,
+    paddingVertical: 20,
+    fontFamily: 'Newsreader_500Medium_Italic',
+    fontSize: 14,
+    color: COLORS.inkMute,
   },
   modalActions: {
     flexDirection: 'row',
-    paddingHorizontal: 20,
+    paddingHorizontal: 26,
     paddingTop: 16,
     gap: 12,
     borderTopWidth: 1,
-    borderTopColor: '#eee',
+    borderTopColor: COLORS.paperHair,
   },
   actionButton: {
     flex: 1,
-    padding: 14,
-    borderRadius: 8,
+    paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
   actionSecondary: {
-    backgroundColor: '#f0f0f0',
+    borderWidth: 1,
+    borderColor: COLORS.paperHair,
   },
   actionSecondaryText: {
-    color: '#333',
-    fontSize: 15,
-    fontWeight: '600',
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    letterSpacing: 1.8,
+    textTransform: 'uppercase',
+    color: COLORS.inkMute,
   },
   actionPrimary: {
-    backgroundColor: '#dc3545',
+    backgroundColor: COLORS.red,
   },
   actionPrimaryText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '600',
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    letterSpacing: 1.8,
+    textTransform: 'uppercase',
+    color: COLORS.paper,
   },
 });
