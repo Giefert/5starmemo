@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import { Image } from 'expo-image';
 import {
   StudyCardData,
@@ -40,12 +41,16 @@ interface StudyCardProps {
   onTermPress?: (term: LinkedTerm) => void;
 }
 
-// Helper to render text with *highlighted* terms
-const HighlightedText: React.FC<{ text: string; style: any; key?: React.Key }> = ({ text, style }) => {
+// Helper to render text with *highlighted* terms. An optional run-in label is
+// rendered as an inline kicker leading the text so the label and value flow and
+// wrap as a single block (RN has no float, so the label must live inside the Text).
+const HighlightedText: React.FC<{ text: string; style: any; leadingLabel?: string; key?: React.Key }> = ({ text, style, leadingLabel }) => {
+  const lead = leadingLabel ? <Text style={styles.runInLabel}>{`${leadingLabel}  `}</Text> : null;
   const parts = text.split(/\*(.*?)\*/g);
-  if (parts.length === 1) return <Text style={style}>{text}</Text>;
+  if (parts.length === 1) return <Text style={style}>{lead}{text}</Text>;
   return (
     <Text style={style}>
+      {lead}
       {parts.map((part, i) =>
         i % 2 === 1
           ? <Text key={i} style={styles.highlight}>{part}</Text>
@@ -55,32 +60,71 @@ const HighlightedText: React.FC<{ text: string; style: any; key?: React.Key }> =
   );
 };
 
-// Helper to render text with linked glossary terms as tappable + highlighted
+// Helper to render text with both *highlighted* terms and tappable glossary links.
+// Glossary matching runs on plain text, but the *...* highlight markup is preserved
+// and re-applied so the two never cancel each other out. An optional run-in label is
+// rendered as an inline kicker leading the text.
 const LinkedText: React.FC<{
   text: string;
   style: any;
+  leadingLabel?: string;
   linkedTerms?: LinkedTerm[];
   onTermPress?: (term: LinkedTerm) => void;
-}> = ({ text, style, linkedTerms, onTermPress }) => {
+}> = ({ text, style, leadingLabel, linkedTerms, onTermPress }) => {
   if (!linkedTerms || linkedTerms.length === 0 || !onTermPress) {
-    return <HighlightedText text={text} style={style} />;
+    return <HighlightedText text={text} style={style} leadingLabel={leadingLabel} />;
   }
 
-  // Strip asterisks for matching, but we need to preserve highlight rendering
-  const plainText = text.replace(/\*/g, '');
+  const lead = leadingLabel ? <Text style={styles.runInLabel}>{`${leadingLabel}  `}</Text> : null;
 
-  // Build segments: find all linked term occurrences (case-insensitive)
-  type Segment = { text: string; term?: LinkedTerm };
+  // Strip the *...* markup into plain text plus the character ranges it covered.
+  const parts = text.split(/\*(.*?)\*/g);
+  let plain = '';
+  const highlightRanges: Array<[number, number]> = [];
+  parts.forEach((part, i) => {
+    if (i % 2 === 1) {
+      const start = plain.length;
+      plain += part;
+      highlightRanges.push([start, plain.length]);
+    } else {
+      plain += part;
+    }
+  });
+
+  const isHighlighted = (idx: number) =>
+    highlightRanges.some(([s, e]) => idx >= s && idx < e);
+
+  // Split a [start, end) slice of `plain` into runs of consistent highlight state,
+  // wrapping highlighted runs so they keep their background even inside a link.
+  const renderRuns = (start: number, end: number, keyPrefix: string) => {
+    const runs: React.ReactNode[] = [];
+    let i = start;
+    while (i < end) {
+      const hl = isHighlighted(i);
+      let j = i;
+      while (j < end && isHighlighted(j) === hl) j++;
+      const chunk = plain.substring(i, j);
+      runs.push(
+        hl ? <Text key={`${keyPrefix}-${i}`} style={styles.highlight}>{chunk}</Text> : chunk
+      );
+      i = j;
+    }
+    return runs;
+  };
+
+  // Build segments: find all linked term occurrences (case-insensitive) over plain text.
+  type Segment = { start: number; end: number; term?: LinkedTerm };
   const segments: Segment[] = [];
-  let remaining = plainText;
+  let cursor = 0;
+  const lowerPlain = plain.toLowerCase();
 
-  while (remaining.length > 0) {
-    let earliestIdx = remaining.length;
+  while (cursor < plain.length) {
+    let earliestIdx = plain.length;
     let matchedTerm: LinkedTerm | null = null;
     let matchedLength = 0;
 
     for (const lt of linkedTerms) {
-      const idx = remaining.toLowerCase().indexOf(lt.term.toLowerCase());
+      const idx = lowerPlain.indexOf(lt.term.toLowerCase(), cursor);
       if (idx !== -1 && idx < earliestIdx) {
         earliestIdx = idx;
         matchedTerm = lt;
@@ -89,19 +133,20 @@ const LinkedText: React.FC<{
     }
 
     if (!matchedTerm) {
-      segments.push({ text: remaining });
+      segments.push({ start: cursor, end: plain.length });
       break;
     }
 
-    if (earliestIdx > 0) {
-      segments.push({ text: remaining.substring(0, earliestIdx) });
+    if (earliestIdx > cursor) {
+      segments.push({ start: cursor, end: earliestIdx });
     }
-    segments.push({ text: remaining.substring(earliestIdx, earliestIdx + matchedLength), term: matchedTerm });
-    remaining = remaining.substring(earliestIdx + matchedLength);
+    segments.push({ start: earliestIdx, end: earliestIdx + matchedLength, term: matchedTerm });
+    cursor = earliestIdx + matchedLength;
   }
 
   return (
     <Text style={style}>
+      {lead}
       {segments.map((seg, i) =>
         seg.term ? (
           <Text
@@ -109,15 +154,55 @@ const LinkedText: React.FC<{
             style={styles.linkedTerm}
             onPress={() => onTermPress(seg.term!)}
           >
-            {seg.text}
+            {renderRuns(seg.start, seg.end, `t${i}`)}
           </Text>
         ) : (
-          <Text key={i}>{seg.text}</Text>
+          <Text key={i}>{renderRuns(seg.start, seg.end, `p${i}`)}</Text>
         )
       )}
     </Text>
   );
 };
+
+// A single-value text field: the label is a run-in kicker leading the value,
+// which flows after it and wraps full-width below — no empty left column.
+const DetailField: React.FC<{
+  label: string;
+  text: string;
+  linkedTerms?: LinkedTerm[];
+  onTermPress?: (term: LinkedTerm) => void;
+}> = ({ label, text, linkedTerms, onTermPress }) => (
+  <View style={styles.detailBlock}>
+    <LinkedText
+      leadingLabel={label}
+      text={text}
+      style={styles.valueText}
+      linkedTerms={linkedTerms}
+      onTermPress={onTermPress}
+    />
+  </View>
+);
+
+// A multi-item field: a run-in kicker reads poorly on a vertical list, so the
+// label sits above a full-width list of items instead.
+const ListField: React.FC<{ label: string; items: string[]; bulleted?: boolean }> = ({ label, items, bulleted = true }) => (
+  <View style={styles.detailBlock}>
+    <Text style={styles.listLabel}>{label}</Text>
+    {items.map((item, i) => (
+      <HighlightedText key={i} text={bulleted ? `• ${item}` : item} style={styles.ingredientItem} />
+    ))}
+  </View>
+);
+
+// Allergens — run-in red kicker + red joined value.
+const AllergenField: React.FC<{ allergens: string[] }> = ({ allergens }) => (
+  <View style={styles.detailBlock}>
+    <Text style={styles.allergenValue}>
+      <Text style={styles.allergenLabelInline}>{'ALLERGENS  '}</Text>
+      {allergens.join(' · ')}
+    </Text>
+  </View>
+);
 
 // Wine characteristic meter — a typographer's ruler: a hairline rule with
 // end-ticks and a solid ink tick marking the level (1–5).
@@ -181,418 +266,213 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
 
       {card.restaurantData && (
         <>
-          <View style={styles.detailsScroll}>
+          <ScrollView style={styles.detailsScroll} showsVerticalScrollIndicator>
             <View style={styles.backBody}>
               <View style={styles.detailsContainer}>
-            {/* Sake-specific fields */}
-            {isSakeCard(card.restaurantData) && (
-              <>
-                {/* Classification */}
-                {card.restaurantData.classification && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>CLASSIFICATION</Text>
-                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.classification} style={styles.valueText} />
-                  </View>
+                {/* Sake-specific fields */}
+                {isSakeCard(card.restaurantData) && (
+                  <>
+                    {card.restaurantData.classification && (
+                      <DetailField label="CLASSIFICATION" text={card.restaurantData.classification} linkedTerms={linkedTerms} onTermPress={onTermPress} />
+                    )}
+                    {card.restaurantData.tastingNotes && card.restaurantData.tastingNotes.length > 0 && (
+                      <DetailField label="TASTING NOTES" text={card.restaurantData.tastingNotes.join(', ')} linkedTerms={linkedTerms} onTermPress={onTermPress} />
+                    )}
+                    {card.restaurantData.riceVariety && (
+                      <DetailField label="RICE VARIETY" text={card.restaurantData.riceVariety} linkedTerms={linkedTerms} onTermPress={onTermPress} />
+                    )}
+                    {card.restaurantData.region && (
+                      <DetailField label="REGION/ORIGIN" text={card.restaurantData.region} linkedTerms={linkedTerms} onTermPress={onTermPress} />
+                    )}
+                    {card.restaurantData.producer && (
+                      <DetailField label="PRODUCER" text={card.restaurantData.producer} linkedTerms={linkedTerms} onTermPress={onTermPress} />
+                    )}
+                    {card.restaurantData.vintage && (
+                      <DetailField label="VINTAGE" text={String(card.restaurantData.vintage)} />
+                    )}
+                    {card.restaurantData.servingTemp && (
+                      <DetailField label="SERVING TEMPERATURE" text={card.restaurantData.servingTemp} linkedTerms={linkedTerms} onTermPress={onTermPress} />
+                    )}
+                    {card.restaurantData.foodPairings && card.restaurantData.foodPairings.length > 0 && (
+                      <ListField label="FOOD PAIRINGS" items={card.restaurantData.foodPairings} />
+                    )}
+                    {card.restaurantData.ingredients && card.restaurantData.ingredients.length > 0 && (
+                      <ListField label="INGREDIENTS" items={card.restaurantData.ingredients} />
+                    )}
+                    {card.restaurantData.allergens && card.restaurantData.allergens.length > 0 && (
+                      <AllergenField allergens={card.restaurantData.allergens} />
+                    )}
+                    {card.restaurantData.abv !== undefined && (
+                      <DetailField label="ABV" text={`${card.restaurantData.abv}%`} />
+                    )}
+                  </>
                 )}
 
-                {/* Tasting Notes */}
-                {card.restaurantData.tastingNotes && card.restaurantData.tastingNotes.length > 0 && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>TASTING NOTES</Text>
-                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.tastingNotes.join(', ')} style={styles.valueText} />
-                  </View>
+                {/* Wine-specific fields */}
+                {isWineCard(card.restaurantData) && (
+                  <>
+                    {card.restaurantData.tastingNotes && card.restaurantData.tastingNotes.length > 0 && (
+                      <DetailField label="TASTING NOTES" text={card.restaurantData.tastingNotes.join(', ')} linkedTerms={linkedTerms} onTermPress={onTermPress} />
+                    )}
+                    {card.restaurantData.appellation && (
+                      <DetailField label="APPELLATION" text={card.restaurantData.appellation} linkedTerms={linkedTerms} onTermPress={onTermPress} />
+                    )}
+                    {card.restaurantData.vintage && (
+                      <DetailField label="VINTAGE" text={String(card.restaurantData.vintage)} />
+                    )}
+                    {card.restaurantData.grapeVarieties && card.restaurantData.grapeVarieties.length > 0 && (
+                      <DetailField label="GRAPE VARIETIES" text={card.restaurantData.grapeVarieties.join(', ')} linkedTerms={linkedTerms} onTermPress={onTermPress} />
+                    )}
+                    {card.restaurantData.region && (
+                      <DetailField label="REGION" text={card.restaurantData.region} linkedTerms={linkedTerms} onTermPress={onTermPress} />
+                    )}
+                    {card.restaurantData.producer && (
+                      <DetailField label="PRODUCER" text={card.restaurantData.producer} linkedTerms={linkedTerms} onTermPress={onTermPress} />
+                    )}
+                    {card.restaurantData.servingTemp && (
+                      <DetailField label="SERVING TEMPERATURE" text={card.restaurantData.servingTemp} linkedTerms={linkedTerms} onTermPress={onTermPress} />
+                    )}
+                    {card.restaurantData.ingredients && card.restaurantData.ingredients.length > 0 && (
+                      <ListField label="INGREDIENTS" items={card.restaurantData.ingredients} />
+                    )}
+                    {card.restaurantData.allergens && card.restaurantData.allergens.length > 0 && (
+                      <AllergenField allergens={card.restaurantData.allergens} />
+                    )}
+                    {card.restaurantData.foodPairings && card.restaurantData.foodPairings.length > 0 && (
+                      <ListField label="FOOD PAIRINGS" items={card.restaurantData.foodPairings} />
+                    )}
+                    {card.restaurantData.abv !== undefined && (
+                      <DetailField label="ABV" text={`${card.restaurantData.abv}%`} />
+                    )}
+                  </>
                 )}
 
-                {/* Rice Variety */}
-                {card.restaurantData.riceVariety && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>RICE VARIETY</Text>
-                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.riceVariety} style={styles.valueText} />
-                  </View>
+                {/* Beer-specific fields */}
+                {isBeerCard(card.restaurantData) && (
+                  <>
+                    {card.restaurantData.abv !== undefined && (
+                      <DetailField label="ABV" text={`${card.restaurantData.abv}%`} />
+                    )}
+                  </>
                 )}
 
-                {/* Region/Origin */}
-                {card.restaurantData.region && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>REGION/ORIGIN</Text>
-                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.region} style={styles.valueText} />
-                  </View>
+                {/* Cocktail-specific fields */}
+                {isCocktailCard(card.restaurantData) && (
+                  <>
+                    {card.restaurantData.alcohol && card.restaurantData.alcohol.length > 0 && (
+                      <ListField label="ALCOHOL" items={card.restaurantData.alcohol} bulleted={false} />
+                    )}
+                    {card.restaurantData.other && card.restaurantData.other.length > 0 && (
+                      <ListField label="OTHER INGREDIENTS" items={card.restaurantData.other} bulleted={false} />
+                    )}
+                    {card.restaurantData.garnish && (
+                      <DetailField label="GARNISH" text={card.restaurantData.garnish} linkedTerms={linkedTerms} onTermPress={onTermPress} />
+                    )}
+                    {card.restaurantData.abv !== undefined && (
+                      <DetailField label="ABV" text={`${card.restaurantData.abv}%`} />
+                    )}
+                  </>
                 )}
 
-                {/* Producer */}
-                {card.restaurantData.producer && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>PRODUCER</Text>
-                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.producer} style={styles.valueText} />
-                  </View>
+                {/* Spirit-specific fields */}
+                {isSpiritCard(card.restaurantData) && (
+                  <>
+                    {card.restaurantData.abv !== undefined && (
+                      <DetailField label="ABV" text={`${card.restaurantData.abv}%`} />
+                    )}
+                  </>
                 )}
 
-                {/* Vintage */}
-                {card.restaurantData.vintage && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>VINTAGE</Text>
-                    <Text style={styles.valueText}>{card.restaurantData.vintage}</Text>
-                  </View>
+                {/* Maki-specific fields */}
+                {isMakiCard(card.restaurantData) && (
+                  <>
+                    {card.restaurantData.topping && (
+                      <DetailField label="TOPPING" text={card.restaurantData.topping} linkedTerms={linkedTerms} onTermPress={onTermPress} />
+                    )}
+                    {card.restaurantData.base && (
+                      <DetailField label="BASE" text={card.restaurantData.base} linkedTerms={linkedTerms} onTermPress={onTermPress} />
+                    )}
+                    {card.restaurantData.sauce && (
+                      <DetailField label="SAUCE" text={card.restaurantData.sauce} linkedTerms={linkedTerms} onTermPress={onTermPress} />
+                    )}
+                    {card.restaurantData.paper && (
+                      <DetailField label="PAPER" text={card.restaurantData.paper} linkedTerms={linkedTerms} onTermPress={onTermPress} />
+                    )}
+                    {card.restaurantData.gluten && (
+                      <DetailField
+                        label="GLUTEN"
+                        text={card.restaurantData.gluten === 'yes' ? 'Yes' :
+                              card.restaurantData.gluten === 'no' ? 'No' :
+                              'Optional'}
+                      />
+                    )}
+                  </>
                 )}
 
-                {/* Serving Temperature */}
-                {card.restaurantData.servingTemp && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>SERVING TEMPERATURE</Text>
-                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.servingTemp} style={styles.valueText} />
-                  </View>
+                {/* Sauce-specific fields */}
+                {isSauceCard(card.restaurantData) && (
+                  <>
+                    {card.restaurantData.ingredients && card.restaurantData.ingredients.length > 0 && (
+                      <ListField label="INGREDIENTS" items={card.restaurantData.ingredients} bulleted={false} />
+                    )}
+                  </>
                 )}
 
-                {/* Food Pairings */}
-                {card.restaurantData.foodPairings && card.restaurantData.foodPairings.length > 0 && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>FOOD PAIRINGS</Text>
-                    <View style={styles.ingredientList}>
-                      {card.restaurantData.foodPairings.map((pairing, i) => (
-                        <HighlightedText key={i} text={`• ${pairing}`} style={styles.ingredientItem} />
-                      ))}
-                    </View>
-                  </View>
+                {/* Fish-specific fields */}
+                {isFishCard(card.restaurantData) && (
+                  <>
+                    {card.restaurantData.taste && (
+                      <DetailField label="TASTE" text={card.restaurantData.taste} linkedTerms={linkedTerms} onTermPress={onTermPress} />
+                    )}
+                    {card.restaurantData.country && (
+                      <DetailField label="COUNTRY" text={card.restaurantData.country} linkedTerms={linkedTerms} onTermPress={onTermPress} />
+                    )}
+                  </>
                 )}
-
-                {/* Ingredients */}
-                {card.restaurantData.ingredients && card.restaurantData.ingredients.length > 0 && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>INGREDIENTS</Text>
-                    <View style={styles.ingredientList}>
-                      {card.restaurantData.ingredients.map((ing, i) => (
-                        <HighlightedText key={i} text={`• ${ing}`} style={styles.ingredientItem} />
-                      ))}
-                    </View>
-                  </View>
-                )}
-
-                {/* Allergens */}
-                {card.restaurantData.allergens && card.restaurantData.allergens.length > 0 && (
-                  <View style={styles.allergenRow}>
-                    <Text style={styles.allergenLabel}>ALLERGENS</Text>
-                    <Text style={styles.allergenValue}>
-                      {card.restaurantData.allergens.join(' · ')}
-                    </Text>
-                  </View>
-                )}
-
-                {/* ABV */}
-                {card.restaurantData.abv !== undefined && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>ABV</Text>
-                    <Text style={styles.valueText}>
-                      {card.restaurantData.abv}%
-                    </Text>
-                  </View>
-                )}
-              </>
-            )}
-
-            {/* Wine-specific fields */}
-            {isWineCard(card.restaurantData) && (
-              <>
-                {/* Tasting Notes - FIRST */}
-                {card.restaurantData.tastingNotes && card.restaurantData.tastingNotes.length > 0 && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>TASTING NOTES</Text>
-                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.tastingNotes.join(', ')} style={styles.valueText} />
-                  </View>
-                )}
-
-                {/* Appellation - SECOND */}
-                {card.restaurantData.appellation && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>APPELLATION</Text>
-                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.appellation} style={styles.valueText} />
-                  </View>
-                )}
-
-                {/* Vintage - THIRD */}
-                {card.restaurantData.vintage && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>VINTAGE</Text>
-                    <Text style={styles.valueText}>{card.restaurantData.vintage}</Text>
-                  </View>
-                )}
-
-                {/* Grape Varieties */}
-                {card.restaurantData.grapeVarieties && card.restaurantData.grapeVarieties.length > 0 && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>GRAPE VARIETIES</Text>
-                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.grapeVarieties.join(', ')} style={styles.valueText} />
-                  </View>
-                )}
-
-                {/* Region */}
-                {card.restaurantData.region && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>REGION</Text>
-                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.region} style={styles.valueText} />
-                  </View>
-                )}
-
-                {/* Producer */}
-                {card.restaurantData.producer && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>PRODUCER</Text>
-                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.producer} style={styles.valueText} />
-                  </View>
-                )}
-
-                {/* Serving Temperature */}
-                {card.restaurantData.servingTemp && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>SERVING TEMPERATURE</Text>
-                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.servingTemp} style={styles.valueText} />
-                  </View>
-                )}
-
-                {/* Ingredients */}
-                {card.restaurantData.ingredients && card.restaurantData.ingredients.length > 0 && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>INGREDIENTS</Text>
-                    <View style={styles.ingredientList}>
-                      {card.restaurantData.ingredients.map((ing, i) => (
-                        <HighlightedText key={i} text={`• ${ing}`} style={styles.ingredientItem} />
-                      ))}
-                    </View>
-                  </View>
-                )}
-
-                {/* Allergens */}
-                {card.restaurantData.allergens && card.restaurantData.allergens.length > 0 && (
-                  <View style={styles.allergenRow}>
-                    <Text style={styles.allergenLabel}>ALLERGENS</Text>
-                    <Text style={styles.allergenValue}>
-                      {card.restaurantData.allergens.join(' · ')}
-                    </Text>
-                  </View>
-                )}
-
-                {/* Food Pairings */}
-                {card.restaurantData.foodPairings && card.restaurantData.foodPairings.length > 0 && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>FOOD PAIRINGS</Text>
-                    <View style={styles.ingredientList}>
-                      {card.restaurantData.foodPairings.map((pairing, i) => (
-                        <HighlightedText key={i} text={`• ${pairing}`} style={styles.ingredientItem} />
-                      ))}
-                    </View>
-                  </View>
-                )}
-
-                {/* ABV */}
-                {card.restaurantData.abv !== undefined && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>ABV</Text>
-                    <Text style={styles.valueText}>
-                      {card.restaurantData.abv}%
-                    </Text>
-                  </View>
-                )}
-              </>
-            )}
-
-            {/* Beer-specific fields */}
-            {isBeerCard(card.restaurantData) && (
-              <>
-                {/* ABV */}
-                {card.restaurantData.abv !== undefined && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>ABV</Text>
-                    <Text style={styles.valueText}>
-                      {card.restaurantData.abv}%
-                    </Text>
-                  </View>
-                )}
-              </>
-            )}
-
-            {/* Cocktail-specific fields */}
-            {isCocktailCard(card.restaurantData) && (
-              <>
-                {/* Alcohol */}
-                {card.restaurantData.alcohol && card.restaurantData.alcohol.length > 0 && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>ALCOHOL</Text>
-                    <View style={styles.ingredientList}>
-                      {card.restaurantData.alcohol.map((alc, i) => (
-                        <HighlightedText key={i} text={alc} style={styles.ingredientItem} />
-                      ))}
-                    </View>
-                  </View>
-                )}
-
-                {/* Other Ingredients */}
-                {card.restaurantData.other && card.restaurantData.other.length > 0 && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>OTHER INGREDIENTS</Text>
-                    <View style={styles.ingredientList}>
-                      {card.restaurantData.other.map((item, i) => (
-                        <HighlightedText key={i} text={item} style={styles.ingredientItem} />
-                      ))}
-                    </View>
-                  </View>
-                )}
-
-                {/* Garnish */}
-                {card.restaurantData.garnish && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>GARNISH</Text>
-                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.garnish} style={styles.valueText} />
-                  </View>
-                )}
-
-                {/* ABV */}
-                {card.restaurantData.abv !== undefined && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>ABV</Text>
-                    <Text style={styles.valueText}>
-                      {card.restaurantData.abv}%
-                    </Text>
-                  </View>
-                )}
-              </>
-            )}
-
-            {/* Spirit-specific fields */}
-            {isSpiritCard(card.restaurantData) && (
-              <>
-                {/* ABV */}
-                {card.restaurantData.abv !== undefined && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>ABV</Text>
-                    <Text style={styles.valueText}>
-                      {card.restaurantData.abv}%
-                    </Text>
-                  </View>
-                )}
-              </>
-            )}
-
-            {/* Maki-specific fields */}
-            {isMakiCard(card.restaurantData) && (
-              <>
-                {card.restaurantData.topping && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>TOPPING</Text>
-                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.topping} style={styles.valueText} />
-                  </View>
-                )}
-
-                {card.restaurantData.base && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>BASE</Text>
-                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.base} style={styles.valueText} />
-                  </View>
-                )}
-
-                {card.restaurantData.sauce && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>SAUCE</Text>
-                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.sauce} style={styles.valueText} />
-                  </View>
-                )}
-
-                {card.restaurantData.paper && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>PAPER</Text>
-                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.paper} style={styles.valueText} />
-                  </View>
-                )}
-
-                {card.restaurantData.gluten && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>GLUTEN</Text>
-                    <Text style={styles.valueText}>
-                      {card.restaurantData.gluten === 'yes' ? 'Yes' :
-                       card.restaurantData.gluten === 'no' ? 'No' :
-                       'Optional'}
-                    </Text>
-                  </View>
-                )}
-              </>
-            )}
-
-            {/* Sauce-specific fields */}
-            {isSauceCard(card.restaurantData) && (
-              <>
-                {/* Ingredients */}
-                {card.restaurantData.ingredients && card.restaurantData.ingredients.length > 0 && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>INGREDIENTS</Text>
-                    <View style={styles.ingredientList}>
-                      {card.restaurantData.ingredients.map((ing, i) => (
-                        <HighlightedText key={i} text={ing} style={styles.ingredientItem} />
-                      ))}
-                    </View>
-                  </View>
-                )}
-              </>
-            )}
-
-            {/* Fish-specific fields */}
-            {isFishCard(card.restaurantData) && (
-              <>
-                {card.restaurantData.taste && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>TASTE</Text>
-                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.taste} style={styles.valueText} />
-                  </View>
-                )}
-                {card.restaurantData.country && (
-                  <View style={styles.detailBlock}>
-                    <Text style={styles.label}>COUNTRY</Text>
-                    <LinkedText linkedTerms={linkedTerms} onTermPress={onTermPress} text={card.restaurantData.country} style={styles.valueText} />
-                  </View>
-                )}
-              </>
-            )}
               </View>
             </View>
-          </View>
 
-          {/* Wine Characteristic Meters - Pinned to bottom of card */}
-          {isWineCard(card.restaurantData) &&
-            (card.restaurantData.bodyLevel ||
-              card.restaurantData.sweetnessLevel ||
-              card.restaurantData.acidityLevel ||
-              card.restaurantData.tanninLevel) && (
-              <View style={styles.meterBottomWrapper}>
-                <Text style={styles.meterHeading}>ON THE PALATE</Text>
-                <View style={styles.meterSection}>
-                  {card.restaurantData.sweetnessLevel && (
-                    <WineMeterBar
-                      level={card.restaurantData.sweetnessLevel}
-                      leftLabel="Dry"
-                      rightLabel="Sweet"
-                    />
-                  )}
-                  {card.restaurantData.acidityLevel && (
-                    <WineMeterBar
-                      level={card.restaurantData.acidityLevel}
-                      leftLabel="Soft"
-                      rightLabel="Acidic"
-                    />
-                  )}
-                  {card.restaurantData.bodyLevel && (
-                    <WineMeterBar
-                      level={card.restaurantData.bodyLevel}
-                      leftLabel="Light"
-                      rightLabel="Bold"
-                    />
-                  )}
-                  {card.restaurantData.tanninLevel && (
-                    <WineMeterBar
-                      level={card.restaurantData.tanninLevel}
-                      leftLabel="Smooth"
-                      rightLabel="Tannic"
-                    />
-                  )}
+            {/* Wine Characteristic Meters — scroll with the details */}
+            {isWineCard(card.restaurantData) &&
+              (card.restaurantData.bodyLevel ||
+                card.restaurantData.sweetnessLevel ||
+                card.restaurantData.acidityLevel ||
+                card.restaurantData.tanninLevel) && (
+                <View style={styles.meterWrapper}>
+                  <Text style={styles.meterHeading}>ON THE PALATE</Text>
+                  <View style={styles.meterSection}>
+                    {card.restaurantData.sweetnessLevel && (
+                      <WineMeterBar
+                        level={card.restaurantData.sweetnessLevel}
+                        leftLabel="Dry"
+                        rightLabel="Sweet"
+                      />
+                    )}
+                    {card.restaurantData.acidityLevel && (
+                      <WineMeterBar
+                        level={card.restaurantData.acidityLevel}
+                        leftLabel="Soft"
+                        rightLabel="Acidic"
+                      />
+                    )}
+                    {card.restaurantData.bodyLevel && (
+                      <WineMeterBar
+                        level={card.restaurantData.bodyLevel}
+                        leftLabel="Light"
+                        rightLabel="Bold"
+                      />
+                    )}
+                    {card.restaurantData.tanninLevel && (
+                      <WineMeterBar
+                        level={card.restaurantData.tanninLevel}
+                        leftLabel="Smooth"
+                        rightLabel="Tannic"
+                      />
+                    )}
+                  </View>
                 </View>
-              </View>
-            )}
+              )}
+          </ScrollView>
         </>
       )}
     </View>
@@ -685,67 +565,58 @@ const styles = StyleSheet.create({
   detailsContainer: {
     gap: 0,
   },
+  // Full-width block — the kicker runs in inline with the value (see runInLabel).
   detailBlock: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.paperHair,
   },
-  label: {
-    width: 100,
+  // Run-in kicker leading a value, rendered inline inside the value's Text.
+  runInLabel: {
     fontSize: 10,
     fontWeight: '600',
     color: COLORS.inkFaint,
     letterSpacing: 1.6,
     textTransform: 'uppercase',
-    marginRight: 16,
+  },
+  // Label sitting above a bullet list.
+  listLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: COLORS.inkFaint,
+    letterSpacing: 1.6,
+    textTransform: 'uppercase',
+    marginBottom: 6,
   },
   valueText: {
-    flex: 1,
     fontSize: 15,
     color: COLORS.ink,
     lineHeight: 23,
-  },
-  ingredientList: {
-    flex: 1,
   },
   ingredientItem: {
     fontSize: 15,
     color: COLORS.ink,
     lineHeight: 24,
   },
-  // ── Allergens — red small-caps label + values, no emoji ────
-  allergenRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.paperHair,
-  },
-  allergenLabel: {
-    width: 100,
+  // ── Allergens — red small-caps run-in label + values, no emoji ─
+  allergenLabelInline: {
     fontSize: 10,
     fontWeight: '700',
     color: COLORS.red,
     letterSpacing: 1.6,
     textTransform: 'uppercase',
-    marginRight: 16,
   },
   allergenValue: {
-    flex: 1,
     fontSize: 14,
     fontWeight: '500',
     color: COLORS.red,
     lineHeight: 21,
   },
   // ── Wine meter — typographer's ruler ───────────────────────
-  meterBottomWrapper: {
+  meterWrapper: {
     paddingHorizontal: 28,
-    paddingTop: 14,
-    paddingBottom: 18,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.paperHair,
+    paddingTop: 10,
+    paddingBottom: 20,
   },
   meterHeading: {
     fontSize: 10,
@@ -753,7 +624,7 @@ const styles = StyleSheet.create({
     letterSpacing: 2.2,
     textTransform: 'uppercase',
     color: COLORS.inkFaint,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   meterSection: {
     gap: 2,
@@ -761,7 +632,7 @@ const styles = StyleSheet.create({
   meterRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 5,
+    paddingVertical: 3,
   },
   meterEndLabel: {
     fontSize: 10,
