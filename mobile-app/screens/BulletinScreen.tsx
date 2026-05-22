@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,10 @@ import {
   RefreshControl,
   StatusBar,
   LayoutChangeEvent,
+  Animated,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,6 +27,12 @@ import {
 } from '../types/shared';
 import { BrowseScreen } from './BrowseScreen';
 
+// The accordion's expand/collapse rides on LayoutAnimation; Android needs it
+// turned on explicitly (iOS has it on by default).
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
 const COLORS = {
   ink: '#14120F',
   inkMute: '#6B6255',
@@ -35,8 +45,8 @@ const COLORS = {
   red: '#D94B36',
 };
 
-// The four curation sections, in fixed reading order. No counts, no tone —
-// each is just a heading that routes to its own browse list.
+// The four curation sections, in fixed reading order. Each renders as a
+// heading with its items listed directly underneath on the main page.
 const SECTIONS: { kind: CurationKind; label: string }[] = [
   { kind: 'new_item', label: 'New items' },
   { kind: 'featured', label: 'Featured' },
@@ -48,7 +58,7 @@ const SECTIONS: { kind: CurationKind; label: string }[] = [
 // a paper-edge fade.
 const ANNOUNCE_MAX_H = 170;
 
-type ScreenState = 'home' | 'section' | 'browse';
+type ScreenState = 'home' | 'browse';
 
 export default function BulletinScreen() {
   const insets = useSafeAreaInsets();
@@ -59,10 +69,9 @@ export default function BulletinScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [screenState, setScreenState] = useState<ScreenState>('home');
-  const [activeSection, setActiveSection] = useState<{ kind: CurationKind; label: string } | null>(
-    null,
-  );
   const [selectedDeck, setSelectedDeck] = useState<{ id: string; title: string } | null>(null);
+  // Accordion: at most one category open at a time. Tapping the open one closes it.
+  const [openSection, setOpenSection] = useState<CurationKind | null>(null);
 
   const loadBulletin = useCallback(async () => {
     try {
@@ -85,8 +94,8 @@ export default function BulletinScreen() {
     loadBulletin();
   }, [loadBulletin]);
 
-  // The masthead (and the section screen's ribbon) is dark behind the status
-  // bar — keep its text light while this tab is focused.
+  // The masthead is dark behind the status bar — keep its text light while
+  // this tab is focused.
   useFocusEffect(
     useCallback(() => {
       StatusBar.setBarStyle('light-content');
@@ -106,9 +115,9 @@ export default function BulletinScreen() {
     loadBulletin();
   };
 
-  const handleOpenSection = (kind: CurationKind, label: string) => {
-    setActiveSection({ kind, label });
-    setScreenState('section');
+  const handleToggleSection = (kind: CurationKind) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setOpenSection((current) => (current === kind ? null : kind));
   };
 
   // A curation item routes into the existing Browse-mode card screen for its
@@ -126,21 +135,8 @@ export default function BulletinScreen() {
       <BrowseScreen
         deckId={selectedDeck.id}
         deckTitle={selectedDeck.title}
-        onExit={() => setScreenState('section')}
-      />
-    );
-  }
-
-  if (screenState === 'section' && activeSection) {
-    return (
-      <SectionBrowseList
-        label={activeSection.label}
-        items={data?.curations[activeSection.kind] ?? []}
-        onBack={() => {
-          setScreenState('home');
-          setActiveSection(null);
-        }}
-        onOpenItem={handleOpenItem}
+        onExit={() => setScreenState('home')}
+        backLabel="Bulletin"
       />
     );
   }
@@ -175,7 +171,7 @@ export default function BulletinScreen() {
         {announcements.length > 0 && <AnnouncementZone announcements={announcements} />}
       </View>
 
-      {/* Paper content band — the table of contents. */}
+      {/* Paper content band — each category and its items, listed in full. */}
       <ScrollView
         style={styles.body}
         contentContainerStyle={styles.bodyContent}
@@ -194,17 +190,76 @@ export default function BulletinScreen() {
         ) : null}
 
         <View style={styles.sections}>
-          {sectionsWithItems.map((section, i) => (
-            <SectionLink
-              key={section.kind}
-              title={section.label}
-              isLast={i === sectionsWithItems.length - 1}
-              onPress={() => handleOpenSection(section.kind, section.label)}
-            />
-          ))}
+          {sectionsWithItems.map((section, sectionIndex) => {
+            const items = data?.curations[section.kind] ?? [];
+            const isOpen = openSection === section.kind;
+            const isLastBlock = sectionIndex === sectionsWithItems.length - 1;
+            return (
+              <View
+                key={section.kind}
+                style={!isLastBlock ? styles.categoryDivider : undefined}
+              >
+                <TouchableOpacity
+                  style={styles.categoryHeading}
+                  onPress={() => handleToggleSection(section.kind)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.categoryHeadingLeft}>
+                    <Text style={styles.categoryTitle}>{section.label}</Text>
+                    <Text style={styles.categoryCount}>{items.length}</Text>
+                  </View>
+                  <CategoryChevron open={isOpen} />
+                </TouchableOpacity>
+                {isOpen && (
+                  <View style={styles.categoryItems}>
+                    {items.map((item, i) => (
+                      <ItemRow
+                        key={`${item.targetType}:${item.targetId}`}
+                        item={item}
+                        isLast={i === items.length - 1}
+                        onPress={() => handleOpenItem(item)}
+                      />
+                    ))}
+                  </View>
+                )}
+              </View>
+            );
+          })}
         </View>
       </ScrollView>
     </View>
+  );
+}
+
+// ── Category chevron ─────────────────────────────────────────
+// The accordion's open/closed marker. Points right when closed and rotates
+// to point down as its category expands.
+function CategoryChevron({ open }: { open: boolean }) {
+  const anim = useRef(new Animated.Value(open ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.timing(anim, {
+      toValue: open ? 1 : 0,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
+  }, [open, anim]);
+
+  const rotate = anim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '90deg'] });
+
+  return (
+    <Animated.View style={{ transform: [{ rotate }] }}>
+      <Svg width={9} height={14} viewBox="0 0 8 14">
+        <Path
+          d="M1 1l5 6-5 6"
+          fill="none"
+          stroke={COLORS.inkFaint}
+          strokeWidth={1.6}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </Svg>
+    </Animated.View>
   );
 }
 
@@ -289,108 +344,6 @@ function AnnouncementZone({ announcements }: { announcements: string[] }) {
         <View style={styles.announceEndDot} />
         <View style={styles.announceEndDot} />
       </View>
-    </View>
-  );
-}
-
-// ── Section link ─────────────────────────────────────────────
-// Table-of-contents row: title, a leader of middle-dots filling the gap,
-// then a chevron. The whole row is the tap target.
-function SectionLink({
-  title,
-  isLast,
-  onPress,
-}: {
-  title: string;
-  isLast: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity
-      style={[styles.sectionLink, !isLast && styles.sectionDivider]}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <Text style={styles.leaderDots} numberOfLines={1} ellipsizeMode="clip">
-        {'·'.repeat(60)}
-      </Text>
-      <Svg width={10} height={14} viewBox="0 0 10 14">
-        <Path
-          d="M2 2l5 5-5 5"
-          fill="none"
-          stroke={COLORS.ink}
-          strokeWidth={1.6}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </Svg>
-    </TouchableOpacity>
-  );
-}
-
-// ── Section browse list ──────────────────────────────────────
-// Opens when a section heading is tapped: dark back ribbon, paper title
-// block, then a list of item rows.
-function SectionBrowseList({
-  label,
-  items,
-  onBack,
-  onOpenItem,
-}: {
-  label: string;
-  items: RestaurantCurationItem[];
-  onBack: () => void;
-  onOpenItem: (item: RestaurantCurationItem) => void;
-}) {
-  const insets = useSafeAreaInsets();
-  const count = items.length;
-
-  return (
-    <View style={styles.container}>
-      {/* Dark back ribbon. */}
-      <View style={[styles.ribbon, { paddingTop: insets.top + 8 }]}>
-        <TouchableOpacity
-          style={styles.ribbonBack}
-          onPress={onBack}
-          activeOpacity={0.7}
-        >
-          <Svg width={9} height={14} viewBox="0 0 9 14">
-            <Path
-              d="M7 1L2 7l5 6"
-              fill="none"
-              stroke={COLORS.onDarkMuted}
-              strokeWidth={1.6}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </Svg>
-          <Text style={styles.ribbonBackText}>Bulletin</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Paper title block. */}
-      <View style={styles.titleBlock}>
-        <Text style={styles.titleEyebrow}>This week's bulletin</Text>
-        <View style={styles.titleRow}>
-          <Text style={styles.titleName}>{label}.</Text>
-          <Text style={styles.titleCount}>
-            {count} {count === 1 ? 'item' : 'items'}
-          </Text>
-        </View>
-      </View>
-
-      {/* Items list. */}
-      <ScrollView style={styles.body} contentContainerStyle={styles.itemsList}>
-        {items.map((item, i) => (
-          <ItemRow
-            key={`${item.targetType}:${item.targetId}`}
-            item={item}
-            isLast={i === items.length - 1}
-            onPress={() => onOpenItem(item)}
-          />
-        ))}
-      </ScrollView>
     </View>
   );
 }
@@ -578,92 +531,44 @@ const styles = StyleSheet.create({
   sections: {
     paddingHorizontal: 26,
     paddingTop: 4,
-    paddingBottom: 16,
+    paddingBottom: 24,
   },
-  sectionLink: {
+  // Each category is an accordion row: a tappable heading and, when open, its
+  // item rows. A hairline rule separates one category from the next.
+  categoryDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.paperHair,
+  },
+  categoryHeading: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 14,
-    paddingVertical: 22,
+    paddingVertical: 18,
   },
-  sectionDivider: {
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.paperHair,
-  },
-  sectionTitle: {
-    color: COLORS.ink,
-    fontFamily: 'Fraunces_600SemiBold',
-    fontSize: 24,
-    letterSpacing: -0.43,
-    flexShrink: 0,
-  },
-  leaderDots: {
-    flex: 1,
-    color: COLORS.inkFaint,
-    fontSize: 14,
-    letterSpacing: 5.6,
-  },
-
-  // ── Section browse list — ribbon ───────────────────────────
-  ribbon: {
-    backgroundColor: COLORS.ink,
-    paddingHorizontal: 22,
-    paddingBottom: 16,
-  },
-  ribbonBack: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 4,
-    alignSelf: 'flex-start',
-  },
-  ribbonBackText: {
-    color: COLORS.onDarkMuted,
-    fontFamily: 'Inter_700Bold',
-    fontSize: 10,
-    letterSpacing: 2.2,
-    textTransform: 'uppercase',
-  },
-
-  // ── Section browse list — title block ──────────────────────
-  titleBlock: {
-    backgroundColor: COLORS.paper,
-    paddingTop: 18,
-    paddingHorizontal: 26,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.paperHair,
-  },
-  titleEyebrow: {
-    color: COLORS.amber,
-    fontFamily: 'Inter_700Bold',
-    fontSize: 10,
-    letterSpacing: 2.2,
-    textTransform: 'uppercase',
-    marginBottom: 6,
-  },
-  titleRow: {
+  categoryHeadingLeft: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    gap: 12,
+    gap: 10,
+    flexShrink: 1,
   },
-  titleName: {
+  categoryTitle: {
     color: COLORS.ink,
-    fontFamily: 'Fraunces_500Medium',
-    fontSize: 36,
-    letterSpacing: -0.79,
+    fontFamily: 'Fraunces_600SemiBold',
+    fontSize: 26,
+    letterSpacing: -0.5,
   },
-  titleCount: {
+  categoryCount: {
     color: COLORS.inkMute,
     fontFamily: 'Newsreader_500Medium_Italic',
-    fontSize: 15,
+    fontSize: 14,
+  },
+  // Sits between the heading and the next category's rule when expanded.
+  categoryItems: {
+    paddingBottom: 8,
   },
 
-  // ── Section browse list — item rows ────────────────────────
-  itemsList: {
-    paddingHorizontal: 26,
-    flexGrow: 1,
-  },
+  // ── Item rows ──────────────────────────────────────────────
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
