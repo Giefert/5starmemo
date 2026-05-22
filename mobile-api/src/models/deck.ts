@@ -74,12 +74,16 @@ export class DeckModel {
   /**
    * Get deck with cards for studying. Restaurant scope enforced via deck.
    *
-   * mode='full' returns every card in the deck.
+   * mode='full' returns every card in the deck, in random order (a browse/cram
+   * pass with no recall priority).
    * mode='recommended' (default) returns cards FSRS thinks the student should
    * work on now: anything due (next_review <= NOW), plus anything not-yet-
    * mastered (no FSRS row, or state in new/learning/relearning, or review
    * state with stability < 21 days). Mastered cards scheduled in the future
-   * are skipped.
+   * are skipped. These are ordered by FSRS urgency — overdue cards first
+   * (oldest due date ≈ lowest retrievability), new/unseen cards treated as
+   * due-now and mixed in at that boundary, not-yet-due cards last — with
+   * RANDOM() breaking ties so the order isn't a fixed sequence each session.
    */
   static async getDeckForStudy(
     deckId: string,
@@ -95,6 +99,13 @@ export class DeckModel {
         OR fc.next_review <= NOW()
       )
     `;
+
+    // 'recommended' leans on FSRS: most-urgent (lowest retrievability) first,
+    // RANDOM() only as a tiebreaker. 'full' is a plain shuffle.
+    const orderBy =
+      mode === 'recommended'
+        ? `ORDER BY COALESCE(fc.next_review, NOW()) ASC, RANDOM()`
+        : `ORDER BY RANDOM()`;
 
     const query = `
       SELECT
@@ -122,7 +133,7 @@ export class DeckModel {
       LEFT JOIN fsrs_cards fc ON c.id = fc.card_id AND fc.user_id = $2
       WHERE c.deck_id = $1 AND d.restaurant_id = $3
       ${mode === 'recommended' ? recommendedFilter : ''}
-      ORDER BY c.restaurant_data->>'itemName' ASC, c.created_at ASC
+      ${orderBy}
     `;
 
     const result = await pool.query(query, [deckId, userId, restaurantId]);
