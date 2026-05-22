@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   Alert,
   RefreshControl,
   StatusBar,
+  Animated,
+  Easing,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -63,6 +65,45 @@ export const HomeScreen: React.FC = () => {
   } | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { logout, restaurant } = useAuth();
+
+  // Mode toggle underline — the amber bar slides beneath the active mode and
+  // resizes to its label, matching the Reference tab's Index strip. `barX`/
+  // `barW` drive the slide; `toggleLayouts` caches each label's measured x/
+  // width, keyed by mode value, so the bar can be placed without a re-measure.
+  const barX = useRef(new Animated.Value(0)).current;
+  const barW = useRef(new Animated.Value(0)).current;
+  const toggleLayouts = useRef<Record<string, { x: number; width: number }>>({});
+
+  const moveBar = useCallback(
+    (value: Mode, animate: boolean) => {
+      const l = toggleLayouts.current[value];
+      if (!l) return;
+      if (animate) {
+        Animated.parallel([
+          Animated.timing(barX, {
+            toValue: l.x,
+            duration: 220,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+          }),
+          Animated.timing(barW, {
+            toValue: l.width,
+            duration: 220,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+          }),
+        ]).start();
+      } else {
+        barX.setValue(l.x);
+        barW.setValue(l.width);
+      }
+    },
+    [barX, barW],
+  );
+
+  useEffect(() => {
+    moveBar(mode, true);
+  }, [mode, moveBar]);
 
   useEffect(() => {
     loadData();
@@ -220,6 +261,7 @@ export const HomeScreen: React.FC = () => {
         deckId={selectedDeck.id}
         deckTitle={selectedDeck.title}
         onExit={handleBackToHome}
+        backLabel="Study"
       />
     );
   }
@@ -232,25 +274,33 @@ export const HomeScreen: React.FC = () => {
         <Text style={styles.mastheadTitle}>Study.</Text>
 
         <View style={styles.toggleBar}>
-          {MODE_LABELS.map((label, i) => {
-            const value = MODE_VALUES[i];
-            const active = mode === value;
-            return (
-              <Pressable
-                key={value}
-                onPress={() => setMode(value)}
-                hitSlop={8}
-                style={styles.toggleItem}
-              >
-                <Text style={[styles.toggleLabel, active && styles.toggleLabelActive]}>
-                  {label}
-                </Text>
-                <View
-                  style={[styles.toggleUnderline, active && styles.toggleUnderlineActive]}
-                />
-              </Pressable>
-            );
-          })}
+          <View style={styles.toggleRow}>
+            {MODE_LABELS.map((label, i) => {
+              const value = MODE_VALUES[i];
+              const active = mode === value;
+              return (
+                <Pressable
+                  key={value}
+                  onPress={() => setMode(value)}
+                  onLayout={e => {
+                    const { x, width: w } = e.nativeEvent.layout;
+                    toggleLayouts.current[value] = { x, width: w };
+                    if (value === mode) moveBar(value, false);
+                  }}
+                  hitSlop={8}
+                  style={styles.toggleItem}
+                >
+                  <Text style={[styles.toggleLabel, active && styles.toggleLabelActive]}>
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.toggleBarUnderline, { width: barW, transform: [{ translateX: barX }] }]}
+            />
+          </View>
         </View>
       </View>
 
@@ -318,9 +368,15 @@ export const HomeScreen: React.FC = () => {
                 )}
 
                 <View style={styles.statsRow}>
-                  <Stat label="Mastered" value={deck.masteredCards} />
-                  <Stat label="Learning" value={deck.learningCards} />
-                  <Stat label="Weak" value={deck.weakCards} weak />
+                  {mode === 'recommended' ? (
+                    <>
+                      <Stat label="Mastered" value={deck.masteredCards} />
+                      <Stat label="Learning" value={deck.learningCards} />
+                      <Stat label="Weak" value={deck.weakCards} weak />
+                    </>
+                  ) : (
+                    <Stat label="Cards" value={deck.cardCount} />
+                  )}
                   {fullyMastered && (
                     <Text style={styles.allMastered}>All mastered</Text>
                   )}
@@ -391,10 +447,15 @@ const styles = StyleSheet.create({
   },
 
   toggleBar: {
-    flexDirection: 'row',
     marginTop: 22,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.bgHair,
+  },
+  // Inner row with no padding so the bar's translateX shares the labels'
+  // coordinate origin — mirrors the Reference tab's Index strip.
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
   },
   toggleItem: {
     marginRight: 22,
@@ -409,13 +470,14 @@ const styles = StyleSheet.create({
     paddingBottom: 11,
   },
   toggleLabelActive: { color: COLORS.paper },
-  toggleUnderline: {
+  // Slides + resizes under the active mode, flush with the hairline.
+  toggleBarUnderline: {
+    position: 'absolute',
+    left: 0,
+    bottom: 0,
     height: 1.5,
-    width: '100%',
-    backgroundColor: 'transparent',
-    marginTop: -1.5,
+    backgroundColor: COLORS.amber,
   },
-  toggleUnderlineActive: { backgroundColor: COLORS.amber },
 
   // ── Body ───────────────────────────────────────────────────
   body: { flex: 1, backgroundColor: COLORS.paper },

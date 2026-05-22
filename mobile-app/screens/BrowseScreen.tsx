@@ -32,9 +32,10 @@ interface BrowseScreenProps {
   deckId: string;
   deckTitle: string;
   onExit: () => void;
+  backLabel?: string;
 }
 
-export const BrowseScreen: React.FC<BrowseScreenProps> = ({ deckId, deckTitle, onExit }) => {
+export const BrowseScreen: React.FC<BrowseScreenProps> = ({ deckId, deckTitle, onExit, backLabel = 'Back' }) => {
   const insets = useSafeAreaInsets();
   const [cards, setCards] = useState<StudyCardData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -193,7 +194,7 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({ deckId, deckTitle, o
               strokeLinejoin="round"
             />
           </Svg>
-          <Text style={styles.ribbonBackText}>Back</Text>
+          <Text style={styles.ribbonBackText}>{backLabel}</Text>
         </TouchableOpacity>
       </View>
 
@@ -331,7 +332,7 @@ const styles = StyleSheet.create({
   ribbonBack: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
     paddingVertical: 4,
     alignSelf: 'flex-start',
   },
