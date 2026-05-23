@@ -329,7 +329,6 @@ export const HomeScreen: React.FC = () => {
           </View>
         ) : (
           decks.map((deck, i) => {
-            const fullyMastered = deck.weakCards === 0 && deck.learningCards === 0;
             return (
               <Pressable
                 key={deck.id}
@@ -367,20 +366,11 @@ export const HomeScreen: React.FC = () => {
                   </Text>
                 )}
 
-                <View style={styles.statsRow}>
-                  {mode === 'recommended' ? (
-                    <>
-                      <Stat label="Mastered" value={deck.masteredCards} />
-                      <Stat label="Learning" value={deck.learningCards} />
-                      <Stat label="Weak" value={deck.weakCards} weak />
-                    </>
-                  ) : (
-                    <Stat label="Cards" value={deck.cardCount} />
-                  )}
-                  {fullyMastered && (
-                    <Text style={styles.allMastered}>All mastered</Text>
-                  )}
-                </View>
+                <DeckStats
+                  key={`${deck.masteredCards}-${deck.learningCards}-${deck.weakCards}-${deck.cardCount}`}
+                  deck={deck}
+                  mode={mode}
+                />
               </Pressable>
             );
           })
@@ -389,6 +379,126 @@ export const HomeScreen: React.FC = () => {
     </View>
   );
 };
+
+// The stats line shows three mastery counts in `recommended` and a single
+// card count in `full`/`browse`. Switching modes plays a left-anchored reveal:
+// the line's right edge slides between the long form's "Weak" tip and the
+// short form's "Cards" tip, while the two forms crossfade. Both forms are
+// stacked left-aligned inside a clip whose width animates between their two
+// natural widths — so the right edge is the only thing that travels.
+//
+// Those two widths (and the line height for the absolutely-stacked forms) have
+// to be measured first; until then we render the active form at natural size,
+// with an invisible pass laying out both forms to capture their dimensions.
+// The row is keyed on its counts upstream, so a study session that changes a
+// figure remounts this and re-measures.
+function DeckStats({ deck, mode }: { deck: StudentDeck; mode: Mode }) {
+  const fullyMastered = deck.weakCards === 0 && deck.learningCards === 0;
+  const [dims, setDims] = useState<{
+    recW: number;
+    compactW: number;
+    h: number;
+  } | null>(null);
+  const width = useRef(new Animated.Value(0)).current;
+  // 1 = recommended form fully shown, 0 = compact form fully shown.
+  const recShown = useRef(
+    new Animated.Value(mode === 'recommended' ? 1 : 0),
+  ).current;
+  const measured = useRef<{ recW?: number; compactW?: number; h?: number }>({});
+
+  const renderRec = () => (
+    <>
+      <Stat label="Mastered" value={deck.masteredCards} />
+      <Stat label="Learning" value={deck.learningCards} />
+      <Stat label="Weak" value={deck.weakCards} weak />
+    </>
+  );
+  const renderCompact = () => <Stat label="Cards" value={deck.cardCount} />;
+
+  const finishMeasure = () => {
+    const m = measured.current;
+    if (m.recW == null || m.compactW == null || m.h == null) return;
+    // Seat the clip at its resting width before the clipped layer first paints.
+    width.setValue(mode === 'recommended' ? m.recW : m.compactW);
+    setDims({ recW: m.recW, compactW: m.compactW, h: m.h });
+  };
+
+  // Slide the right edge to the new form's tip and crossfade the figures.
+  useEffect(() => {
+    if (!dims) return;
+    const isRec = mode === 'recommended';
+    Animated.parallel([
+      Animated.timing(width, {
+        toValue: isRec ? dims.recW : dims.compactW,
+        duration: 300,
+        easing: Easing.inOut(Easing.cubic),
+        useNativeDriver: false,
+      }),
+      Animated.timing(recShown, {
+        toValue: isRec ? 1 : 0,
+        // Hold the old form while the edge starts moving, then crossfade in the
+        // back half of the slide so the swap reads as "becomes its new form at
+        // the tip" rather than ghosting both at the fixed left edge.
+        delay: 110,
+        duration: 180,
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver: false,
+      }),
+    ]).start();
+  }, [mode, dims, width, recShown]);
+
+  const compactShown = recShown.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 0],
+  });
+
+  return (
+    <View style={styles.statsRow}>
+      {dims ? (
+        <Animated.View style={[styles.statsClip, { width, height: dims.h }]}>
+          <Animated.View
+            style={[styles.statGroup, styles.statsForm, { opacity: recShown }]}
+          >
+            {renderRec()}
+          </Animated.View>
+          <Animated.View
+            style={[styles.statGroup, styles.statsForm, { opacity: compactShown }]}
+          >
+            {renderCompact()}
+          </Animated.View>
+        </Animated.View>
+      ) : (
+        <View>
+          <View style={styles.statGroup}>
+            {mode === 'recommended' ? renderRec() : renderCompact()}
+          </View>
+          <View style={styles.statsMeasure} pointerEvents="none">
+            <View
+              style={styles.statGroup}
+              onLayout={e => {
+                measured.current.recW = e.nativeEvent.layout.width;
+                measured.current.h = e.nativeEvent.layout.height;
+                finishMeasure();
+              }}
+            >
+              {renderRec()}
+            </View>
+            <View
+              style={styles.statGroup}
+              onLayout={e => {
+                measured.current.compactW = e.nativeEvent.layout.width;
+                finishMeasure();
+              }}
+            >
+              {renderCompact()}
+            </View>
+          </View>
+        </View>
+      )}
+      {fullyMastered && <Text style={styles.allMastered}>All mastered</Text>}
+    </View>
+  );
+}
 
 // When the `weak` count is non-zero, both its figure and label ring red —
 // the "needs attention" signal. Any count of 0 drops the figure to inkMute
@@ -526,8 +636,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'baseline',
     marginTop: 16,
+  },
+  // Holds the mastery/card figures; the gap that used to sit on statsRow lives
+  // here now so "All mastered" can still pin right of it.
+  statGroup: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
     gap: 18,
   },
+  // Window onto the stacked forms; its animated width is the sliding right edge.
+  statsClip: { overflow: 'hidden' },
+  // Both forms share the top-left origin so only the right edge ever moves.
+  statsForm: { position: 'absolute', left: 0, top: 0 },
+  // Off-paint layout pass used only to capture both forms' natural sizes.
+  // alignItems flex-start is load-bearing: this column would otherwise stretch
+  // both forms to the wider one's width, making the two measurements equal and
+  // leaving the reveal with no width to animate.
+  statsMeasure: { position: 'absolute', left: 0, top: 0, opacity: 0, alignItems: 'flex-start' },
   stat: { flexDirection: 'row', alignItems: 'baseline' },
   statFigure: {
     fontFamily: 'Fraunces_600SemiBold',

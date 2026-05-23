@@ -11,9 +11,29 @@ export const customHTMLElementModels = {
   }),
 };
 
-// Strip HTML tags for plain text preview
+// Decode the HTML entities TipTap commonly emits
+function decodeEntities(text: string): string {
+  return text
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)))
+    .replace(/&amp;/g, '&'); // last, so double-encoded entities survive
+}
+
+// Strip HTML tags to plain text, preserving line breaks between blocks
 export function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+  const text = html
+    .replace(/<br\s*\/?>/gi, '\n') // line breaks
+    .replace(/<\/(p|div|li|h[1-6])>/gi, '\n') // block boundaries
+    .replace(/<[^>]*>/g, '');
+  return decodeEntities(text)
+    .replace(/[ \t]+/g, ' ') // collapse runs of spaces/tabs
+    .replace(/ *\n */g, '\n') // trim spaces around line breaks
+    .replace(/\n{2,}/g, '\n') // collapse blank lines
+    .trim();
 }
 
 // Convert inline font-size styles to classes for reliable rendering

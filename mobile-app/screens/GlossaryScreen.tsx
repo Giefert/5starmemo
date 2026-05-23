@@ -520,7 +520,7 @@ export default function GlossaryScreen() {
   }) => {
     const isLastSection = section.key === pageSections[pageSections.length - 1]?.key;
     const isLastRow = index === section.data.length - 1;
-    const definition = stripHtml(item.definition);
+    const definitionLines = stripHtml(item.definition).split('\n').filter(Boolean).slice(0, 2);
     return (
       <Pressable
         onPress={() => handleTermPress(item.id)}
@@ -534,15 +534,14 @@ export default function GlossaryScreen() {
           <Text style={styles.termEyebrow}>{item.categoryName}</Text>
         )}
         <Text style={styles.termName}>{item.term}</Text>
-        {!!definition && (
-          <Text style={styles.termDefinition} numberOfLines={2}>
-            {definition}
-          </Text>
-        )}
-        {item.linkedCardCount > 0 && (
-          <Text style={styles.termMeta}>
-            {item.linkedCardCount} linked card{item.linkedCardCount !== 1 ? 's' : ''}
-          </Text>
+        {definitionLines.length > 0 && (
+          <View style={styles.termDefinition}>
+            {definitionLines.map((line, i) => (
+              <Text key={i} style={styles.termDefinitionLine} numberOfLines={1}>
+                {line}
+              </Text>
+            ))}
+          </View>
         )}
       </Pressable>
     );
@@ -1127,18 +1126,13 @@ const styles = StyleSheet.create({
     color: COLORS.ink,
   },
   termDefinition: {
+    marginTop: 8,
+  },
+  termDefinitionLine: {
     fontFamily: 'Newsreader_500Medium_Italic',
     fontSize: 14,
     lineHeight: 20,
     color: COLORS.inkMute,
-    marginTop: 8,
-  },
-  termMeta: {
-    fontFamily: 'JetBrainsMono_400Regular',
-    fontSize: 10,
-    color: COLORS.inkFaint,
-    marginTop: 8,
-    fontVariant: ['tabular-nums'],
   },
 
   // ── A–Z rail ───────────────────────────────────────────────

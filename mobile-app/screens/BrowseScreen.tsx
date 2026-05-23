@@ -33,9 +33,13 @@ interface BrowseScreenProps {
   deckTitle: string;
   onExit: () => void;
   backLabel?: string;
+  // When set, open straight to this card's detail view instead of the deck
+  // list — used by the bulletin, where tapping a card item opens the card
+  // itself. Backing out then returns to the caller, skipping the list.
+  initialCardId?: string;
 }
 
-export const BrowseScreen: React.FC<BrowseScreenProps> = ({ deckId, deckTitle, onExit, backLabel = 'Back' }) => {
+export const BrowseScreen: React.FC<BrowseScreenProps> = ({ deckId, deckTitle, onExit, backLabel = 'Back', initialCardId }) => {
   const insets = useSafeAreaInsets();
   const [cards, setCards] = useState<StudyCardData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -43,6 +47,9 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({ deckId, deckTitle, o
   const [isFlipped, setIsFlipped] = useState(false);
   const [linkedTerms, setLinkedTerms] = useState<LinkedTerm[]>([]);
   const [selectedTerm, setSelectedTerm] = useState<LinkedTerm | null>(null);
+  // True while the visible card was opened directly (via initialCardId) with
+  // no list in between, so its back arrow exits rather than dropping to a list.
+  const [openedDirectly, setOpenedDirectly] = useState(false);
 
   useEffect(() => {
     loadCards();
@@ -53,6 +60,14 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({ deckId, deckTitle, o
       setIsLoading(true);
       const data = await apiService.getDeckForStudy(deckId);
       setCards(data.cards);
+      if (initialCardId) {
+        const match = data.cards.find((c) => c.card.id === initialCardId);
+        if (match) {
+          setSelectedCard(match);
+          setIsFlipped(false);
+          setOpenedDirectly(true);
+        }
+      }
     } catch (error) {
       console.error('Failed to load cards for browsing:', error);
     } finally {
@@ -73,9 +88,16 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({ deckId, deckTitle, o
   const handleSelectCard = (card: StudyCardData) => {
     setSelectedCard(card);
     setIsFlipped(false);
+    setOpenedDirectly(false);
   };
 
-  const handleBackToList = () => {
+  // A card opened directly from the bulletin has no list behind it, so backing
+  // out leaves Browse entirely; one reached via the list returns to the list.
+  const handleCardBack = () => {
+    if (openedDirectly) {
+      onExit();
+      return;
+    }
     setSelectedCard(null);
     setIsFlipped(false);
   };
@@ -90,7 +112,7 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({ deckId, deckTitle, o
           <View style={styles.mastheadRow}>
             <TouchableOpacity
               style={styles.exitButton}
-              onPress={handleBackToList}
+              onPress={handleCardBack}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <Text style={styles.exitIcon}>←</Text>
@@ -171,6 +193,17 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({ deckId, deckTitle, o
           term={selectedTerm}
           onDismiss={() => setSelectedTerm(null)}
         />
+      </View>
+    );
+  }
+
+  // Opening a card directly from the bulletin: hold on a neutral ink loading
+  // screen while the deck loads, so the list chrome never flashes before the
+  // card's detail view resolves.
+  if (initialCardId && isLoading && !selectedCard) {
+    return (
+      <View style={[styles.studyContainer, styles.centerContainer]}>
+        <ActivityIndicator size="large" color={COLORS.amber} />
       </View>
     );
   }
