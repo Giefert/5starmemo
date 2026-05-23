@@ -457,17 +457,19 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   // Oversized opening quote, set in the Bulletin title face. The glyph sits
-  // high in its em box, so lineHeight carries extra top leading to keep it
-  // from clipping; the negative margin then pulls the notice up so the glyph
-  // straddles the top-left corner, mirroring the closing quote at bottom-right.
+  // high in its em box, so a positive marginTop drops the whole line box down
+  // until the bowl rests on the notice's first line; the matching extra-negative
+  // marginBottom keeps the notice pulled up to the same Y, so only the glyph
+  // moves. The glyph thus straddles the top-left corner, mirroring the closing
+  // quote — which is pulled the other way (negative marginTop) at bottom-right.
   quoteOpen: {
     color: COLORS.onDarkMuted,
     fontFamily: 'Fraunces_500Medium',
     fontSize: 54,
     lineHeight: 72,
     marginLeft: -2,
-    marginTop: -9,
-    marginBottom: -42,
+    marginTop: -3,
+    marginBottom: -54,
   },
   // Closing quote, mirrored to the right edge to bracket the notice.
   quoteClose: {
