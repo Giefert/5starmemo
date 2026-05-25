@@ -71,6 +71,7 @@ export class DeckModel {
       categoryId: row.category_id,
       createdBy: row.created_by,
       isFeatured: row.is_featured,
+      featuredOrder: row.featured_order,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       cardCount: parseInt(row.card_count) || 0,
@@ -161,6 +162,12 @@ export class DeckModel {
       setClause.push(`is_featured = $${paramCount}`);
       values.push(deckData.isFeatured);
       paramCount++;
+      // Drop the featured position when a deck is unfeatured so it can't linger
+      // and resurface if the deck is featured again later. Ordering of featured
+      // decks is owned by the dashboard's Featured section (setFeatured).
+      if (deckData.isFeatured === false) {
+        setClause.push(`featured_order = NULL`);
+      }
     }
 
     if (setClause.length === 0) {
@@ -201,6 +208,40 @@ export class DeckModel {
     const query = 'DELETE FROM decks WHERE id = $1 AND restaurant_id = $2';
     const result = await pool.query(query, [id, restaurantId]);
     return (result.rowCount || 0) > 0;
+  }
+
+  /**
+   * Replace the restaurant's featured set with `deckIds`, in the given order.
+   * Decks listed become featured with featured_order = their index; any deck
+   * currently featured but absent from the list is unfeatured. This single
+   * replace-all call backs add, remove, and reorder from the dashboard's
+   * Featured section. Does not touch updated_at — featuring is curation, not a
+   * content edit, and the dashboard's staleness warning keys off updated_at.
+   */
+  static async setFeatured(deckIds: string[], restaurantId: string): Promise<DeckWithStats[]> {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `UPDATE decks SET is_featured = false, featured_order = NULL
+          WHERE restaurant_id = $1 AND is_featured = true`,
+        [restaurantId]
+      );
+      for (let i = 0; i < deckIds.length; i++) {
+        await client.query(
+          `UPDATE decks SET is_featured = true, featured_order = $1
+            WHERE id = $2 AND restaurant_id = $3`,
+          [i, deckIds[i], restaurantId]
+        );
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+    return this.findAll(restaurantId);
   }
 
 }

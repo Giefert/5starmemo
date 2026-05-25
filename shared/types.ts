@@ -94,6 +94,10 @@ export interface Deck {
   categoryId?: string;
   createdBy: string;
   isFeatured: boolean;
+  // Position within the featured list (0-based). null when not featured, or
+  // featured but not yet ordered. Drives the order featured decks appear in
+  // the student deck list.
+  featuredOrder?: number | null;
   createdAt: Date;
   updatedAt: Date;
   cards?: Card[];

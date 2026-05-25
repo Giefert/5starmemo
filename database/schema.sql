@@ -35,6 +35,7 @@ CREATE TABLE decks (
     created_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     is_public BOOLEAN DEFAULT false,
     is_featured BOOLEAN DEFAULT false,
+    featured_order INTEGER,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -102,6 +103,7 @@ CREATE INDEX idx_decks_category_id ON decks(category_id);
 CREATE INDEX idx_decks_is_public ON decks(is_public);
 CREATE INDEX idx_decks_is_featured ON decks(is_featured);
 CREATE INDEX idx_decks_public_featured ON decks(is_public, is_featured) WHERE is_public = true AND is_featured = true;
+CREATE INDEX idx_decks_featured_order ON decks(restaurant_id, featured_order) WHERE is_featured = true;
 CREATE INDEX idx_cards_deck_id ON cards(deck_id);
 CREATE INDEX idx_cards_order ON cards(deck_id, card_order);
 CREATE INDEX idx_cards_restaurant_data ON cards USING GIN(restaurant_data);

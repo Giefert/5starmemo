@@ -35,6 +35,44 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
   }
 });
 
+// Replace-all the restaurant's featured decks, in order. Backs the dashboard's
+// Featured section (add / remove / reorder). Registered before '/:id' so the
+// literal path isn't swallowed by the UUID param route.
+router.put('/featured',
+  [
+    body('deckIds').isArray(),
+    body('deckIds.*').isUUID(),
+  ],
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Validation failed',
+          details: errors.array()
+        });
+      }
+
+      const decks = await DeckModel.setFeatured(req.body.deckIds, req.user!.restaurantId);
+
+      const response: ApiResponse = {
+        success: true,
+        data: decks,
+        message: 'Featured decks updated successfully'
+      };
+
+      res.json(response);
+    } catch (error) {
+      console.error('Error updating featured decks:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error'
+      });
+    }
+  }
+);
+
 // Get specific deck with cards
 router.get('/:id',
   [param('id').isUUID()],

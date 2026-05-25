@@ -116,6 +116,13 @@ export const deckApi = {
     await api.delete(`/decks/${id}`);
   },
 
+  // Replace-all the featured set, in order. Returns the full deck list with
+  // refreshed isFeatured / featuredOrder.
+  setFeatured: async (deckIds: string[]): Promise<Deck[]> => {
+    const response = await api.put<ApiResponse<Deck[]>>('/decks/featured', { deckIds });
+    return response.data.data!;
+  },
+
   addCard: async (deckId: string, cardData: any): Promise<any> => {
     const response = await api.post<ApiResponse<any>>(`/decks/${deckId}/cards`, cardData);
     return response.data.data!;

@@ -52,8 +52,8 @@ export class DeckModel {
       LEFT JOIN cards c ON d.id = c.deck_id
       LEFT JOIN fsrs_cards fc ON c.id = fc.card_id AND fc.user_id = $1
       WHERE d.id IN (SELECT id FROM accessible)
-      GROUP BY d.id, d.title, d.description, d.is_featured
-      ORDER BY d.is_featured DESC, d.created_at DESC
+      GROUP BY d.id, d.title, d.description, d.is_featured, d.featured_order
+      ORDER BY d.is_featured DESC, d.featured_order ASC NULLS LAST, d.created_at DESC
     `;
 
     const result = await pool.query(query, [userId, restaurantId]);

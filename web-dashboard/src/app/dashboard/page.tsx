@@ -11,6 +11,7 @@ import {
 } from '../../../../shared/types';
 import { applyFilter, CarteFilter } from '@/lib/decks';
 import { Masthead } from '@/components/admin/masthead';
+import { FeaturedDecks } from '@/components/admin/featured-decks';
 import { DeckGrid } from '@/components/admin/deck-grid';
 
 const EMPTY_CURATIONS: Record<CurationKind, RestaurantCurationItem[]> = {
@@ -74,6 +75,11 @@ export default function DashboardPage() {
   const handleSaveAnnouncements = useCallback(async (next: string[]) => {
     const saved = await restaurantApi.updateAnnouncements(next);
     setRestaurant((cur) => (cur ? { ...cur, announcements: saved } : cur));
+  }, []);
+
+  const handleSaveFeatured = useCallback(async (deckIds: string[]) => {
+    const updated = await deckApi.setFeatured(deckIds);
+    setDecks(updated);
   }, []);
 
   const handleAddCuration = useCallback(
@@ -146,6 +152,8 @@ export default function DashboardPage() {
           {error}
         </div>
       )}
+
+      <FeaturedDecks decks={decks} onSave={handleSaveFeatured} />
 
       <DeckGrid
         decks={visibleDecks}
