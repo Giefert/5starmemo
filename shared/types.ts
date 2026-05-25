@@ -125,7 +125,7 @@ export interface Card {
 }
 
 // Helper types for discriminated union
-export type RestaurantCategory = 'wine' | 'beer' | 'cocktail' | 'spirit' | 'maki' | 'sake' | 'sauce' | 'fish';
+export type RestaurantCategory = 'wine' | 'beer' | 'cocktail' | 'spirit' | 'maki' | 'sake' | 'sauce' | 'fish' | 'dietary';
 export type PricePoint = 'not-specified' | 'budget' | 'mid-range' | 'premium' | 'luxury';
 
 // V2: Discriminated Union Architecture
@@ -214,6 +214,14 @@ export type FishCardData = BaseRestaurantCardData & {
   country?: string;
 };
 
+export type DietaryCardData = BaseRestaurantCardData & {
+  category: 'dietary';
+  starters?: string;
+  sashimi?: string;
+  nigiri?: string;
+  maki?: string;
+};
+
 /**
  * Restaurant card data using discriminated union pattern based on category.
  *
@@ -243,13 +251,14 @@ export type RestaurantCardData =
   | MakiCardData
   | SakeCardData
   | SauceCardData
-  | FishCardData;
+  | FishCardData
+  | DietaryCardData;
 
 // Flat (all-fields) shape used by the management form to collect input before
 // stripping to category-specific fields via migrateToV2().
 export interface RestaurantCardDataV1 {
   itemName: string;
-  category: 'wine' | 'beer' | 'cocktail' | 'spirit' | 'maki' | 'sake' | 'sauce' | 'fish';
+  category: 'wine' | 'beer' | 'cocktail' | 'spirit' | 'maki' | 'sake' | 'sauce' | 'fish' | 'dietary';
   description?: string;
   ingredients?: string[];
   allergens?: string[];
@@ -280,6 +289,10 @@ export interface RestaurantCardDataV1 {
   garnish?: string;
   taste?: string;
   country?: string;
+  starters?: string;
+  sashimi?: string;
+  nigiri?: string;
+  maki?: string;
 }
 
 export interface CreateCardInput {
@@ -587,6 +600,10 @@ export function isFishCard(data: RestaurantCardData): data is FishCardData {
   return data.category === 'fish';
 }
 
+export function isDietaryCard(data: RestaurantCardData): data is DietaryCardData {
+  return data.category === 'dietary';
+}
+
 export function isAlcoholicCard(
   data: RestaurantCardData
 ): data is WineCardData | BeerCardData | CocktailCardData | SpiritCardData | SakeCardData {
@@ -690,6 +707,16 @@ export function migrateToV2(v1: RestaurantCardDataV1): RestaurantCardData {
         category: 'fish',
         taste: v1.taste,
         country: v1.country,
+      };
+
+    case 'dietary':
+      return {
+        ...base,
+        category: 'dietary',
+        starters: v1.starters,
+        sashimi: v1.sashimi,
+        nigiri: v1.nigiri,
+        maki: v1.maki,
       };
   }
 }

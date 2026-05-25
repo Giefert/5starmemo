@@ -110,6 +110,12 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
     initData?.gluten || undefined
   );
 
+  // Dietary-specific fields
+  const [starters, setStarters] = useState(initData?.starters || '');
+  const [sashimi, setSashimi] = useState(initData?.sashimi || '');
+  const [nigiri, setNigiri] = useState(initData?.nigiri || '');
+  const [maki, setMaki] = useState(initData?.maki || '');
+
   // Cocktail-specific fields
   const [alcohol, setAlcohol] = useState<string[]>(
     initData?.alcohol || []
@@ -257,6 +263,11 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
         garnish: garnish.trim() || undefined,
         taste: taste.trim() || undefined,
         country: country.trim() || undefined,
+        // Dietary-specific fields
+        starters: starters.trim() || undefined,
+        sashimi: sashimi.trim() || undefined,
+        nigiri: nigiri.trim() || undefined,
+        maki: maki.trim() || undefined,
       };
 
       // Migrate to V2: strips fields incompatible with selected category
@@ -287,6 +298,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
     { value: 'spirit', label: 'Spirit' },
     { value: 'beer', label: 'Beer' },
     { value: 'fish', label: 'Fish' },
+    { value: 'dietary', label: 'Dietary' },
   ];
 
   const pricePointOptions = [
@@ -607,6 +619,52 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
               value={country}
               onChange={(e) => setCountry(e.target.value)}
               placeholder="e.g., Japan, Norway, Scotland"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Dietary-specific fields */}
+      {category === 'dietary' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Starters
+            </label>
+            <Input
+              value={starters}
+              onChange={(e) => setStarters(e.target.value)}
+              placeholder="e.g., Gluten-free, Vegan"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Sashimi
+            </label>
+            <Input
+              value={sashimi}
+              onChange={(e) => setSashimi(e.target.value)}
+              placeholder="e.g., Gluten-free, Vegan"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Nigiri
+            </label>
+            <Input
+              value={nigiri}
+              onChange={(e) => setNigiri(e.target.value)}
+              placeholder="e.g., Gluten-free, Vegan"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Maki
+            </label>
+            <Input
+              value={maki}
+              onChange={(e) => setMaki(e.target.value)}
+              placeholder="e.g., Gluten-free, Vegan"
             />
           </div>
         </div>

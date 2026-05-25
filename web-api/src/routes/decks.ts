@@ -6,7 +6,7 @@ import { UserDeckAccessModel } from '../models/userDeckAccess';
 import { authenticateToken, requireManagement, AuthenticatedRequest } from '../middleware/auth';
 import { CreateDeckInput, UpdateDeckInput, CreateCardInput, ApiResponse, RestaurantCategory } from '../../../shared/types';
 
-const VALID_CATEGORIES: RestaurantCategory[] = ['wine', 'beer', 'cocktail', 'spirit', 'maki', 'sake', 'sauce', 'fish'];
+const VALID_CATEGORIES: RestaurantCategory[] = ['wine', 'beer', 'cocktail', 'spirit', 'maki', 'sake', 'sauce', 'fish', 'dietary'];
 
 const router = Router();
 
