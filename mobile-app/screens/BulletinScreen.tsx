@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -71,11 +71,22 @@ export default function BulletinScreen() {
   const [selectedDeck, setSelectedDeck] = useState<{ id: string; title: string; cardId?: string } | null>(null);
   // Accordion: at most one category open at a time. Tapping the open one closes it.
   const [openSection, setOpenSection] = useState<CurationKind | null>(null);
+  // On first load, open the first category that has items so the page doesn't
+  // greet the reader with everything collapsed. One-shot — refreshes and the
+  // reader's own taps thereafter own the open state.
+  const didInitOpen = useRef(false);
 
   const loadBulletin = useCallback(async () => {
     try {
       const payload = await apiService.getBulletin();
       setData(payload);
+      if (!didInitOpen.current) {
+        didInitOpen.current = true;
+        const firstWithItems = SECTIONS.find(
+          (s) => (payload.curations[s.kind] ?? []).length > 0,
+        );
+        if (firstWithItems) setOpenSection(firstWithItems.kind);
+      }
       setError('');
     } catch (err: any) {
       if (err?.name === 'AuthenticationError') {

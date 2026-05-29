@@ -59,7 +59,17 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({ deckId, deckTitle, o
     try {
       setIsLoading(true);
       const data = await apiService.getDeckForStudy(deckId);
-      setCards(data.cards);
+      // Browse is an index of the deck, so list items alphabetically by the
+      // same name the row renders. (The shared study endpoint orders by FSRS
+      // urgency for study sessions; that ordering is wrong for browsing.)
+      const sorted = [...data.cards].sort((a, b) =>
+        (a.card.restaurantData?.itemName || '').localeCompare(
+          b.card.restaurantData?.itemName || '',
+          undefined,
+          { sensitivity: 'base' }
+        )
+      );
+      setCards(sorted);
       if (initialCardId) {
         const match = data.cards.find((c) => c.card.id === initialCardId);
         if (match) {

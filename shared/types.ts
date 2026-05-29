@@ -135,6 +135,7 @@ interface BaseRestaurantCardData {
   category: RestaurantCategory;
   description?: string;
   pricePoint?: PricePoint;
+  price?: string;
   specialNotes?: string;
 }
 
@@ -290,6 +291,7 @@ export interface RestaurantCardDataV1 {
   servingTemp?: string;
   foodPairings?: string[];
   pricePoint?: 'not-specified' | 'budget' | 'mid-range' | 'premium' | 'luxury';
+  price?: string;
   specialNotes?: string;
   topping?: string;
   base?: string;
@@ -639,6 +641,7 @@ export function migrateToV2(v1: RestaurantCardDataV1): RestaurantCardData {
     category: v1.category,
     description: v1.description,
     pricePoint: v1.pricePoint,
+    price: v1.price,
     specialNotes: v1.specialNotes,
   };
 

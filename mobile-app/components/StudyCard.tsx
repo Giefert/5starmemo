@@ -11,7 +11,10 @@ import {
   isCocktailCard,
   isSpiritCard,
   isSauceCard,
-  isFishCard
+  isFishCard,
+  isDietaryCard,
+  isStartersCard,
+  isSashimiCard
 } from '../types/shared';
 
 const COLORS = {
@@ -269,6 +272,11 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
           <ScrollView style={styles.detailsScroll} showsVerticalScrollIndicator>
             <View style={styles.backBody}>
               <View style={styles.detailsContainer}>
+                {/* Price — applies to all categories */}
+                {card.restaurantData.price && (
+                  <DetailField label="PRICE" text={card.restaurantData.price} />
+                )}
+
                 {/* Sake-specific fields */}
                 {isSakeCard(card.restaurantData) && (
                   <>
@@ -371,6 +379,13 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
                     {card.restaurantData.abv !== undefined && (
                       <DetailField label="ABV" text={`${card.restaurantData.abv}%`} />
                     )}
+                    {card.restaurantData.specialNotes && (
+                      <ListField
+                        label="SPECIAL NOTES"
+                        items={card.restaurantData.specialNotes.split(',').map((n) => n.trim()).filter(Boolean)}
+                        bulleted={false}
+                      />
+                    )}
                   </>
                 )}
 
@@ -426,6 +441,36 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
                     )}
                     {card.restaurantData.country && (
                       <DetailField label="COUNTRY" text={card.restaurantData.country} linkedTerms={linkedTerms} onTermPress={onTermPress} />
+                    )}
+                  </>
+                )}
+
+                {/* Dietary-specific fields */}
+                {isDietaryCard(card.restaurantData) && (
+                  <>
+                    {card.restaurantData.starters && (
+                      <DetailField label="STARTERS" text={card.restaurantData.starters} linkedTerms={linkedTerms} onTermPress={onTermPress} />
+                    )}
+                    {card.restaurantData.sashimi && (
+                      <DetailField label="SASHIMI" text={card.restaurantData.sashimi} linkedTerms={linkedTerms} onTermPress={onTermPress} />
+                    )}
+                    {card.restaurantData.nigiri && (
+                      <DetailField label="NIGIRI" text={card.restaurantData.nigiri} linkedTerms={linkedTerms} onTermPress={onTermPress} />
+                    )}
+                    {card.restaurantData.maki && (
+                      <DetailField label="MAKI" text={card.restaurantData.maki} linkedTerms={linkedTerms} onTermPress={onTermPress} />
+                    )}
+                  </>
+                )}
+
+                {/* Starters / Sashimi-specific fields */}
+                {(isStartersCard(card.restaurantData) || isSashimiCard(card.restaurantData)) && (
+                  <>
+                    {card.restaurantData.ingredients && card.restaurantData.ingredients.length > 0 && (
+                      <ListField label="INGREDIENTS" items={card.restaurantData.ingredients} />
+                    )}
+                    {card.restaurantData.allergens && card.restaurantData.allergens.length > 0 && (
+                      <AllergenField allergens={card.restaurantData.allergens} />
                     )}
                   </>
                 )}

@@ -99,6 +99,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
   const [pricePoint, setPricePoint] = useState<PricePoint>(
     initData?.pricePoint || 'not-specified'
   );
+  const [price, setPrice] = useState(initData?.price || '');
   const [specialNotes, setSpecialNotes] = useState(initData?.specialNotes || '');
 
   // Maki-specific fields
@@ -250,6 +251,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
         servingTemp: servingTemp.trim() || undefined,
         foodPairings: foodPairings.length > 0 ? foodPairings : undefined,
         pricePoint,
+        price: price.trim() || undefined,
         specialNotes: specialNotes.trim() || undefined,
         // Maki-specific fields
         topping: topping.trim() || (category === 'maki' ? 'None' : undefined),
@@ -361,6 +363,17 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
               </option>
             ))}
           </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Price
+          </label>
+          <Input
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            placeholder="$0"
+          />
         </div>
 
         <div>
