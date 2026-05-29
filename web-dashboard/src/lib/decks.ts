@@ -4,7 +4,7 @@ export type CarteCategory = 'Food' | 'Bar' | '(category)';
 export type CarteFilter = 'All' | 'Food' | 'Bar' | 'Featured';
 
 const BAR_CATS = new Set(['wine', 'beer', 'cocktail', 'spirit', 'sake']);
-const FOOD_CATS = new Set(['maki', 'sauce', 'fish', 'dietary']);
+const FOOD_CATS = new Set(['maki', 'sauce', 'fish', 'dietary', 'starters', 'sashimi']);
 
 // Derive a deck's Carte category from the restaurant categories of its cards.
 // All-bar → "Bar", all-food → "Food", mixed/empty → "(category)".

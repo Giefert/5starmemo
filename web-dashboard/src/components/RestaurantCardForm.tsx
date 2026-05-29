@@ -299,6 +299,8 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
     { value: 'beer', label: 'Beer' },
     { value: 'fish', label: 'Fish' },
     { value: 'dietary', label: 'Dietary' },
+    { value: 'starters', label: 'Starters' },
+    { value: 'sashimi', label: 'Sashimi' },
   ];
 
   const pricePointOptions = [
@@ -665,6 +667,32 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
               value={maki}
               onChange={(e) => setMaki(e.target.value)}
               placeholder="e.g., Gluten-free, Vegan"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Starters / Sashimi-specific fields */}
+      {(category === 'starters' || category === 'sashimi') && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Ingredients
+            </label>
+            <Input
+              value={ingredientsRaw}
+              onChange={(e) => handleRawArrayInput(e.target.value, setIngredientsRaw, setIngredients)}
+              placeholder="tuna, rice, nori (comma separated)"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Allergens
+            </label>
+            <Input
+              value={allergensRaw}
+              onChange={(e) => handleRawArrayInput(e.target.value, setAllergensRaw, setAllergens)}
+              placeholder="soy, sesame, shellfish (comma separated)"
             />
           </div>
         </div>

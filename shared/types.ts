@@ -125,7 +125,7 @@ export interface Card {
 }
 
 // Helper types for discriminated union
-export type RestaurantCategory = 'wine' | 'beer' | 'cocktail' | 'spirit' | 'maki' | 'sake' | 'sauce' | 'fish' | 'dietary';
+export type RestaurantCategory = 'wine' | 'beer' | 'cocktail' | 'spirit' | 'maki' | 'sake' | 'sauce' | 'fish' | 'dietary' | 'starters' | 'sashimi';
 export type PricePoint = 'not-specified' | 'budget' | 'mid-range' | 'premium' | 'luxury';
 
 // V2: Discriminated Union Architecture
@@ -222,6 +222,18 @@ export type DietaryCardData = BaseRestaurantCardData & {
   maki?: string;
 };
 
+export type StartersCardData = BaseRestaurantCardData & {
+  category: 'starters';
+  ingredients?: string[];
+  allergens?: string[];
+};
+
+export type SashimiCardData = BaseRestaurantCardData & {
+  category: 'sashimi';
+  ingredients?: string[];
+  allergens?: string[];
+};
+
 /**
  * Restaurant card data using discriminated union pattern based on category.
  *
@@ -252,13 +264,15 @@ export type RestaurantCardData =
   | SakeCardData
   | SauceCardData
   | FishCardData
-  | DietaryCardData;
+  | DietaryCardData
+  | StartersCardData
+  | SashimiCardData;
 
 // Flat (all-fields) shape used by the management form to collect input before
 // stripping to category-specific fields via migrateToV2().
 export interface RestaurantCardDataV1 {
   itemName: string;
-  category: 'wine' | 'beer' | 'cocktail' | 'spirit' | 'maki' | 'sake' | 'sauce' | 'fish' | 'dietary';
+  category: 'wine' | 'beer' | 'cocktail' | 'spirit' | 'maki' | 'sake' | 'sauce' | 'fish' | 'dietary' | 'starters' | 'sashimi';
   description?: string;
   ingredients?: string[];
   allergens?: string[];
@@ -604,6 +618,14 @@ export function isDietaryCard(data: RestaurantCardData): data is DietaryCardData
   return data.category === 'dietary';
 }
 
+export function isStartersCard(data: RestaurantCardData): data is StartersCardData {
+  return data.category === 'starters';
+}
+
+export function isSashimiCard(data: RestaurantCardData): data is SashimiCardData {
+  return data.category === 'sashimi';
+}
+
 export function isAlcoholicCard(
   data: RestaurantCardData
 ): data is WineCardData | BeerCardData | CocktailCardData | SpiritCardData | SakeCardData {
@@ -717,6 +739,22 @@ export function migrateToV2(v1: RestaurantCardDataV1): RestaurantCardData {
         sashimi: v1.sashimi,
         nigiri: v1.nigiri,
         maki: v1.maki,
+      };
+
+    case 'starters':
+      return {
+        ...base,
+        category: 'starters',
+        ingredients: v1.ingredients,
+        allergens: v1.allergens,
+      };
+
+    case 'sashimi':
+      return {
+        ...base,
+        category: 'sashimi',
+        ingredients: v1.ingredients,
+        allergens: v1.allergens,
       };
   }
 }
