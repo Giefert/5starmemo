@@ -52,6 +52,10 @@ const MODE_LABELS: Array<'Recommended' | 'Full' | 'Browse'> = [
 // toggle can be labelled without forking the existing `mode` state.
 const MODE_VALUES = ['recommended', 'full', 'browse'] as const;
 
+// How long a deck must be held to toggle Favorites. The grow animation ramps
+// over this same window so the swell peaks exactly as the toggle fires.
+const LONG_PRESS_MS = 600;
+
 export const HomeScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
@@ -69,19 +73,9 @@ export const HomeScreen: React.FC = () => {
   const { logout, restaurant } = useAuth();
 
   // Favorites — a personal, on-device pinning of decks to the top of the list.
-  // Long-pressing a deck pops it in or out with a haptic + little scale bounce.
+  // Long-pressing a deck pops it in or out with a haptic + little scale swell;
+  // the swell itself lives in each DeckRow (see below).
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
-  // One Animated.Value per deck for the long-press "pop"; created lazily since
-  // they can't be made inside the render map without being recreated each pass.
-  const scaleRefs = useRef<Map<string, Animated.Value>>(new Map());
-  const getScale = (id: string) => {
-    let v = scaleRefs.current.get(id);
-    if (!v) {
-      v = new Animated.Value(1);
-      scaleRefs.current.set(id, v);
-    }
-    return v;
-  };
 
   // Mode toggle underline — the amber bar slides beneath the active mode and
   // resizes to its label, matching the Reference tab's Index strip. `barX`/
@@ -223,15 +217,12 @@ export const HomeScreen: React.FC = () => {
     }
   };
 
-  // Long-press toggles a deck in/out of Favorites: a haptic tap, a quick scale
-  // bounce, then the row jumps to (or out of) the pinned Favorites section.
+  // Long-press toggles a deck in/out of Favorites with a haptic tap, then the
+  // row jumps to (or out of) the pinned Favorites section. The relocated row is
+  // a fresh DeckRow mount with its own scale at rest, so the swell never
+  // carries over — no need to reset anything here.
   const toggleFavorite = (deck: StudentDeck) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const v = getScale(deck.id);
-    Animated.sequence([
-      Animated.spring(v, { toValue: 1.06, useNativeDriver: true, speed: 50, bounciness: 12 }),
-      Animated.spring(v, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 8 }),
-    ]).start();
     setFavoriteIds(prev => {
       const next = prev.includes(deck.id)
         ? prev.filter(id => id !== deck.id)
@@ -318,57 +309,6 @@ export const HomeScreen: React.FC = () => {
   const barDecks = rest.filter(d => d.deckType === 'bar');
   const otherDecks = rest.filter(d => d.deckType === 'other');
 
-  // Shared row markup for every section. `isFirstInGroup` drops the top divider
-  // so each section's first row sits flush under its header.
-  const renderDeckRow = (deck: StudentDeck, isFirstInGroup: boolean) => {
-    const isFavorite = favSet.has(deck.id);
-    return (
-    <Animated.View key={deck.id} style={{ transform: [{ scale: getScale(deck.id) }] }}>
-      <Pressable
-        onPress={() => handleDeckTap(deck)}
-        onLongPress={() => toggleFavorite(deck)}
-        delayLongPress={600}
-        style={({ pressed }) => [
-          styles.row,
-          !isFirstInGroup && styles.rowDivider,
-          pressed && styles.rowPressed,
-        ]}
-      >
-        {isFavorite && (
-          <Svg
-            width={18}
-            height={18}
-            viewBox="0 0 24 24"
-            style={styles.favoriteStar}
-            accessibilityLabel="Favorite"
-          >
-            <Path
-              d="M12 1.5 l3.09 6.91 7.41.57 -5.71 4.83 1.85 7.19 -6.64-4.13 -6.64 4.13 1.85-7.19 -5.71-4.83 7.41-.57 z"
-              fill={COLORS.amber}
-            />
-          </Svg>
-        )}
-
-        <Text style={[styles.deckTitle, isFavorite && styles.deckTitleFavorite]}>
-          {deck.title}
-        </Text>
-
-        {!!deck.description && (
-          <Text style={styles.deckDescription} numberOfLines={2}>
-            {deck.description}
-          </Text>
-        )}
-
-        <DeckStats
-          key={`${deck.masteredCards}-${deck.learningCards}-${deck.weakCards}-${deck.cardCount}`}
-          deck={deck}
-          mode={mode}
-        />
-      </Pressable>
-    </Animated.View>
-    );
-  };
-
   // A section is a Glossary-style header (large serif title + count) followed by
   // its rows. Rendered only when the section has decks.
   const renderSection = (title: string, sectionDecks: StudentDeck[]) =>
@@ -378,7 +318,17 @@ export const HomeScreen: React.FC = () => {
           <Text style={styles.sectionGlyph}>{title}</Text>
           <Text style={styles.sectionCount}>{sectionDecks.length}</Text>
         </View>
-        {sectionDecks.map((deck, i) => renderDeckRow(deck, i === 0))}
+        {sectionDecks.map((deck, i) => (
+          <DeckRow
+            key={deck.id}
+            deck={deck}
+            isFirstInGroup={i === 0}
+            isFavorite={favSet.has(deck.id)}
+            mode={mode}
+            onTap={handleDeckTap}
+            onToggleFavorite={toggleFavorite}
+          />
+        ))}
       </View>
     ) : null;
 
@@ -455,6 +405,96 @@ export const HomeScreen: React.FC = () => {
     </View>
   );
 };
+
+// One deck row. Each row owns its scale `Animated.Value`, created fresh on
+// mount — so when a favorite toggle reorders the list and remounts this row
+// under a new section, it starts at rest. Sharing one value across remounts
+// (e.g. a parent-held map) leaves the native transform clinging to the old
+// node and the row stuck at the grown size, so we deliberately don't.
+//
+// Holding grows the row steadily over the long-press window (feedback that
+// something's coming); `onLongPress` then commits the favorite toggle. Released
+// early, the swell springs back. `isFirstInGroup` drops the top divider so each
+// section's first row sits flush under its header.
+function DeckRow({
+  deck,
+  isFirstInGroup,
+  isFavorite,
+  mode,
+  onTap,
+  onToggleFavorite,
+}: {
+  deck: StudentDeck;
+  isFirstInGroup: boolean;
+  isFavorite: boolean;
+  mode: Mode;
+  onTap: (deck: StudentDeck) => void;
+  onToggleFavorite: (deck: StudentDeck) => void;
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const grow = () =>
+    Animated.timing(scale, {
+      toValue: 1.08,
+      duration: LONG_PRESS_MS,
+      useNativeDriver: true,
+    }).start();
+  const settle = () =>
+    Animated.spring(scale, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 20,
+      bounciness: 8,
+    }).start();
+
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <Pressable
+        onPress={() => onTap(deck)}
+        onPressIn={grow}
+        onPressOut={settle}
+        onLongPress={() => onToggleFavorite(deck)}
+        delayLongPress={LONG_PRESS_MS}
+        style={({ pressed }) => [
+          styles.row,
+          !isFirstInGroup && styles.rowDivider,
+          pressed && styles.rowPressed,
+        ]}
+      >
+        {isFavorite && (
+          <Svg
+            width={18}
+            height={18}
+            viewBox="0 0 24 24"
+            style={styles.favoriteStar}
+            accessibilityLabel="Favorite"
+          >
+            <Path
+              d="M12 1.5 l3.09 6.91 7.41.57 -5.71 4.83 1.85 7.19 -6.64-4.13 -6.64 4.13 1.85-7.19 -5.71-4.83 7.41-.57 z"
+              fill={COLORS.amber}
+            />
+          </Svg>
+        )}
+
+        <Text style={[styles.deckTitle, isFavorite && styles.deckTitleFavorite]}>
+          {deck.title}
+        </Text>
+
+        {!!deck.description && (
+          <Text style={styles.deckDescription} numberOfLines={2}>
+            {deck.description}
+          </Text>
+        )}
+
+        <DeckStats
+          key={`${deck.masteredCards}-${deck.learningCards}-${deck.weakCards}-${deck.cardCount}`}
+          deck={deck}
+          mode={mode}
+        />
+      </Pressable>
+    </Animated.View>
+  );
+}
 
 // The stats line shows three mastery counts in `recommended` and a single
 // card count in `full`/`browse`. Switching modes plays a left-anchored reveal:
