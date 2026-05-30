@@ -35,3 +35,19 @@ export function applyFilter(decks: Deck[], filter: CarteFilter): Deck[] {
   if (filter === 'All') return decks;
   return decks.filter((d) => deckCategory(d) === filter);
 }
+
+// Fixed display order for the section headers in The Pass.
+const CATEGORY_ORDER: CarteCategory[] = ['Food', 'Bar', 'Other'];
+
+// Group decks by category in a fixed order, each group sorted alphabetically by
+// title. Empty categories are dropped so we don't render an empty header.
+export function groupByCategory(
+  decks: Deck[]
+): { category: CarteCategory; decks: Deck[] }[] {
+  return CATEGORY_ORDER.map((category) => ({
+    category,
+    decks: decks
+      .filter((d) => deckCategory(d) === category)
+      .sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })),
+  })).filter((group) => group.decks.length > 0);
+}

@@ -1,5 +1,5 @@
 import { Deck } from '../../../../shared/types';
-import { CarteFilter } from '@/lib/decks';
+import { CarteFilter, groupByCategory } from '@/lib/decks';
 import { DeckCard } from './deck-card';
 import { FilterPills } from './filter-pills';
 
@@ -50,12 +50,32 @@ export function DeckGrid({
           No decks yet. Add your first one above.
         </div>
       ) : (
-        <div
-          className="grid grid-cols-3 bg-paper-hair border border-paper-hair"
-          style={{ gap: 1 }}
-        >
-          {decks.map((deck) => (
-            <DeckCard key={deck.id} deck={deck} onDelete={onDelete} />
+        <div className="flex flex-col" style={{ gap: 36 }}>
+          {groupByCategory(decks).map(({ category, decks: groupDecks }) => (
+            <div key={category}>
+              <div
+                className="flex items-baseline text-on-paper-eyebrow"
+                style={{ gap: 10, marginBottom: 12 }}
+              >
+                <span
+                  className="uppercase"
+                  style={{ fontSize: 12, letterSpacing: '0.2em' }}
+                >
+                  {category}
+                </span>
+                <span className="tabular-nums" style={{ fontSize: 12 }}>
+                  · {groupDecks.length}
+                </span>
+              </div>
+              <div
+                className="grid grid-cols-3 bg-paper-hair border border-paper-hair"
+                style={{ gap: 1 }}
+              >
+                {groupDecks.map((deck) => (
+                  <DeckCard key={deck.id} deck={deck} onDelete={onDelete} />
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       )}
