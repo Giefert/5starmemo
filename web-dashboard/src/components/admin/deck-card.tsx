@@ -19,16 +19,6 @@ export function DeckCard({
       className="relative flex flex-col bg-paper"
       style={{ padding: '22px 22px 18px', gap: 14, minHeight: 176 }}
     >
-      {deck.isFeatured && (
-        <div
-          className="absolute flex items-center text-amber uppercase font-bold"
-          style={{ top: 12, right: 12, fontSize: 10, letterSpacing: '0.18em', gap: 5 }}
-        >
-          <span className="rounded-full bg-amber" style={{ width: 5, height: 5 }} />
-          Featured
-        </div>
-      )}
-
       <div>
         <div
           className="uppercase text-on-paper-eyebrow"

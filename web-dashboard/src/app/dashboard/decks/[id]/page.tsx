@@ -3,7 +3,7 @@
 import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { deckApi, deckAccessApi, roleApi, userApi } from '@/lib/api';
-import { Deck, Card, RestaurantCardData, DeckAccess, StudentRoleSummary, UserListItem } from '../../../../../../shared/types';
+import { Deck, DeckType, Card, RestaurantCardData, DeckAccess, StudentRoleSummary, UserListItem } from '../../../../../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft, Plus, Edit, Trash2 } from 'lucide-react';
@@ -32,7 +32,7 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
   const [deck, setDeck] = useState<Deck | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [isFeatured, setIsFeatured] = useState(false);
+  const [deckType, setDeckType] = useState<DeckType>('other');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
@@ -82,7 +82,7 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
       setDeck(data);
       setTitle(data.title);
       setDescription(data.description || '');
-      setIsFeatured(data.isFeatured);
+      setDeckType(data.deckType);
       setSelectedRoleIds(new Set(access.roles.map(r => r.id)));
       setSelectedUserIds(new Set(access.users.map(u => u.id)));
       setAllRoles(roles);
@@ -128,7 +128,7 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
       const updatedDeck = await deckApi.update(resolvedParams.id, {
         title,
         description: description || undefined,
-        isFeatured
+        deckType
       });
       setDeck(prev => prev ? { ...prev, ...updatedDeck } : updatedDeck);
       setSuccessMessage('Changes saved!');
@@ -292,17 +292,20 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
               />
             </div>
 
-            <div className="flex items-center">
-              <input
-                id="isFeatured"
-                type="checkbox"
-                checked={isFeatured}
-                onChange={(e) => setIsFeatured(e.target.checked)}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-              />
-              <label htmlFor="isFeatured" className="ml-2 block text-sm text-gray-900">
-                Feature this deck (highlight as recommended content)
+            <div>
+              <label htmlFor="deckType" className="block text-sm font-medium text-gray-700">
+                Deck Type
               </label>
+              <select
+                id="deckType"
+                value={deckType}
+                onChange={(e) => setDeckType(e.target.value as DeckType)}
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="food">Food</option>
+                <option value="bar">Bar</option>
+                <option value="other">Other</option>
+              </select>
             </div>
 
             <div className="flex justify-end">

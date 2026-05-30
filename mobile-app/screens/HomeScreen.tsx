@@ -15,9 +15,11 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Svg, { Path } from 'react-native-svg';
+import * as Haptics from 'expo-haptics';
 import { useAuth } from '../contexts/AuthContext';
 import { StudentDeck } from '../types/shared';
 import apiService from '../services/api';
+import { loadFavorites, saveFavorites } from '../utils/favorites';
 import { StudyScreen } from './StudyScreen';
 import { StudyCompletedScreen } from './StudyCompletedScreen';
 import { BrowseScreen } from './BrowseScreen';
@@ -66,6 +68,21 @@ export const HomeScreen: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { logout, restaurant } = useAuth();
 
+  // Favorites — a personal, on-device pinning of decks to the top of the list.
+  // Long-pressing a deck pops it in or out with a haptic + little scale bounce.
+  const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
+  // One Animated.Value per deck for the long-press "pop"; created lazily since
+  // they can't be made inside the render map without being recreated each pass.
+  const scaleRefs = useRef<Map<string, Animated.Value>>(new Map());
+  const getScale = (id: string) => {
+    let v = scaleRefs.current.get(id);
+    if (!v) {
+      v = new Animated.Value(1);
+      scaleRefs.current.set(id, v);
+    }
+    return v;
+  };
+
   // Mode toggle underline — the amber bar slides beneath the active mode and
   // resizes to its label, matching the Reference tab's Index strip. `barX`/
   // `barW` drive the slide; `toggleLayouts` caches each label's measured x/
@@ -108,6 +125,12 @@ export const HomeScreen: React.FC = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Hydrate favorites for the active restaurant.
+  useEffect(() => {
+    if (!restaurant?.id) return;
+    loadFavorites(restaurant.id).then(setFavoriteIds);
+  }, [restaurant?.id]);
 
   // The masthead is dark behind the status bar — keep its text light.
   useFocusEffect(
@@ -200,6 +223,24 @@ export const HomeScreen: React.FC = () => {
     }
   };
 
+  // Long-press toggles a deck in/out of Favorites: a haptic tap, a quick scale
+  // bounce, then the row jumps to (or out of) the pinned Favorites section.
+  const toggleFavorite = (deck: StudentDeck) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const v = getScale(deck.id);
+    Animated.sequence([
+      Animated.spring(v, { toValue: 1.06, useNativeDriver: true, speed: 50, bounciness: 12 }),
+      Animated.spring(v, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 8 }),
+    ]).start();
+    setFavoriteIds(prev => {
+      const next = prev.includes(deck.id)
+        ? prev.filter(id => id !== deck.id)
+        : [...prev, deck.id];
+      if (restaurant?.id) saveFavorites(restaurant.id, next);
+      return next;
+    });
+  };
+
   const handleStartStudy = (deck: StudentDeck) => {
     setSelectedDeck(deck);
     setScreenState('study');
@@ -266,6 +307,81 @@ export const HomeScreen: React.FC = () => {
     );
   }
 
+  // Pinned favorites float to the top; the rest fall into the menu's Food / Bar
+  // split (deckType, set by the team in the dashboard), with Other for mixed or
+  // not-yet-sorted decks. Each section keeps the server's alphabetical order,
+  // and a favorited deck only appears under Favorites.
+  const favSet = new Set(favoriteIds);
+  const favoriteDecks = decks.filter(d => favSet.has(d.id));
+  const rest = decks.filter(d => !favSet.has(d.id));
+  const foodDecks = rest.filter(d => d.deckType === 'food');
+  const barDecks = rest.filter(d => d.deckType === 'bar');
+  const otherDecks = rest.filter(d => d.deckType === 'other');
+
+  // Shared row markup for every section. `isFirstInGroup` drops the top divider
+  // so each section's first row sits flush under its header.
+  const renderDeckRow = (deck: StudentDeck, isFirstInGroup: boolean) => {
+    const isFavorite = favSet.has(deck.id);
+    return (
+    <Animated.View key={deck.id} style={{ transform: [{ scale: getScale(deck.id) }] }}>
+      <Pressable
+        onPress={() => handleDeckTap(deck)}
+        onLongPress={() => toggleFavorite(deck)}
+        delayLongPress={600}
+        style={({ pressed }) => [
+          styles.row,
+          !isFirstInGroup && styles.rowDivider,
+          pressed && styles.rowPressed,
+        ]}
+      >
+        {isFavorite && (
+          <Svg
+            width={18}
+            height={18}
+            viewBox="0 0 24 24"
+            style={styles.favoriteStar}
+            accessibilityLabel="Favorite"
+          >
+            <Path
+              d="M12 1.5 l3.09 6.91 7.41.57 -5.71 4.83 1.85 7.19 -6.64-4.13 -6.64 4.13 1.85-7.19 -5.71-4.83 7.41-.57 z"
+              fill={COLORS.amber}
+            />
+          </Svg>
+        )}
+
+        <Text style={[styles.deckTitle, isFavorite && styles.deckTitleFavorite]}>
+          {deck.title}
+        </Text>
+
+        {!!deck.description && (
+          <Text style={styles.deckDescription} numberOfLines={2}>
+            {deck.description}
+          </Text>
+        )}
+
+        <DeckStats
+          key={`${deck.masteredCards}-${deck.learningCards}-${deck.weakCards}-${deck.cardCount}`}
+          deck={deck}
+          mode={mode}
+        />
+      </Pressable>
+    </Animated.View>
+    );
+  };
+
+  // A section is a Glossary-style header (large serif title + count) followed by
+  // its rows. Rendered only when the section has decks.
+  const renderSection = (title: string, sectionDecks: StudentDeck[]) =>
+    sectionDecks.length > 0 ? (
+      <View key={title}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionGlyph}>{title}</Text>
+          <Text style={styles.sectionCount}>{sectionDecks.length}</Text>
+        </View>
+        {sectionDecks.map((deck, i) => renderDeckRow(deck, i === 0))}
+      </View>
+    ) : null;
+
   return (
     <View style={styles.screen}>
       {/* Dark masthead — shared title block + segmented toggle */}
@@ -328,52 +444,12 @@ export const HomeScreen: React.FC = () => {
             </Text>
           </View>
         ) : (
-          decks.map((deck, i) => {
-            return (
-              <Pressable
-                key={deck.id}
-                onPress={() => handleDeckTap(deck)}
-                style={({ pressed }) => [
-                  styles.row,
-                  i > 0 && styles.rowDivider,
-                  pressed && styles.rowPressed,
-                ]}
-              >
-                {deck.isFeatured && (
-                  <Svg
-                    width={18}
-                    height={18}
-                    viewBox="0 0 24 24"
-                    style={styles.featuredStar}
-                    accessibilityLabel="Featured"
-                  >
-                    <Path
-                      d="M12 1.5 l3.09 6.91 7.41.57 -5.71 4.83 1.85 7.19 -6.64-4.13 -6.64 4.13 1.85-7.19 -5.71-4.83 7.41-.57 z"
-                      fill={COLORS.amber}
-                    />
-                  </Svg>
-                )}
-
-                <Text
-                  style={[styles.deckTitle, deck.isFeatured && styles.deckTitleFeatured]}
-                >
-                  {deck.title}
-                </Text>
-
-                {!!deck.description && (
-                  <Text style={styles.deckDescription} numberOfLines={2}>
-                    {deck.description}
-                  </Text>
-                )}
-
-                <DeckStats
-                  key={`${deck.masteredCards}-${deck.learningCards}-${deck.weakCards}-${deck.cardCount}`}
-                  deck={deck}
-                  mode={mode}
-                />
-              </Pressable>
-            );
-          })
+          <>
+            {renderSection('Favorites', favoriteDecks)}
+            {renderSection('Food', foodDecks)}
+            {renderSection('Bar', barDecks)}
+            {renderSection('Other', otherDecks)}
+          </>
         )}
       </ScrollView>
     </View>
@@ -606,10 +682,36 @@ const styles = StyleSheet.create({
   },
   rowPressed: { opacity: 0.6 },
 
-  featuredStar: {
+  favoriteStar: {
     position: 'absolute',
     top: 20,
     right: 22,
+  },
+
+  // Section header — mirrors the Reference tab's Glossary letter headers
+  // (large serif word + monospace count badge on the baseline).
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 8,
+    backgroundColor: COLORS.paper,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.paperHair,
+  },
+  sectionGlyph: {
+    fontFamily: 'Fraunces_600SemiBold',
+    fontSize: 28,
+    letterSpacing: -0.4,
+    color: COLORS.ink,
+    marginRight: 10,
+  },
+  sectionCount: {
+    fontFamily: 'JetBrainsMono_400Regular',
+    fontSize: 10,
+    color: COLORS.inkFaint,
+    fontVariant: ['tabular-nums'],
   },
 
   deckTitle: {
@@ -619,7 +721,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.45,
     lineHeight: 28,
   },
-  deckTitleFeatured: {
+  deckTitleFavorite: {
     paddingRight: 28, // leaves room for the star
   },
 

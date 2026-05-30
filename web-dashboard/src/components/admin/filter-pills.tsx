@@ -1,6 +1,6 @@
 import { CarteFilter } from '@/lib/decks';
 
-const FILTERS: CarteFilter[] = ['All', 'Food', 'Bar', 'Featured'];
+const FILTERS: CarteFilter[] = ['All', 'Food', 'Bar', 'Other'];
 
 export function FilterPills({
   active,

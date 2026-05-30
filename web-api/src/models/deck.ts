@@ -17,9 +17,9 @@ function parseRestaurantData(data: any) {
 export class DeckModel {
   static async create(deckData: CreateDeckInput, createdBy: string, restaurantId: string): Promise<Deck> {
     const query = `
-      INSERT INTO decks (title, description, category_id, created_by, restaurant_id, is_featured)
+      INSERT INTO decks (title, description, category_id, created_by, restaurant_id, deck_type)
       VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING id, title, description, category_id, created_by, is_featured, created_at, updated_at
+      RETURNING id, title, description, category_id, created_by, deck_type, created_at, updated_at
     `;
 
     const values = [
@@ -28,7 +28,7 @@ export class DeckModel {
       deckData.categoryId || null,
       createdBy,
       restaurantId,
-      deckData.isFeatured || false
+      deckData.deckType
     ];
 
     const result = await pool.query(query, values);
@@ -39,7 +39,7 @@ export class DeckModel {
       description: result.rows[0].description,
       categoryId: result.rows[0].category_id,
       createdBy: result.rows[0].created_by,
-      isFeatured: result.rows[0].is_featured,
+      deckType: result.rows[0].deck_type,
       createdAt: result.rows[0].created_at,
       updatedAt: result.rows[0].updated_at
     };
@@ -58,7 +58,7 @@ export class DeckModel {
       LEFT JOIN cards c ON d.id = c.deck_id
       LEFT JOIN study_sessions ss ON d.id = ss.deck_id
       WHERE d.restaurant_id = $1
-      GROUP BY d.id, d.title, d.description, d.category_id, d.created_by, d.is_featured, d.created_at, d.updated_at
+      GROUP BY d.id, d.title, d.description, d.category_id, d.created_by, d.deck_type, d.created_at, d.updated_at
       ORDER BY d.created_at DESC
     `;
 
@@ -70,8 +70,7 @@ export class DeckModel {
       description: row.description,
       categoryId: row.category_id,
       createdBy: row.created_by,
-      isFeatured: row.is_featured,
-      featuredOrder: row.featured_order,
+      deckType: row.deck_type,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       cardCount: parseInt(row.card_count) || 0,
@@ -90,7 +89,7 @@ export class DeckModel {
       FROM decks d
       LEFT JOIN cards c ON d.id = c.deck_id
       WHERE d.id = $1 AND d.restaurant_id = $2
-      GROUP BY d.id, d.title, d.description, d.category_id, d.created_by, d.is_featured, d.created_at, d.updated_at
+      GROUP BY d.id, d.title, d.description, d.category_id, d.created_by, d.deck_type, d.created_at, d.updated_at
     `;
 
     const result = await pool.query(query, [id, restaurantId]);
@@ -105,7 +104,7 @@ export class DeckModel {
       description: result.rows[0].description,
       categoryId: result.rows[0].category_id,
       createdBy: result.rows[0].created_by,
-      isFeatured: result.rows[0].is_featured,
+      deckType: result.rows[0].deck_type,
       createdAt: result.rows[0].created_at,
       updatedAt: result.rows[0].updated_at,
       cardCount: parseInt(result.rows[0].card_count) || 0,
@@ -158,16 +157,10 @@ export class DeckModel {
       paramCount++;
     }
 
-    if (deckData.isFeatured !== undefined) {
-      setClause.push(`is_featured = $${paramCount}`);
-      values.push(deckData.isFeatured);
+    if (deckData.deckType !== undefined) {
+      setClause.push(`deck_type = $${paramCount}`);
+      values.push(deckData.deckType);
       paramCount++;
-      // Drop the featured position when a deck is unfeatured so it can't linger
-      // and resurface if the deck is featured again later. Ordering of featured
-      // decks is owned by the dashboard's Featured section (setFeatured).
-      if (deckData.isFeatured === false) {
-        setClause.push(`featured_order = NULL`);
-      }
     }
 
     if (setClause.length === 0) {
@@ -183,7 +176,7 @@ export class DeckModel {
       UPDATE decks
       SET ${setClause.join(', ')}
       WHERE id = $${paramCount - 1} AND restaurant_id = $${paramCount}
-      RETURNING id, title, description, category_id, created_by, is_featured, created_at, updated_at
+      RETURNING id, title, description, category_id, created_by, deck_type, created_at, updated_at
     `;
 
     const result = await pool.query(query, values);
@@ -198,7 +191,7 @@ export class DeckModel {
       description: result.rows[0].description,
       categoryId: result.rows[0].category_id,
       createdBy: result.rows[0].created_by,
-      isFeatured: result.rows[0].is_featured,
+      deckType: result.rows[0].deck_type,
       createdAt: result.rows[0].created_at,
       updatedAt: result.rows[0].updated_at
     };
@@ -208,40 +201,6 @@ export class DeckModel {
     const query = 'DELETE FROM decks WHERE id = $1 AND restaurant_id = $2';
     const result = await pool.query(query, [id, restaurantId]);
     return (result.rowCount || 0) > 0;
-  }
-
-  /**
-   * Replace the restaurant's featured set with `deckIds`, in the given order.
-   * Decks listed become featured with featured_order = their index; any deck
-   * currently featured but absent from the list is unfeatured. This single
-   * replace-all call backs add, remove, and reorder from the dashboard's
-   * Featured section. Does not touch updated_at — featuring is curation, not a
-   * content edit, and the dashboard's staleness warning keys off updated_at.
-   */
-  static async setFeatured(deckIds: string[], restaurantId: string): Promise<DeckWithStats[]> {
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      await client.query(
-        `UPDATE decks SET is_featured = false, featured_order = NULL
-          WHERE restaurant_id = $1 AND is_featured = true`,
-        [restaurantId]
-      );
-      for (let i = 0; i < deckIds.length; i++) {
-        await client.query(
-          `UPDATE decks SET is_featured = true, featured_order = $1
-            WHERE id = $2 AND restaurant_id = $3`,
-          [i, deckIds[i], restaurantId]
-        );
-      }
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
-    return this.findAll(restaurantId);
   }
 
 }

@@ -87,17 +87,17 @@ export interface AuthResponse {
   restaurant?: Pick<Restaurant, 'id' | 'name'>;
 }
 
+// Admin-assigned deck type, picked from a dropdown when a deck is created.
+// Splits the menu into Food / Bar; 'other' covers mixed or not-yet-sorted decks.
+export type DeckType = 'food' | 'bar' | 'other';
+
 export interface Deck {
   id: string;
   title: string;
   description?: string;
   categoryId?: string;
+  deckType: DeckType;
   createdBy: string;
-  isFeatured: boolean;
-  // Position within the featured list (0-based). null when not featured, or
-  // featured but not yet ordered. Drives the order featured decks appear in
-  // the student deck list.
-  featuredOrder?: number | null;
   createdAt: Date;
   updatedAt: Date;
   cards?: Card[];
@@ -109,7 +109,7 @@ export interface CreateDeckInput {
   title: string;
   description?: string;
   categoryId?: string;
-  isFeatured?: boolean;
+  deckType: DeckType;
 }
 
 export interface UpdateDeckInput extends Partial<CreateDeckInput> {}
@@ -469,7 +469,7 @@ export interface StudentDeck {
   id: string;
   title: string;
   description?: string;
-  isFeatured: boolean;
+  deckType: DeckType;
   cardCount: number;
   masteredCards: number;
   learningCards: number;

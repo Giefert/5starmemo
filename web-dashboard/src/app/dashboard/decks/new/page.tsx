@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { deckApi } from '@/lib/api';
+import { DeckType } from '../../../../../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft } from 'lucide-react';
@@ -11,7 +12,8 @@ import Link from 'next/link';
 export default function NewDeckPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [isFeatured, setIsFeatured] = useState(false);
+  // Empty string is the "Choose deck type" placeholder; a real type is required.
+  const [deckType, setDeckType] = useState<DeckType | ''>('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -19,6 +21,7 @@ export default function NewDeckPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!deckType) return;
     setIsLoading(true);
     setError('');
 
@@ -26,7 +29,7 @@ export default function NewDeckPage() {
       const deck = await deckApi.create({
         title,
         description: description || undefined,
-        isFeatured
+        deckType
       });
 
       router.push(`/dashboard/decks/${deck.id}`);
@@ -89,23 +92,30 @@ export default function NewDeckPage() {
               </p>
             </div>
 
-            <div className="space-y-3">
-              <div className="flex items-center">
-                <input
-                  id="isFeatured"
-                  type="checkbox"
-                  checked={isFeatured}
-                  onChange={(e) => setIsFeatured(e.target.checked)}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <label htmlFor="isFeatured" className="ml-2 block text-sm text-gray-900">
-                  Feature this deck (highlight as recommended content)
-                </label>
-              </div>
-              <p className="text-sm text-gray-500">
-                After creating the deck, assign which roles or students can access it from the deck page.
+            <div>
+              <label htmlFor="deckType" className="block text-sm font-medium text-gray-700">
+                Deck Type *
+              </label>
+              <select
+                id="deckType"
+                required
+                value={deckType}
+                onChange={(e) => setDeckType(e.target.value as DeckType | '')}
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="" disabled>Choose deck type</option>
+                <option value="food">Food</option>
+                <option value="bar">Bar</option>
+                <option value="other">Other</option>
+              </select>
+              <p className="mt-1 text-sm text-gray-500">
+                Groups the deck under Food or Bar on the menu. Use Other for mixed decks.
               </p>
             </div>
+
+            <p className="text-sm text-gray-500">
+              After creating the deck, assign which roles or students can access it from the deck page.
+            </p>
 
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
@@ -119,7 +129,7 @@ export default function NewDeckPage() {
                   Cancel
                 </Button>
               </Link>
-              <Button type="submit" disabled={isLoading || !title.trim()}>
+              <Button type="submit" disabled={isLoading || !title.trim() || !deckType}>
                 {isLoading ? 'Creating...' : 'Create Deck'}
               </Button>
             </div>

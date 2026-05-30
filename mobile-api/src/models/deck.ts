@@ -34,7 +34,7 @@ export class DeckModel {
         d.id,
         d.title,
         d.description,
-        d.is_featured,
+        d.deck_type,
         COUNT(c.id) as card_count,
         COUNT(CASE
           WHEN fc.card_id IS NULL OR fc.state IN ('new', 'learning') THEN 1
@@ -52,8 +52,8 @@ export class DeckModel {
       LEFT JOIN cards c ON d.id = c.deck_id
       LEFT JOIN fsrs_cards fc ON c.id = fc.card_id AND fc.user_id = $1
       WHERE d.id IN (SELECT id FROM accessible)
-      GROUP BY d.id, d.title, d.description, d.is_featured, d.featured_order
-      ORDER BY d.is_featured DESC, d.featured_order ASC NULLS LAST, LOWER(d.title) ASC
+      GROUP BY d.id, d.title, d.description, d.deck_type
+      ORDER BY LOWER(d.title) ASC
     `;
 
     const result = await pool.query(query, [userId, restaurantId]);
@@ -62,7 +62,7 @@ export class DeckModel {
       id: row.id,
       title: row.title,
       description: row.description,
-      isFeatured: row.is_featured,
+      deckType: row.deck_type,
       cardCount: parseInt(row.card_count) || 0,
       masteredCards: parseInt(row.mastered_cards) || 0,
       learningCards: parseInt(row.learning_cards) || 0,

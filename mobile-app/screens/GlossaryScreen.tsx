@@ -520,7 +520,11 @@ export default function GlossaryScreen() {
   }) => {
     const isLastSection = section.key === pageSections[pageSections.length - 1]?.key;
     const isLastRow = index === section.data.length - 1;
-    const definitionLines = stripHtml(item.definition).split('\n').filter(Boolean).slice(0, 2);
+    // The Glossary lists terms bare; only the Encyclopedia previews the entry.
+    const definitionLines =
+      activeSection === 'encyclopedia'
+        ? stripHtml(item.definition).split('\n').filter(Boolean).slice(0, 2)
+        : [];
     return (
       <Pressable
         onPress={() => handleTermPress(item.id)}

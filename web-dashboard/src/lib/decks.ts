@@ -1,21 +1,18 @@
-import { Deck } from '../../../shared/types';
+import { Deck, DeckType } from '../../../shared/types';
 
-export type CarteCategory = 'Food' | 'Bar' | '(category)';
-export type CarteFilter = 'All' | 'Food' | 'Bar' | 'Featured';
+export type CarteCategory = 'Food' | 'Bar' | 'Other';
+export type CarteFilter = 'All' | 'Food' | 'Bar' | 'Other';
 
-const BAR_CATS = new Set(['wine', 'beer', 'cocktail', 'spirit', 'sake']);
-const FOOD_CATS = new Set(['maki', 'sauce', 'fish', 'dietary', 'starters', 'sashimi']);
+const LABELS: Record<DeckType, CarteCategory> = {
+  food: 'Food',
+  bar: 'Bar',
+  other: 'Other',
+};
 
-// Derive a deck's Carte category from the restaurant categories of its cards.
-// All-bar → "Bar", all-food → "Food", mixed/empty → "(category)".
+// A deck's Carte category is now its admin-chosen type, set from a dropdown at
+// creation — no longer derived from the deck's card categories.
 export function deckCategory(deck: Deck): CarteCategory {
-  const cats = deck.cardCategories ?? [];
-  if (cats.length === 0) return '(category)';
-  const allBar = cats.every((c) => BAR_CATS.has(c));
-  const allFood = cats.every((c) => FOOD_CATS.has(c));
-  if (allBar) return 'Bar';
-  if (allFood) return 'Food';
-  return '(category)';
+  return LABELS[deck.deckType] ?? 'Other';
 }
 
 // Content-level warning. Curator-facing only; never about learner behavior.
@@ -36,6 +33,5 @@ export function deckWarn(deck: Deck, now: Date = new Date()): string | null {
 
 export function applyFilter(decks: Deck[], filter: CarteFilter): Deck[] {
   if (filter === 'All') return decks;
-  if (filter === 'Featured') return decks.filter((d) => d.isFeatured);
   return decks.filter((d) => deckCategory(d) === filter);
 }
