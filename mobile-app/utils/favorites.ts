@@ -3,7 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 // Favorites are a personal, client-side pinning of decks to the top of the
 // Study tab — they never touch the backend. Stored as a JSON array of deck ids,
 // keyed per restaurant so switching restaurants doesn't surface stale picks.
-const key = (restaurantId: string) => `favoriteDecks:${restaurantId}`;
+const key = (restaurantId: string) => `favoriteDecks.${restaurantId}`;
 
 export async function loadFavorites(restaurantId: string): Promise<string[]> {
   try {
