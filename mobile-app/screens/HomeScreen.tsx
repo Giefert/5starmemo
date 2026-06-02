@@ -1,4 +1,11 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from 'react';
 import {
   View,
   Text,
@@ -11,13 +18,15 @@ import {
   StatusBar,
   Animated,
   Easing,
+  PanResponder,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Svg, { Path } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { useAuth } from '../contexts/AuthContext';
-import { StudentDeck } from '../types/shared';
+import { StudentDeck, DeckType } from '../types/shared';
 import apiService from '../services/api';
 import { loadFavorites, saveFavorites } from '../utils/favorites';
 import { StudyScreen } from './StudyScreen';
@@ -52,12 +61,24 @@ const MODE_LABELS: Array<'Recommended' | 'Full' | 'Browse'> = [
 // toggle can be labelled without forking the existing `mode` state.
 const MODE_VALUES = ['recommended', 'full', 'browse'] as const;
 
+// The Study tab's Index strip mirrors the Reference tab's: a "Decks" default
+// (every category) followed by the deck categories the team sets in the
+// dashboard. A deck's category is its deckType; labels and order match the
+// dashboard's Pass. Empty categories are dropped so the strip never shows a
+// bare tab.
+const CATEGORY_ORDER: { type: DeckType; label: string }[] = [
+  { type: 'food', label: 'Food' },
+  { type: 'bar', label: 'Bar' },
+  { type: 'other', label: 'Other' },
+];
+
 // How long a deck must be held to toggle Favorites. The grow animation ramps
 // over this same window so the swell peaks exactly as the toggle fires.
 const LONG_PRESS_MS = 600;
 
 export const HomeScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const navigation = useNavigation();
   const [decks, setDecks] = useState<StudentDeck[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -115,6 +136,134 @@ export const HomeScreen: React.FC = () => {
   useEffect(() => {
     moveBar(mode, true);
   }, [mode, moveBar]);
+
+  // ── Index strip ─────────────────────────────────────────────
+  // The category the deck list is narrowed to; `undefined` is the "Decks"
+  // default that shows every category. Set by tapping the strip or swiping
+  // the paper — twin of the Reference tab.
+  const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
+
+  // Category swipe — `dragX` tracks the in-progress horizontal drag and
+  // `isSwiping` mounts the neighbouring category pages so they slide in
+  // alongside the gesture instead of popping into place on release.
+  const [isSwiping, setIsSwiping] = useState(false);
+  const dragX = useRef(new Animated.Value(0)).current;
+
+  // Index strip underline — its own amber bar, twin to the mode toggle's,
+  // sliding beneath the active category tab and resizing to its label.
+  const idxBarX = useRef(new Animated.Value(0)).current;
+  const idxBarW = useRef(new Animated.Value(0)).current;
+  const idxTabLayouts = useRef<Record<string, { x: number; width: number }>>({});
+
+  // Categories present in the current deck set, in the dashboard's fixed order;
+  // empty ones are dropped. The cycle prepends the "Decks" default (undefined)
+  // and the always-on "Favorites" tab ahead of the dashboard categories.
+  const presentCategories = useMemo(
+    () => CATEGORY_ORDER.filter(c => decks.some(d => d.deckType === c.type)),
+    [decks],
+  );
+  const cycle = useMemo<(string | undefined)[]>(
+    () => [undefined, 'Favorites', ...presentCategories.map(c => c.label)],
+    [presentCategories],
+  );
+  const cycleIndex = useMemo(() => {
+    const i = cycle.indexOf(selectedCategory);
+    return i < 0 ? 0 : i;
+  }, [cycle, selectedCategory]);
+
+  // Drive the amber underline to a tab — placed without animation the first
+  // time a tab reports its layout, animated thereafter on tap or swipe. Keyed
+  // by label so the shared 'Decks' tab keeps its cached layout across changes.
+  const moveIdxBar = useCallback(
+    (index: number, animate: boolean) => {
+      const l = idxTabLayouts.current[cycle[index] ?? 'Decks'];
+      if (!l) return;
+      if (animate) {
+        Animated.parallel([
+          Animated.timing(idxBarX, {
+            toValue: l.x,
+            duration: 220,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+          }),
+          Animated.timing(idxBarW, {
+            toValue: l.width,
+            duration: 220,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+          }),
+        ]).start();
+      } else {
+        idxBarX.setValue(l.x);
+        idxBarW.setValue(l.width);
+      }
+    },
+    [idxBarX, idxBarW, cycle],
+  );
+
+  useEffect(() => {
+    moveIdxBar(cycleIndex, true);
+  }, [cycleIndex, moveIdxBar]);
+
+  // Snap the drag to rest: dir +1 advances a category, -1 goes back, 0 returns
+  // to the current page. A committed move applies the page swap only once the
+  // slide has carried the target page to centre.
+  const settleSwipe = useCallback(
+    (dir: -1 | 0 | 1) => {
+      const toValue = dir === 1 ? -width : dir === -1 ? width : 0;
+      Animated.timing(dragX, {
+        toValue,
+        duration: 210,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start(() => {
+        if (dir !== 0) {
+          setSelectedCategory(cycle[(cycleIndex + dir + cycle.length) % cycle.length]);
+        } else {
+          dragX.setValue(0);
+        }
+        setIsSwiping(false);
+      });
+    },
+    [dragX, width, cycle, cycleIndex],
+  );
+
+  const swipePan = useMemo(
+    () =>
+      PanResponder.create({
+        // Only claim clearly horizontal drags so vertical scrolling and the
+        // deck rows' long-press-to-favorite stay untouched.
+        onMoveShouldSetPanResponder: (_e, g) =>
+          cycle.length > 1 &&
+          Math.abs(g.dx) > 14 &&
+          Math.abs(g.dx) > Math.abs(g.dy) * 1.4,
+        onPanResponderGrant: () => {
+          dragX.stopAnimation();
+          setIsSwiping(true);
+        },
+        // Clamp to a single page so an over-drag can't reveal blank paper.
+        onPanResponderMove: (_e, g) =>
+          dragX.setValue(Math.max(-width, Math.min(width, g.dx))),
+        // Keep the gesture once it is horizontal so a stray vertical nudge
+        // can't hand it back to the list mid-swipe.
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderRelease: (_e, g) => {
+          const pass = width * 0.26;
+          if (g.dx <= -pass || (g.dx < -24 && g.vx <= -0.35)) settleSwipe(1);
+          else if (g.dx >= pass || (g.dx > 24 && g.vx >= 0.35)) settleSwipe(-1);
+          else settleSwipe(0);
+        },
+        onPanResponderTerminate: () => settleSwipe(0),
+      }),
+    [cycle.length, width, dragX, settleSwipe],
+  );
+
+  // After a committed swipe the new category renders while `dragX` still holds
+  // the slide's end value; reset it before paint so the page that just slid
+  // into centre stays put instead of jumping back.
+  useLayoutEffect(() => {
+    dragX.setValue(0);
+  }, [selectedCategory, dragX]);
 
   useEffect(() => {
     loadData();
@@ -298,20 +447,23 @@ export const HomeScreen: React.FC = () => {
     );
   }
 
-  // Pinned favorites float to the top; the rest fall into the menu's Food / Bar
-  // split (deckType, set by the team in the dashboard), with Other for mixed or
-  // not-yet-sorted decks. Each section keeps the server's alphabetical order,
-  // and a favorited deck only appears under Favorites.
+  // On the "Decks" page pinned favorites float to the top; the rest fall into
+  // the menu's category split (deckType, set by the team in the dashboard).
+  // Each section keeps the server's alphabetical order, and a favorited deck
+  // only appears under Favorites.
   const favSet = new Set(favoriteIds);
   const favoriteDecks = decks.filter(d => favSet.has(d.id));
   const rest = decks.filter(d => !favSet.has(d.id));
-  const foodDecks = rest.filter(d => d.deckType === 'food');
-  const barDecks = rest.filter(d => d.deckType === 'bar');
-  const otherDecks = rest.filter(d => d.deckType === 'other');
 
   // A section is a Glossary-style header (large serif title + count) followed by
-  // its rows. Rendered only when the section has decks.
-  const renderSection = (title: string, sectionDecks: StudentDeck[]) =>
+  // its rows. Rendered only when the section has decks — unless an `emptyText`
+  // placeholder is given, in which case the header always shows with the
+  // placeholder standing in for the rows (used by Favorites, which is always on).
+  const renderSection = (
+    title: string,
+    sectionDecks: StudentDeck[],
+    emptyText?: string,
+  ) =>
     sectionDecks.length > 0 ? (
       <View key={title}>
         <View style={styles.sectionHeader}>
@@ -330,7 +482,89 @@ export const HomeScreen: React.FC = () => {
           />
         ))}
       </View>
+    ) : emptyText ? (
+      <View key={title}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionGlyph}>{title}</Text>
+        </View>
+        <Text style={styles.sectionPlaceholder}>{emptyText}</Text>
+      </View>
     ) : null;
+
+  // The "Decks" page pins Favorites on top, then lays out each category as a
+  // chapter — the full menu. A category page (incl. Favorites) is a flat list
+  // of just that category's decks; the strip's amber underline names it, so it
+  // gets no chapter header, and favorites show their star in place.
+  const renderPageContent = (category: string | undefined) => {
+    if (category === undefined) {
+      return (
+        <>
+          {renderSection(
+            'Favorites',
+            favoriteDecks,
+            'Hold a study deck to add it to favorites.',
+          )}
+          {presentCategories.map(c =>
+            renderSection(c.label, rest.filter(d => d.deckType === c.type)),
+          )}
+        </>
+      );
+    }
+    if (category === 'Favorites') {
+      if (favoriteDecks.length === 0) {
+        return (
+          <Text style={styles.sectionPlaceholder}>
+            Hold a study deck to add it to favorites.
+          </Text>
+        );
+      }
+      return favoriteDecks.map((deck, i) => (
+        <DeckRow
+          key={deck.id}
+          deck={deck}
+          isFirstInGroup={i === 0}
+          isFavorite
+          mode={mode}
+          onTap={handleDeckTap}
+          onToggleFavorite={toggleFavorite}
+        />
+      ));
+    }
+    const cat = CATEGORY_ORDER.find(c => c.label === category);
+    const catDecks = cat ? decks.filter(d => d.deckType === cat.type) : [];
+    return catDecks.map((deck, i) => (
+      <DeckRow
+        key={deck.id}
+        deck={deck}
+        isFirstInGroup={i === 0}
+        isFavorite={favSet.has(deck.id)}
+        mode={mode}
+        onTap={handleDeckTap}
+        onToggleFavorite={toggleFavorite}
+      />
+    ));
+  };
+
+  // One swipe page. The centre page wires up pull-to-refresh; neighbour pages
+  // are transient and only there to slide in alongside the gesture.
+  const renderPage = (category: string | undefined, current: boolean) => (
+    <ScrollView
+      style={styles.body}
+      contentContainerStyle={styles.bodyContent}
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        current ? (
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={COLORS.inkMute}
+          />
+        ) : undefined
+      }
+    >
+      {renderPageContent(category)}
+    </ScrollView>
+  );
 
   return (
     <View style={styles.screen}>
@@ -371,37 +605,110 @@ export const HomeScreen: React.FC = () => {
       </View>
 
       {/* Paper body */}
-      <ScrollView
-        style={styles.body}
-        contentContainerStyle={styles.bodyContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={handleRefresh}
-            tintColor={COLORS.inkMute}
-          />
-        }
-      >
-        {isLoading && decks.length === 0 ? (
+      {isLoading && decks.length === 0 ? (
+        <View style={styles.body}>
           <View style={styles.stateBlock}>
             <ActivityIndicator color={COLORS.inkMute} />
           </View>
-        ) : decks.length === 0 ? (
+        </View>
+      ) : decks.length === 0 ? (
+        <ScrollView
+          style={styles.body}
+          contentContainerStyle={styles.bodyContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              tintColor={COLORS.inkMute}
+            />
+          }
+        >
           <View style={styles.stateBlock}>
             <Text style={styles.emptyTitle}>Nothing on the shelf yet.</Text>
             <Text style={styles.emptyBody}>
               Decks the team publishes will show up here.
             </Text>
           </View>
-        ) : (
-          <>
-            {renderSection('Favorites', favoriteDecks)}
-            {renderSection('Food', foodDecks)}
-            {renderSection('Bar', barDecks)}
-            {renderSection('Other', otherDecks)}
-          </>
-        )}
-      </ScrollView>
+        </ScrollView>
+      ) : (
+        <>
+          {/* Index strip — tap a category to narrow the list; the amber bar
+              slides beneath the active tab. The full-width ink rule along the
+              base divides the strip from the list. */}
+          {cycle.length > 1 && (
+            <View style={styles.indexStrip}>
+              <View style={styles.indexRule} pointerEvents="none" />
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.tabsRow}
+                keyboardShouldPersistTaps="handled"
+              >
+                {cycle.map((cat, i) => {
+                  const label = cat ?? 'Decks';
+                  const active = i === cycleIndex;
+                  return (
+                    <React.Fragment key={label}>
+                      {i > 0 && <Text style={styles.tabDot}>·</Text>}
+                      <Pressable
+                        onPress={() => setSelectedCategory(cat)}
+                        onLayout={e => {
+                          const { x, width: w } = e.nativeEvent.layout;
+                          idxTabLayouts.current[label] = { x, width: w };
+                          if (i === cycleIndex) moveIdxBar(i, false);
+                        }}
+                        hitSlop={8}
+                        style={styles.tab}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: active }}
+                        accessibilityLabel={`Show ${label}`}
+                      >
+                        <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>
+                          {label}
+                        </Text>
+                      </Pressable>
+                    </React.Fragment>
+                  );
+                })}
+                <Animated.View
+                  pointerEvents="none"
+                  style={[styles.tabBar, { width: idxBarW, transform: [{ translateX: idxBarX }] }]}
+                />
+              </ScrollView>
+            </View>
+          )}
+
+          {/* The list — swipes drag the neighbouring category page in. */}
+          <View style={styles.listArea} {...swipePan.panHandlers}>
+            {isSwiping && (
+              <Animated.View
+                key="swipe-prev"
+                pointerEvents="none"
+                style={[styles.swipePage, { left: -width, transform: [{ translateX: dragX }] }]}
+              >
+                {renderPage(cycle[(cycleIndex - 1 + cycle.length) % cycle.length], false)}
+              </Animated.View>
+            )}
+
+            <Animated.View
+              key="swipe-cur"
+              style={[styles.swipePage, { transform: [{ translateX: dragX }] }]}
+            >
+              {renderPage(selectedCategory, true)}
+            </Animated.View>
+
+            {isSwiping && (
+              <Animated.View
+                key="swipe-next"
+                pointerEvents="none"
+                style={[styles.swipePage, { left: width, transform: [{ translateX: dragX }] }]}
+              >
+                {renderPage(cycle[(cycleIndex + 1) % cycle.length], false)}
+              </Animated.View>
+            )}
+          </View>
+        </>
+      )}
     </View>
   );
 };
@@ -709,6 +1016,68 @@ const styles = StyleSheet.create({
   body: { flex: 1, backgroundColor: COLORS.paper },
   bodyContent: { paddingBottom: 32 },
 
+  // ── Index strip ────────────────────────────────────────────
+  // Twin of the Reference tab's Index strip — category tabs on paper with an
+  // amber underline sliding beneath the active one, over a full-width ink rule.
+  indexStrip: {
+    paddingTop: 16,
+    paddingHorizontal: 24,
+    backgroundColor: COLORS.paper,
+  },
+  indexRule: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 2,
+    backgroundColor: COLORS.ink,
+  },
+  tabsRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+  },
+  tab: {
+    paddingBottom: 12,
+  },
+  tabLabel: {
+    fontFamily: 'Newsreader_500Medium_Italic',
+    fontSize: 16,
+    color: COLORS.inkMute,
+  },
+  tabLabelActive: {
+    color: COLORS.ink,
+  },
+  tabDot: {
+    fontFamily: 'Newsreader_500Medium_Italic',
+    fontSize: 16,
+    color: COLORS.inkFaint,
+    marginHorizontal: 11,
+    paddingBottom: 12,
+  },
+  tabBar: {
+    position: 'absolute',
+    left: 0,
+    bottom: 0,
+    height: 2,
+    backgroundColor: COLORS.amber,
+  },
+
+  // ── List area ──────────────────────────────────────────────
+  listArea: {
+    flex: 1,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  // Each swipe page fills the list area; neighbours are offset one full width
+  // to the side and slid in by the gesture's translateX.
+  swipePage: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    width: '100%',
+  },
+
   // ── Deck row ───────────────────────────────────────────────
   row: {
     paddingHorizontal: 24,
@@ -752,6 +1121,16 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: COLORS.inkFaint,
     fontVariant: ['tabular-nums'],
+  },
+  sectionPlaceholder: {
+    fontFamily: 'JetBrainsMono_400Regular',
+    fontSize: 12,
+    lineHeight: 19,
+    color: COLORS.inkFaint,
+    textAlign: 'center',
+    paddingHorizontal: 32,
+    paddingTop: 16,
+    paddingBottom: 8,
   },
 
   deckTitle: {
