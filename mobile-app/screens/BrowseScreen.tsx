@@ -117,20 +117,28 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({ deckId, deckTitle, o
   if (selectedCard) {
     return (
       <View style={styles.studyContainer}>
-        {/* Masthead — ink ground */}
-        <View style={[styles.masthead, { paddingTop: insets.top + 4 }]}>
-          <View style={styles.mastheadRow}>
-            <TouchableOpacity
-              style={styles.exitButton}
-              onPress={handleCardBack}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Text style={styles.exitIcon}>←</Text>
-            </TouchableOpacity>
-            <Text style={styles.mastheadTitle} numberOfLines={1}>
-              {deckTitle}
+        {/* Masthead — ink ground, shared back affordance with the list ribbon */}
+        <View style={[styles.masthead, { paddingTop: insets.top + 8 }]}>
+          <TouchableOpacity
+            style={styles.ribbonBack}
+            onPress={handleCardBack}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Svg width={9} height={14} viewBox="0 0 9 14">
+              <Path
+                d="M7 1L2 7l5 6"
+                fill="none"
+                stroke={COLORS.onDarkMute}
+                strokeWidth={1.6}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </Svg>
+            <Text style={styles.ribbonBackText} numberOfLines={1}>
+              Browse
             </Text>
-          </View>
+          </TouchableOpacity>
         </View>
 
         <SwipeableCard
@@ -476,35 +484,8 @@ const styles = StyleSheet.create({
   },
   masthead: {
     backgroundColor: COLORS.ink,
-    paddingHorizontal: 20,
+    paddingHorizontal: 22,
     paddingBottom: 16,
-  },
-  mastheadRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: 36,
-  },
-  exitButton: {
-    width: 28,
-    height: 28,
-    justifyContent: 'center',
-    zIndex: 10,
-  },
-  exitIcon: {
-    fontSize: 22,
-    color: COLORS.onDark,
-    fontWeight: '300',
-  },
-  mastheadTitle: {
-    position: 'absolute',
-    left: 28,
-    right: 28,
-    textAlign: 'center',
-    fontSize: 10,
-    fontWeight: '600',
-    color: COLORS.onDarkMute,
-    textTransform: 'uppercase',
-    letterSpacing: 2.2,
   },
   face: {
     flex: 1,

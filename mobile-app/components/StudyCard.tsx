@@ -241,7 +241,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
     return (
       <View style={[styles.cardContainer, styles.cardFront]}>
         <View style={styles.frontHeader}>
-          <Text style={styles.eyebrow}>Question</Text>
+          <Text style={styles.eyebrow}>Describe</Text>
           <Text style={styles.frontTitle}>{itemName}</Text>
         </View>
         <View style={styles.imageArea}>
@@ -263,7 +263,7 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
   return (
     <View style={[styles.cardContainer, styles.cardBack]}>
       <View style={styles.backHeader}>
-        <Text style={[styles.eyebrow, styles.eyebrowBack]}>Answer</Text>
+        <Text style={[styles.eyebrow, styles.eyebrowBack]}>{card.restaurantData?.price || '$-'}</Text>
         <Text style={styles.backTitle}>{itemName}</Text>
       </View>
 
@@ -272,11 +272,6 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
           <ScrollView style={styles.detailsScroll} showsVerticalScrollIndicator>
             <View style={styles.backBody}>
               <View style={styles.detailsContainer}>
-                {/* Price — applies to all categories */}
-                {card.restaurantData.price && (
-                  <DetailField label="PRICE" text={card.restaurantData.price} />
-                )}
-
                 {/* Sake-specific fields */}
                 {isSakeCard(card.restaurantData) && (
                   <>
