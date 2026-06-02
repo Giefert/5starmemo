@@ -12,14 +12,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { studySessionManager } from '../services/StudySessionManager';
 import { StudyCard, LinkedTerm } from '../components/StudyCard';
+import { ReferenceStudyCard } from '../components/ReferenceStudyCard';
 import { SwipeableCard } from '../components/SwipeableCard';
 import { GlossaryTermModal } from '../components/GlossaryTermModal';
 import { RatingButtons } from '../components/RatingButtons';
 import apiService from '../services/api';
-import { StudyCardData } from '../types/shared';
-
-import { CurationKind } from '../types/shared';
-import { DeckStudyMode } from '../services/StudySessionManager';
+import { StartTarget, StudySessionItem } from '../services/StudySessionManager';
 
 const COLORS = {
   ink: '#14120F',
@@ -35,9 +33,7 @@ const COLORS = {
   red: '#D94B36',
 };
 
-type StudyTarget =
-  | { kind: 'deck'; deckId: string; deckTitle?: string; mode?: DeckStudyMode }
-  | { kind: 'curation'; curationKind: CurationKind; title: string };
+type StudyTarget = StartTarget;
 
 interface StudyScreenProps {
   target: StudyTarget;
@@ -45,8 +41,15 @@ interface StudyScreenProps {
     studied: number;
     correct: number;
     total: number;
+    isGraded: boolean;
   }) => void;
   onExit: () => void;
+}
+
+function studyItemKey(item: StudySessionItem): string {
+  return item.kind === 'card'
+    ? `card:${item.cardData.card.id}`
+    : `reference:${item.term.id}`;
 }
 
 export const StudyScreen: React.FC<StudyScreenProps> = ({
@@ -57,10 +60,15 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
   const insets = useSafeAreaInsets()
   // Full-deck sessions browse the entire deck — there's no recall to grade,
   // so they advance with a plain "Next" rather than rating buttons.
-  const isGraded = !(target.kind === 'deck' && target.mode === 'full');
+  const isLocalSession = target.kind === 'custom' || (target.kind === 'deck' && target.mode === 'full');
+  const isGraded = !isLocalSession;
   const headerTitle = target.kind === 'deck' ? target.deckTitle : target.title;
-  const targetKey = target.kind === 'deck' ? target.deckId : target.curationKind;
-  const [currentCard, setCurrentCard] = useState<StudyCardData | null>(null);
+  const targetKey = target.kind === 'deck'
+    ? `${target.deckId}:${target.mode ?? 'recommended'}`
+    : target.kind === 'curation'
+    ? target.curationKind
+    : `custom:${target.title}:${target.items.length}`;
+  const [currentCard, setCurrentCard] = useState<StudySessionItem | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -88,8 +96,8 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
   }, [targetKey]);
 
   useEffect(() => {
-    if (currentCard) {
-      apiService.getTermsForCard(currentCard.card.id)
+    if (currentCard?.kind === 'card') {
+      apiService.getTermsForCard(currentCard.cardData.card.id)
         .then(setLinkedTerms)
         .catch(() => setLinkedTerms([]));
     } else {
@@ -99,10 +107,11 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
 
   useEffect(() => {
     if (!isFlipped || !currentCard) return;
+    const key = studyItemKey(currentCard);
     setRevealedCards((prev) => {
-      if (prev.has(currentCard.card.id)) return prev;
+      if (prev.has(key)) return prev;
       const next = new Set(prev);
-      next.add(currentCard.card.id);
+      next.add(key);
       return next;
     });
   }, [isFlipped, currentCard]);
@@ -138,6 +147,7 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
         studied: progressInfo.studied,
         correct: progressInfo.correct,
         total: progressInfo.total,
+        isGraded,
       });
     }
   };
@@ -173,7 +183,9 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
   const handleExit = () => {
     Alert.alert(
       'Exit Study Session',
-      'Are you sure you want to exit? Your progress will be saved.',
+      isLocalSession
+        ? 'Are you sure you want to exit? This session is not logged.'
+        : 'Are you sure you want to exit? Your progress will be saved.',
       [
         { text: 'Continue Studying', style: 'cancel' },
         {
@@ -200,13 +212,26 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
   if (!currentCard) {
     return (
       <View style={[styles.container, styles.center, { paddingTop: insets.top }]}>
-        <Text style={styles.noCardsText}>No cards available for study</Text>
+        <Text style={styles.noCardsText}>No items available for study</Text>
         <TouchableOpacity onPress={onExit}>
           <Text style={styles.noCardsExit}>Exit</Text>
         </TouchableOpacity>
       </View>
     );
   }
+
+  const currentKey = studyItemKey(currentCard);
+  const renderCurrentItem = (flipped: boolean) =>
+    currentCard.kind === 'card' ? (
+      <StudyCard
+        cardData={currentCard.cardData}
+        isFlipped={flipped}
+        linkedTerms={linkedTerms}
+        onTermPress={setSelectedTerm}
+      />
+    ) : (
+      <ReferenceStudyCard term={currentCard.term} isFlipped={flipped} />
+    );
 
   return (
     <View style={styles.container}>
@@ -256,18 +281,13 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
       {/* Main card zone — front and back slide together so the reverse side
           follows the user's finger during the swipe. */}
       <SwipeableCard
-        key={currentCard.card.id}
+        key={currentKey}
         isFlipped={isFlipped}
         onFlippedChange={setIsFlipped}
         front={
           <View style={styles.face}>
             <View style={styles.cardArea}>
-              <StudyCard
-                cardData={currentCard}
-                isFlipped={false}
-                linkedTerms={linkedTerms}
-                onTermPress={setSelectedTerm}
-              />
+              {renderCurrentItem(false)}
             </View>
             <View style={[styles.gradingZoneInk, { paddingBottom: insets.bottom + 4 }]}>
               <TouchableOpacity
@@ -292,15 +312,10 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
         back={
           <View style={styles.backFace}>
             <View style={styles.cardArea}>
-              <StudyCard
-                cardData={currentCard}
-                isFlipped={true}
-                linkedTerms={linkedTerms}
-                onTermPress={setSelectedTerm}
-              />
+              {renderCurrentItem(true)}
               {/* Blur the answer until this card has been revealed at least
                   once this session — keeps a partial-drag peek illegible. */}
-              {!revealedCards.has(currentCard.card.id) && (
+              {!revealedCards.has(currentKey) && (
                 <BlurView
                   intensity={30}
                   tint="light"

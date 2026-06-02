@@ -6,6 +6,8 @@ import {
   ApiResponse,
   AuthResponse,
   StudentDeck,
+  StudyCardData,
+  StudyCardSearchResult,
   StudyStats,
   StudySession,
   ReviewInput,
@@ -144,12 +146,57 @@ class ApiService {
     throw new Error(response.data.error || 'Failed to fetch decks');
   }
 
+  async searchStudyDeckIds(query: string): Promise<string[]> {
+    const headers = await this.getAuthHeaders();
+    const response = await apiClient.get<ApiResponse<{ deckIds: string[] }>>(
+      `/decks/search`,
+      { headers, params: { q: query } }
+    );
+
+    if (response.data.success && response.data.data) {
+      return response.data.data.deckIds;
+    }
+
+    throw new Error(response.data.error || 'Failed to search decks');
+  }
+
+  async searchStudyCards(query: string, limit: number = 30): Promise<StudyCardSearchResult[]> {
+    const headers = await this.getAuthHeaders();
+    const response = await apiClient.get<ApiResponse<{ cards: StudyCardSearchResult[] }>>(
+      `/decks/cards/search`,
+      { headers, params: { q: query, limit } }
+    );
+
+    if (response.data.success && response.data.data) {
+      return response.data.data.cards;
+    }
+
+    throw new Error(response.data.error || 'Failed to search cards');
+  }
+
+  async getStudyCardsByIds(cardIds: string[]): Promise<StudyCardData[]> {
+    if (cardIds.length === 0) return [];
+
+    const headers = await this.getAuthHeaders();
+    const response = await apiClient.post<ApiResponse<{ cards: StudyCardData[] }>>(
+      `/decks/cards/batch`,
+      { cardIds },
+      { headers }
+    );
+
+    if (response.data.success && response.data.data) {
+      return response.data.data.cards;
+    }
+
+    throw new Error(response.data.error || 'Failed to fetch cards');
+  }
+
   async getDeckForStudy(
     deckId: string,
     mode: 'recommended' | 'full' = 'recommended'
-  ): Promise<{ deckId: string; cards: any[] }> {
+  ): Promise<{ deckId: string; cards: StudyCardData[] }> {
     const headers = await this.getAuthHeaders();
-    const response = await apiClient.get<ApiResponse<{ deckId: string; cards: any[] }>>(
+    const response = await apiClient.get<ApiResponse<{ deckId: string; cards: StudyCardData[] }>>(
       `/decks/${deckId}`,
       { headers, params: { mode } }
     );

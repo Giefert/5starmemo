@@ -483,6 +483,14 @@ export interface StudyCardData {
   isNew: boolean;
 }
 
+export interface StudyCardSearchResult {
+  cardId: string;
+  deckId: string;
+  deckTitle: string;
+  itemName: string;
+  cardData: StudyCardData;
+}
+
 // ============================================
 // Glossary Types
 // ============================================

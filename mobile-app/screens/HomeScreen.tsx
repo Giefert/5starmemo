@@ -12,6 +12,7 @@ import {
   StyleSheet,
   Pressable,
   ScrollView,
+  TextInput,
   ActivityIndicator,
   Alert,
   RefreshControl,
@@ -19,22 +20,35 @@ import {
   Animated,
   Easing,
   PanResponder,
+  KeyboardAvoidingView,
+  Platform,
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Circle, Line, Path } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { useAuth } from '../contexts/AuthContext';
-import { StudentDeck, DeckType } from '../types/shared';
+import { StudentDeck, DeckType, GlossaryTermSummary } from '../types/shared';
 import apiService from '../services/api';
 import { loadFavorites, saveFavorites } from '../utils/favorites';
+import {
+  CustomDeckDraft,
+  CustomStudyDeck,
+  customReferenceItemToTermSummary,
+  getCustomDeckCounts,
+  loadCustomDecks,
+  makeCustomDeck,
+  saveCustomDecks,
+} from '../utils/customDecks';
+import { StudySessionItem } from '../services/StudySessionManager';
 import { StudyScreen } from './StudyScreen';
 import { StudyCompletedScreen } from './StudyCompletedScreen';
 import { BrowseScreen } from './BrowseScreen';
+import { CustomDeckBuilder } from '../components/CustomDeckBuilder';
 
 type ScreenState = 'home' | 'study' | 'completed' | 'browse';
-type Mode = 'recommended' | 'full' | 'browse';
+type Mode = 'recommended' | 'full' | 'browse' | 'custom';
 
 // Carte tokens — shared with BulletinScreen so the two tabs read as one app.
 const COLORS = {
@@ -51,15 +65,16 @@ const COLORS = {
   red: '#D94B36',
 };
 
-const MODE_LABELS: Array<'Recommended' | 'Full' | 'Browse'> = [
+const MODE_LABELS: Array<'Recommended' | 'Full' | 'Browse' | 'Custom'> = [
   'Recommended',
   'Full',
   'Browse',
+  'Custom',
 ];
 
 // MODE_VALUES lines up index-for-index with MODE_LABELS so the segmented
 // toggle can be labelled without forking the existing `mode` state.
-const MODE_VALUES = ['recommended', 'full', 'browse'] as const;
+const MODE_VALUES = ['recommended', 'full', 'browse', 'custom'] as const;
 
 // The Study tab's Index strip mirrors the Reference tab's: a "Decks" default
 // (every category) followed by the deck categories the team sets in the
@@ -71,6 +86,20 @@ const CATEGORY_ORDER: { type: DeckType; label: string }[] = [
   { type: 'bar', label: 'Bar' },
   { type: 'other', label: 'Other' },
 ];
+
+function collectSearchText(value: unknown): string {
+  if (value == null) return '';
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return ` ${value}`;
+  }
+  if (Array.isArray(value)) {
+    return value.map(collectSearchText).join(' ');
+  }
+  if (typeof value === 'object') {
+    return Object.values(value as Record<string, unknown>).map(collectSearchText).join(' ');
+  }
+  return '';
+}
 
 // How long a deck must be held to toggle Favorites. The grow animation ramps
 // over this same window so the swell peaks exactly as the toggle fires.
@@ -84,13 +113,24 @@ export const HomeScreen: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [screenState, setScreenState] = useState<ScreenState>('home');
   const [mode, setMode] = useState<Mode>('recommended');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchMatchDeckIds, setSearchMatchDeckIds] = useState<string[] | null>(null);
+  const [isSearchLoading, setIsSearchLoading] = useState(false);
   const [selectedDeck, setSelectedDeck] = useState<StudentDeck | null>(null);
+  const [selectedCustomStudy, setSelectedCustomStudy] = useState<{
+    title: string;
+    items: StudySessionItem[];
+  } | null>(null);
   const [studyStats, setStudyStats] = useState<{
     studied: number;
     correct: number;
     total: number;
+    isGraded?: boolean;
   } | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [customDecks, setCustomDecks] = useState<CustomStudyDeck[]>([]);
+  const [isBuildingCustomDeck, setIsBuildingCustomDeck] = useState(false);
+  const [isStartingCustomDeck, setIsStartingCustomDeck] = useState(false);
   const { logout, restaurant } = useAuth();
 
   // Favorites — a personal, on-device pinning of decks to the top of the list.
@@ -105,6 +145,7 @@ export const HomeScreen: React.FC = () => {
   const barX = useRef(new Animated.Value(0)).current;
   const barW = useRef(new Animated.Value(0)).current;
   const toggleLayouts = useRef<Record<string, { x: number; width: number }>>({});
+  const cardSearchTextCache = useRef<Record<string, string>>({});
 
   const moveBar = useCallback(
     (value: Mode, animate: boolean) => {
@@ -162,6 +203,45 @@ export const HomeScreen: React.FC = () => {
     () => CATEGORY_ORDER.filter(c => decks.some(d => d.deckType === c.type)),
     [decks],
   );
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const searchMatchDeckIdSet = useMemo(
+    () => new Set(searchMatchDeckIds ?? []),
+    [searchMatchDeckIds],
+  );
+  const filteredDecks = useMemo(() => {
+    if (!normalizedSearch) return decks;
+    return decks.filter(
+      deck =>
+        deck.title.toLowerCase().includes(normalizedSearch) ||
+        searchMatchDeckIdSet.has(deck.id),
+    );
+  }, [decks, normalizedSearch, searchMatchDeckIdSet]);
+  const isSearchingDecks = normalizedSearch.length > 0;
+
+  const searchCardsFromDeckPayloads = useCallback(
+    async (query: string) => {
+      const q = query.trim().toLowerCase();
+      if (!q) return [];
+
+      const matches = await Promise.all(
+        decks.map(async deck => {
+          let searchText = cardSearchTextCache.current[deck.id];
+          if (searchText == null) {
+            const studyData = await apiService.getDeckForStudy(deck.id, 'full');
+            searchText = collectSearchText(
+              studyData.cards.map(cardData => cardData.card?.restaurantData),
+            ).toLowerCase();
+            cardSearchTextCache.current[deck.id] = searchText;
+          }
+          return searchText.includes(q) ? deck.id : null;
+        }),
+      );
+
+      return matches.filter((id): id is string => id != null);
+    },
+    [decks],
+  );
+
   const cycle = useMemo<(string | undefined)[]>(
     () => [undefined, 'Favorites', ...presentCategories.map(c => c.label)],
     [presentCategories],
@@ -269,10 +349,57 @@ export const HomeScreen: React.FC = () => {
     loadData();
   }, []);
 
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!q) {
+      setSearchMatchDeckIds(null);
+      setIsSearchLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsSearchLoading(true);
+    setSearchMatchDeckIds(null);
+
+    const timer = setTimeout(() => {
+      apiService.searchStudyDeckIds(q)
+        .then(deckIds => {
+          if (!cancelled) setSearchMatchDeckIds(deckIds);
+        })
+        .catch(async error => {
+          console.warn('Failed to search study decks:', error);
+          try {
+            const deckIds = await searchCardsFromDeckPayloads(q);
+            if (!cancelled) setSearchMatchDeckIds(deckIds);
+          } catch (fallbackError) {
+            console.warn('Failed to search study deck cards:', fallbackError);
+            if (!cancelled) setSearchMatchDeckIds([]);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setIsSearchLoading(false);
+        });
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [searchQuery, searchCardsFromDeckPayloads]);
+
   // Hydrate favorites for the active restaurant.
   useEffect(() => {
     if (!restaurant?.id) return;
     loadFavorites(restaurant.id).then(setFavoriteIds);
+  }, [restaurant?.id]);
+
+  // Hydrate local-only custom decks for the active restaurant.
+  useEffect(() => {
+    if (!restaurant?.id) {
+      setCustomDecks([]);
+      return;
+    }
+    loadCustomDecks(restaurant.id).then(setCustomDecks);
   }, [restaurant?.id]);
 
   // The masthead is dark behind the status bar — keep its text light.
@@ -297,6 +424,7 @@ export const HomeScreen: React.FC = () => {
       if (!isRefreshing) setIsLoading(true);
       const decksData = await apiService.getAvailableDecks();
       setDecks(decksData);
+      cardSearchTextCache.current = {};
     } catch (error) {
       // Handle authentication errors by logging out
       if (error instanceof Error && error.name === 'AuthenticationError') {
@@ -381,12 +509,108 @@ export const HomeScreen: React.FC = () => {
     });
   };
 
+  const handleSaveCustomDeck = async (draft: CustomDeckDraft) => {
+    if (!restaurant?.id) return;
+
+    const deck = makeCustomDeck(draft);
+    const next = [deck, ...customDecks];
+    setCustomDecks(next);
+    setIsBuildingCustomDeck(false);
+    await saveCustomDecks(restaurant.id, next);
+  };
+
+  const handleDeleteCustomDeck = (deck: CustomStudyDeck) => {
+    if (!restaurant?.id) return;
+    Alert.alert(
+      'Delete Custom Deck',
+      `Delete "${deck.title}" from this device?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            const next = customDecks.filter(existing => existing.id !== deck.id);
+            setCustomDecks(next);
+            await saveCustomDecks(restaurant.id!, next);
+          },
+        },
+      ],
+    );
+  };
+
+  const handleStartCustomDeck = async (deck: CustomStudyDeck) => {
+    if (isStartingCustomDeck) return;
+
+    try {
+      setIsStartingCustomDeck(true);
+      const cardIds = deck.items.flatMap(item => item.kind === 'card' ? [item.cardId] : []);
+      const referenceItems = deck.items.flatMap(item => item.kind === 'reference' ? [item] : []);
+      const hydratedCards = await apiService.getStudyCardsByIds(cardIds);
+      const cardsById = new Map(hydratedCards.map(cardData => [cardData.card.id, cardData]));
+      const hydratedTerms = await Promise.all(
+        referenceItems.map(async item => {
+          try {
+            const term = await apiService.getGlossaryTerm(item.termId);
+            const summary: GlossaryTermSummary = {
+              id: term.id,
+              term: term.term,
+              definition: term.definition,
+              section: term.section,
+              categoryId: term.categoryId,
+              categoryName: term.category?.name ?? item.categoryName,
+              categoryColor: term.category?.color ?? item.categoryColor,
+              linkedCardCount: term.linkedCardCount ?? term.linkedCards?.length ?? 0,
+            };
+            return [item.termId, summary] as const;
+          } catch {
+            if (!item.definition) return null;
+            return [item.termId, customReferenceItemToTermSummary(item)] as const;
+          }
+        }),
+      );
+      const termsById = new Map(
+        hydratedTerms.filter((entry): entry is NonNullable<typeof entry> => entry != null),
+      );
+
+      const items = deck.items
+        .map<StudySessionItem | null>(item => {
+          if (item.kind === 'reference') {
+            const term = termsById.get(item.termId);
+            return term ? {
+              kind: 'reference',
+              term,
+            } : null;
+          }
+
+          const cardData = cardsById.get(item.cardId);
+          return cardData ? { kind: 'card', cardData } : null;
+        })
+        .filter((item): item is StudySessionItem => item != null);
+
+      if (items.length === 0) {
+        Alert.alert('Custom Deck Unavailable', 'None of this deck\'s items are available right now.');
+        return;
+      }
+
+      setSelectedDeck(null);
+      setSelectedCustomStudy({ title: deck.title, items });
+      setScreenState('study');
+    } catch (error) {
+      Alert.alert('Error', `Failed to load custom deck: ${error}`);
+    } finally {
+      setIsStartingCustomDeck(false);
+    }
+  };
+
   const handleStartStudy = (deck: StudentDeck) => {
+    setSelectedCustomStudy(null);
     setSelectedDeck(deck);
     setScreenState('study');
   };
 
   const handleBrowseDeck = (deck: StudentDeck) => {
+    setSelectedCustomStudy(null);
     setSelectedDeck(deck);
     setScreenState('browse');
   };
@@ -395,22 +619,39 @@ export const HomeScreen: React.FC = () => {
     studied: number;
     correct: number;
     total: number;
+    isGraded?: boolean;
   }) => {
     setStudyStats(stats);
     setScreenState('completed');
-    // Refresh stats after study session
-    loadData();
+    if (stats.isGraded !== false) {
+      loadData();
+    }
   };
 
   const handleBackToHome = () => {
     setScreenState('home');
     setSelectedDeck(null);
+    setSelectedCustomStudy(null);
     setStudyStats(null);
     // Refresh data when returning to home
     loadData();
   };
 
   // Render different screens based on state
+  if (screenState === 'study' && selectedCustomStudy) {
+    return (
+      <StudyScreen
+        target={{
+          kind: 'custom',
+          title: selectedCustomStudy.title,
+          items: selectedCustomStudy.items,
+        }}
+        onComplete={handleStudyComplete}
+        onExit={handleBackToHome}
+      />
+    );
+  }
+
   if (screenState === 'study' && selectedDeck) {
     return (
       <StudyScreen
@@ -430,7 +671,7 @@ export const HomeScreen: React.FC = () => {
     return (
       <StudyCompletedScreen
         stats={studyStats}
-        deckTitle={selectedDeck?.title}
+        deckTitle={selectedDeck?.title ?? selectedCustomStudy?.title}
         onContinue={handleBackToHome}
       />
     );
@@ -452,8 +693,8 @@ export const HomeScreen: React.FC = () => {
   // Each section keeps the server's alphabetical order, and a favorited deck
   // only appears under Favorites.
   const favSet = new Set(favoriteIds);
-  const favoriteDecks = decks.filter(d => favSet.has(d.id));
-  const rest = decks.filter(d => !favSet.has(d.id));
+  const favoriteDecks = filteredDecks.filter(d => favSet.has(d.id));
+  const rest = filteredDecks.filter(d => !favSet.has(d.id));
 
   // A section is a Glossary-style header (large serif title + count) followed by
   // its rows. Rendered only when the section has decks — unless an `emptyText`
@@ -491,18 +732,96 @@ export const HomeScreen: React.FC = () => {
       </View>
     ) : null;
 
+  const renderSearchEmpty = () => (
+    <View style={styles.stateBlock}>
+      <Text style={styles.emptyTitle}>No deck matches.</Text>
+      <Text style={styles.emptyBody}>Try a different search.</Text>
+    </View>
+  );
+
+  const renderSearchLoading = () => (
+    <View style={styles.stateBlock}>
+      <ActivityIndicator color={COLORS.inkMute} />
+    </View>
+  );
+
+  const renderCustomContent = () => {
+    if (isBuildingCustomDeck) {
+      return (
+        <View style={styles.body}>
+          <CustomDeckBuilder
+            onCancel={() => setIsBuildingCustomDeck(false)}
+            onSave={handleSaveCustomDeck}
+          />
+        </View>
+      );
+    }
+
+    return (
+      <ScrollView
+        style={styles.body}
+        contentContainerStyle={styles.customContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Pressable
+          onPress={() => setIsBuildingCustomDeck(true)}
+          style={({ pressed }) => [styles.createCustomButton, pressed && styles.rowPressed]}
+        >
+          <Text style={styles.createCustomLabel}>CREATE DECK</Text>
+        </Pressable>
+
+        {isStartingCustomDeck && (
+          <View style={styles.customLoading}>
+            <ActivityIndicator color={COLORS.inkMute} />
+          </View>
+        )}
+
+        {customDecks.length === 0 ? (
+          <View style={styles.stateBlock}>
+            <Text style={styles.emptyTitle}>No custom decks yet.</Text>
+            <Text style={styles.emptyBody}>
+              Build one from cards, reference terms, or both.
+            </Text>
+          </View>
+        ) : (
+          <View>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionGlyph}>Custom</Text>
+              <Text style={styles.sectionCount}>{customDecks.length}</Text>
+            </View>
+            {customDecks.map((deck, i) => (
+              <CustomDeckRow
+                key={deck.id}
+                deck={deck}
+                isFirstInGroup={i === 0}
+                disabled={isStartingCustomDeck}
+                onTap={handleStartCustomDeck}
+                onDelete={handleDeleteCustomDeck}
+              />
+            ))}
+          </View>
+        )}
+      </ScrollView>
+    );
+  };
+
   // The "Decks" page pins Favorites on top, then lays out each category as a
   // chapter — the full menu. A category page (incl. Favorites) is a flat list
   // of just that category's decks; the strip's amber underline names it, so it
   // gets no chapter header, and favorites show their star in place.
   const renderPageContent = (category: string | undefined) => {
+    if (isSearchingDecks && filteredDecks.length === 0) {
+      return isSearchLoading ? renderSearchLoading() : renderSearchEmpty();
+    }
+
     if (category === undefined) {
       return (
         <>
           {renderSection(
             'Favorites',
             favoriteDecks,
-            'Hold a study deck to add it to favorites.',
+            isSearchingDecks ? undefined : 'Hold a study deck to add it to favorites.',
           )}
           {presentCategories.map(c =>
             renderSection(c.label, rest.filter(d => d.deckType === c.type)),
@@ -512,9 +831,12 @@ export const HomeScreen: React.FC = () => {
     }
     if (category === 'Favorites') {
       if (favoriteDecks.length === 0) {
+        if (isSearchingDecks && isSearchLoading) return renderSearchLoading();
         return (
           <Text style={styles.sectionPlaceholder}>
-            Hold a study deck to add it to favorites.
+            {isSearchingDecks
+              ? 'No favorite decks match that search.'
+              : 'Hold a study deck to add it to favorites.'}
           </Text>
         );
       }
@@ -531,7 +853,10 @@ export const HomeScreen: React.FC = () => {
       ));
     }
     const cat = CATEGORY_ORDER.find(c => c.label === category);
-    const catDecks = cat ? decks.filter(d => d.deckType === cat.type) : [];
+    const catDecks = cat ? filteredDecks.filter(d => d.deckType === cat.type) : [];
+    if (isSearchingDecks && catDecks.length === 0) {
+      return isSearchLoading ? renderSearchLoading() : renderSearchEmpty();
+    }
     return catDecks.map((deck, i) => (
       <DeckRow
         key={deck.id}
@@ -552,6 +877,7 @@ export const HomeScreen: React.FC = () => {
       style={styles.body}
       contentContainerStyle={styles.bodyContent}
       showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
       refreshControl={
         current ? (
           <RefreshControl
@@ -567,7 +893,10 @@ export const HomeScreen: React.FC = () => {
   );
 
   return (
-    <View style={styles.screen}>
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       {/* Dark masthead — shared title block + segmented toggle */}
       <View style={[styles.masthead, { paddingTop: insets.top + 14 }]}>
         <Text style={styles.eyebrow}>{restaurant?.name ?? ''}</Text>
@@ -611,10 +940,13 @@ export const HomeScreen: React.FC = () => {
             <ActivityIndicator color={COLORS.inkMute} />
           </View>
         </View>
+      ) : mode === 'custom' ? (
+        renderCustomContent()
       ) : decks.length === 0 ? (
         <ScrollView
           style={styles.body}
           contentContainerStyle={styles.bodyContent}
+          keyboardShouldPersistTaps="handled"
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}
@@ -709,7 +1041,31 @@ export const HomeScreen: React.FC = () => {
           </View>
         </>
       )}
-    </View>
+
+      {mode !== 'custom' && (
+        <View style={styles.searchRow}>
+          <Svg width={15} height={15} viewBox="0 0 15 15">
+            <Circle cx={6.3} cy={6.3} r={4.6} stroke={COLORS.inkFaint} strokeWidth={1.4} fill="none" />
+            <Line x1={9.7} y1={9.7} x2={13.6} y2={13.6} stroke={COLORS.inkFaint} strokeWidth={1.4} strokeLinecap="round" />
+          </Svg>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search study decks…"
+            placeholderTextColor={COLORS.inkFaint}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            returnKeyType="search"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {searchQuery.length > 0 && (
+            <Pressable onPress={() => setSearchQuery('')} hitSlop={10}>
+              <Text style={styles.searchClear}>CLEAR</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
+    </KeyboardAvoidingView>
   );
 };
 
@@ -800,6 +1156,60 @@ function DeckRow({
         />
       </Pressable>
     </Animated.View>
+  );
+}
+
+function CustomDeckRow({
+  deck,
+  isFirstInGroup,
+  disabled,
+  onTap,
+  onDelete,
+}: {
+  deck: CustomStudyDeck;
+  isFirstInGroup: boolean;
+  disabled: boolean;
+  onTap: (deck: CustomStudyDeck) => void;
+  onDelete: (deck: CustomStudyDeck) => void;
+}) {
+  const counts = getCustomDeckCounts(deck);
+  const detail =
+    counts.cards > 0 && counts.reference > 0
+      ? `${counts.cards} cards / ${counts.reference} reference`
+      : counts.cards > 0
+      ? `${counts.cards} cards`
+      : `${counts.reference} reference`;
+
+  return (
+    <Pressable
+      onPress={() => onTap(deck)}
+      disabled={disabled}
+      style={({ pressed }) => [
+        styles.row,
+        !isFirstInGroup && styles.rowDivider,
+        pressed && styles.rowPressed,
+        disabled && styles.rowDisabled,
+      ]}
+    >
+      <Text style={styles.deckTitle}>{deck.title}</Text>
+      <Text style={styles.deckDescription} numberOfLines={2}>
+        {detail}
+      </Text>
+      <View style={styles.customRowFooter}>
+        <Text style={styles.customRowMeta}>
+          Local only / not logged
+        </Text>
+        <Pressable
+          onPress={event => {
+            event.stopPropagation();
+            onDelete(deck);
+          }}
+          hitSlop={10}
+        >
+          <Text style={styles.customDelete}>DELETE</Text>
+        </Pressable>
+      </View>
+    </Pressable>
   );
 }
 
@@ -1015,6 +1425,53 @@ const styles = StyleSheet.create({
   // ── Body ───────────────────────────────────────────────────
   body: { flex: 1, backgroundColor: COLORS.paper },
   bodyContent: { paddingBottom: 32 },
+  customContent: {
+    paddingBottom: 32,
+  },
+  createCustomButton: {
+    marginHorizontal: 24,
+    marginTop: 22,
+    marginBottom: 4,
+    paddingVertical: 15,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: COLORS.ink,
+    alignItems: 'center',
+  },
+  createCustomLabel: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10,
+    letterSpacing: 1.8,
+    color: COLORS.ink,
+  },
+  customLoading: {
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+
+  // ── Search row ─────────────────────────────────────────────
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.paper,
+    paddingHorizontal: 26,
+    paddingTop: 14,
+    paddingBottom: 14,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 10,
+    padding: 0,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 15,
+    color: COLORS.ink,
+  },
+  searchClear: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10,
+    letterSpacing: 1.4,
+    color: COLORS.inkFaint,
+  },
 
   // ── Index strip ────────────────────────────────────────────
   // Twin of the Reference tab's Index strip — category tabs on paper with an
@@ -1090,6 +1547,7 @@ const styles = StyleSheet.create({
     borderTopColor: COLORS.paperHair,
   },
   rowPressed: { opacity: 0.6 },
+  rowDisabled: { opacity: 0.45 },
 
   favoriteStar: {
     position: 'absolute',
@@ -1150,6 +1608,25 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     color: COLORS.inkMute,
     marginTop: 8,
+  },
+  customRowFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  customRowMeta: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 9,
+    letterSpacing: 1.3,
+    textTransform: 'uppercase',
+    color: COLORS.inkFaint,
+  },
+  customDelete: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 9,
+    letterSpacing: 1.3,
+    color: COLORS.red,
   },
 
   // ── Stats row ──────────────────────────────────────────────

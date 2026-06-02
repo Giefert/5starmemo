@@ -1,5 +1,5 @@
 import pool from '../config/database';
-import { StudentDeck, StudyCardData, Card, FSRSCard } from '../../../shared/types';
+import { StudentDeck, StudyCardData, StudyCardSearchResult, Card, FSRSCard } from '../../../shared/types';
 
 // SQL predicate selecting deck IDs the student can see in their restaurant.
 // A student has access iff a direct grant (user_deck_access) exists OR they
@@ -69,6 +69,142 @@ export class DeckModel {
       weakCards: parseInt(row.weak_cards) || 0,
       nextReviewAt: row.next_review_at
     }));
+  }
+
+  /**
+   * Search the student's accessible decks by deck title or by values stored in
+   * the cards' restaurant_data JSON. This intentionally searches card content
+   * without exposing full card payloads just to filter the Study deck list.
+   */
+  static async searchAvailableDeckIds(
+    userId: string,
+    restaurantId: string,
+    search: string
+  ): Promise<string[]> {
+    const query = `
+      WITH accessible AS (${ACCESSIBLE_DECK_IDS_SQL})
+      SELECT DISTINCT d.id
+      FROM decks d
+      LEFT JOIN cards c ON c.deck_id = d.id
+      WHERE d.id IN (SELECT id FROM accessible)
+        AND (
+          d.title ILIKE $3
+          OR EXISTS (
+            SELECT 1
+            FROM jsonb_each_text(c.restaurant_data) AS field(key, value)
+            WHERE field.value ILIKE $3
+          )
+        )
+      ORDER BY d.id ASC
+    `;
+
+    const result = await pool.query(query, [userId, restaurantId, `%${search}%`]);
+    return result.rows.map(row => row.id);
+  }
+
+  /**
+   * Search individual cards the student can access. Used by the mobile Custom
+   * deck builder; access stays scoped to the same deck grants as Study.
+   */
+  static async searchAvailableCards(
+    userId: string,
+    restaurantId: string,
+    search: string,
+    limit: number = 30
+  ): Promise<StudyCardSearchResult[]> {
+    const query = `
+      WITH accessible AS (${ACCESSIBLE_DECK_IDS_SQL})
+      SELECT
+        c.id,
+        c.deck_id,
+        c.image_url,
+        c.card_order,
+        c.restaurant_data,
+        c.created_at,
+        c.updated_at,
+        d.title as deck_title,
+        fc.id as fsrs_id,
+        fc.difficulty,
+        fc.stability,
+        fc.retrievability,
+        fc.grade,
+        fc.lapses,
+        fc.reps,
+        fc.state,
+        fc.last_review,
+        fc.next_review,
+        fc.created_at as fsrs_created_at,
+        fc.updated_at as fsrs_updated_at
+      FROM cards c
+      JOIN decks d ON d.id = c.deck_id
+      LEFT JOIN fsrs_cards fc ON c.id = fc.card_id AND fc.user_id = $1
+      WHERE d.id IN (SELECT id FROM accessible)
+        AND (
+          d.title ILIKE $3
+          OR c.restaurant_data::text ILIKE $3
+        )
+      ORDER BY
+        LOWER(COALESCE(c.restaurant_data->>'itemName', '')) ASC,
+        LOWER(d.title) ASC
+      LIMIT $4
+    `;
+
+    const result = await pool.query(query, [userId, restaurantId, `%${search}%`, limit]);
+    return result.rows.map(row => {
+      const cardData = rowToStudyCard(row, userId);
+      return {
+        cardId: row.id,
+        deckId: row.deck_id,
+        deckTitle: row.deck_title,
+        itemName: cardData.card.restaurantData?.itemName || 'Untitled Card',
+        cardData
+      };
+    });
+  }
+
+  /**
+   * Hydrate selected cards for local Custom deck sessions. Missing or
+   * inaccessible card ids are omitted rather than exposed.
+   */
+  static async getAvailableCardsByIds(
+    userId: string,
+    restaurantId: string,
+    cardIds: string[]
+  ): Promise<StudyCardData[]> {
+    if (cardIds.length === 0) return [];
+
+    const query = `
+      WITH accessible AS (${ACCESSIBLE_DECK_IDS_SQL})
+      SELECT
+        c.id,
+        c.deck_id,
+        c.image_url,
+        c.card_order,
+        c.restaurant_data,
+        c.created_at,
+        c.updated_at,
+        fc.id as fsrs_id,
+        fc.difficulty,
+        fc.stability,
+        fc.retrievability,
+        fc.grade,
+        fc.lapses,
+        fc.reps,
+        fc.state,
+        fc.last_review,
+        fc.next_review,
+        fc.created_at as fsrs_created_at,
+        fc.updated_at as fsrs_updated_at
+      FROM cards c
+      JOIN decks d ON d.id = c.deck_id
+      LEFT JOIN fsrs_cards fc ON c.id = fc.card_id AND fc.user_id = $1
+      WHERE d.id IN (SELECT id FROM accessible)
+        AND c.id = ANY($3::uuid[])
+      ORDER BY array_position($3::uuid[], c.id)
+    `;
+
+    const result = await pool.query(query, [userId, restaurantId, cardIds]);
+    return result.rows.map(row => rowToStudyCard(row, userId));
   }
 
   /**
@@ -291,4 +427,54 @@ export class DeckModel {
     const result = await pool.query(query, [userId, restaurantId, deckId]);
     return result.rows.length > 0;
   }
+}
+
+function rowToStudyCard(row: any, userId: string): StudyCardData {
+  const card: Card = {
+    id: row.id,
+    deckId: row.deck_id,
+    imageUrl: row.image_url || undefined,
+    order: row.card_order,
+    restaurantData: row.restaurant_data || undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+
+  const fsrsData: FSRSCard = row.fsrs_id ? {
+    id: row.fsrs_id,
+    cardId: row.id,
+    userId,
+    difficulty: parseFloat(row.difficulty) || 0,
+    stability: parseFloat(row.stability) || 0,
+    retrievability: parseFloat(row.retrievability) || 0,
+    grade: parseInt(row.grade) || 0,
+    lapses: parseInt(row.lapses) || 0,
+    reps: parseInt(row.reps) || 0,
+    state: row.state || 'new',
+    lastReview: row.last_review,
+    nextReview: row.next_review || new Date(),
+    createdAt: row.fsrs_created_at || new Date(),
+    updatedAt: row.fsrs_updated_at || new Date()
+  } : {
+    id: '',
+    cardId: row.id,
+    userId,
+    difficulty: 0,
+    stability: 0,
+    retrievability: 0,
+    grade: 0,
+    lapses: 0,
+    reps: 0,
+    state: 'new',
+    lastReview: undefined,
+    nextReview: new Date(),
+    createdAt: new Date(),
+    updatedAt: new Date()
+  };
+
+  return {
+    card,
+    fsrsData,
+    isNew: !row.fsrs_id
+  };
 }

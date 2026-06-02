@@ -1,9 +1,13 @@
-import { StudyCardData, StudySession, ReviewInput, CurationKind } from '../types/shared';
+import { StudyCardData, StudySession, ReviewInput, CurationKind, GlossaryTermSummary } from '../types/shared';
 import apiService from './api';
+
+export type StudySessionItem =
+  | { kind: 'card'; cardData: StudyCardData }
+  | { kind: 'reference'; term: GlossaryTermSummary };
 
 export interface StudySessionState {
   session: StudySession | null;
-  cards: StudyCardData[];
+  cards: StudySessionItem[];
   // Indices in `cards` where a new curation unit begins. First unit always
   // starts at 0; subsequent entries are positions of the second, third,
   // ... unit. Empty for deck-tab sessions. Used to draw progress-bar ticks.
@@ -17,9 +21,10 @@ export interface StudySessionState {
 
 export type DeckStudyMode = 'recommended' | 'full';
 
-type StartTarget =
+export type StartTarget =
   | { kind: 'deck'; deckId: string; deckTitle?: string; mode?: DeckStudyMode }
-  | { kind: 'curation'; curationKind: CurationKind; title: string };
+  | { kind: 'curation'; curationKind: CurationKind; title: string }
+  | { kind: 'custom'; title: string; items: StudySessionItem[] };
 
 function shuffle<T>(items: T[]): T[] {
   const arr = items.slice();
@@ -49,27 +54,35 @@ export class StudySessionManager {
   /**
    * Start a new study session
    */
-  async startSession(target: StartTarget): Promise<StudyCardData[]> {
+  async startSession(target: StartTarget): Promise<StudySessionItem[]> {
     try {
       if (target.kind === 'deck') {
-        this.state.session = await apiService.createStudySession({ deckId: target.deckId });
-        const studyData = await apiService.getDeckForStudy(target.deckId, target.mode ?? 'recommended');
-        this.state.cards = studyData.cards;
+        const mode = target.mode ?? 'recommended';
+        this.state.session = mode === 'full'
+          ? null
+          : await apiService.createStudySession({ deckId: target.deckId });
+        const studyData = await apiService.getDeckForStudy(target.deckId, mode);
+        this.state.cards = studyData.cards.map(cardData => ({ kind: 'card', cardData }));
         this.state.unitStartIndices = [];
         this.state.deckTitle = target.deckTitle;
-      } else {
+      } else if (target.kind === 'curation') {
         const payload = await apiService.getCurationStudy(target.curationKind);
         const shuffledUnits = shuffle(payload.units);
-        const cards: StudyCardData[] = [];
+        const cards: StudySessionItem[] = [];
         const starts: number[] = [];
         for (const unit of shuffledUnits) {
           starts.push(cards.length);
           const unitCards = unit.type === 'deck' ? shuffle(unit.cards) : unit.cards;
-          cards.push(...unitCards);
+          cards.push(...unitCards.map(cardData => ({ kind: 'card' as const, cardData })));
         }
         this.state.session = await apiService.createStudySession({ curationKind: target.curationKind });
         this.state.cards = cards;
         this.state.unitStartIndices = starts;
+        this.state.deckTitle = target.title;
+      } else {
+        this.state.session = null;
+        this.state.cards = target.items;
+        this.state.unitStartIndices = [];
         this.state.deckTitle = target.title;
       }
 
@@ -96,10 +109,13 @@ export class StudySessionManager {
     if (!currentCard) {
       throw new Error('No current card to rate');
     }
+    if (currentCard.kind !== 'card') {
+      throw new Error('Current item cannot be rated');
+    }
 
     try {
       const reviewInput: ReviewInput = {
-        cardId: currentCard.card.id,
+        cardId: currentCard.cardData.card.id,
         rating
       };
 
@@ -123,10 +139,14 @@ export class StudySessionManager {
 
   /**
    * Advance to the next card without recording a review. Full-deck sessions
-   * browse every card rather than grade recall, so they have no rating to submit.
+   * browse every card locally, so they have no rating or session log to submit.
    */
   async advance(): Promise<void> {
-    if (!this.state.session || this.state.isComplete) {
+    if (
+      this.state.isComplete ||
+      this.state.cards.length === 0 ||
+      this.state.currentCardIndex >= this.state.cards.length
+    ) {
       throw new Error('No active study session');
     }
 
@@ -141,7 +161,10 @@ export class StudySessionManager {
    * Complete the current study session
    */
   private async completeSession(): Promise<void> {
-    if (!this.state.session) return;
+    if (!this.state.session) {
+      this.state.isComplete = true;
+      return;
+    }
 
     const averageRating = this.calculateAverageRating();
     
@@ -173,7 +196,7 @@ export class StudySessionManager {
   /**
    * Get current card being studied
    */
-  getCurrentCard(): StudyCardData | null {
+  getCurrentCard(): StudySessionItem | null {
     if (this.state.currentCardIndex >= this.state.cards.length) {
       return null;
     }

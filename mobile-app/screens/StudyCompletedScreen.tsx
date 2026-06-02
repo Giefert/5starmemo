@@ -13,6 +13,7 @@ interface StudyCompletedScreenProps {
     studied: number;
     correct: number;
     total: number;
+    isGraded?: boolean;
   };
   deckTitle?: string;
   onContinue: () => void;
@@ -26,11 +27,13 @@ export const StudyCompletedScreen: React.FC<StudyCompletedScreenProps> = ({
   onStudyAgain,
 }) => {
   const insets = useSafeAreaInsets()
+  const isGraded = stats.isGraded !== false;
   const accuracyPercentage = stats.studied > 0 
     ? Math.round((stats.correct / stats.studied) * 100) 
     : 0;
 
   const getPerformanceMessage = () => {
+    if (!isGraded) return 'Review complete';
     if (accuracyPercentage >= 90) return "Excellent work! 🎉";
     if (accuracyPercentage >= 75) return "Great job! 👍";
     if (accuracyPercentage >= 60) return "Good progress! 📈";
@@ -39,6 +42,7 @@ export const StudyCompletedScreen: React.FC<StudyCompletedScreenProps> = ({
   };
 
   const getPerformanceColor = () => {
+    if (!isGraded) return '#E89A2B';
     if (accuracyPercentage >= 75) return '#34C759';
     if (accuracyPercentage >= 50) return '#FF9500';
     return '#FF3B30';
@@ -64,22 +68,26 @@ export const StudyCompletedScreen: React.FC<StudyCompletedScreenProps> = ({
           <View style={styles.statsContainer}>
             <View style={styles.statItem}>
               <Text style={styles.statNumber}>{stats.studied}</Text>
-              <Text style={styles.statLabel}>Cards Studied</Text>
+              <Text style={styles.statLabel}>{isGraded ? 'Cards Studied' : 'Items Viewed'}</Text>
             </View>
             
-            <View style={styles.statItem}>
-              <Text style={[styles.statNumber, { color: getPerformanceColor() }]}>
-                {stats.correct}
-              </Text>
-              <Text style={styles.statLabel}>Correct</Text>
-            </View>
-            
-            <View style={styles.statItem}>
-              <Text style={[styles.statNumber, { color: getPerformanceColor() }]}>
-                {accuracyPercentage}%
-              </Text>
-              <Text style={styles.statLabel}>Accuracy</Text>
-            </View>
+            {isGraded && (
+              <>
+                <View style={styles.statItem}>
+                  <Text style={[styles.statNumber, { color: getPerformanceColor() }]}>
+                    {stats.correct}
+                  </Text>
+                  <Text style={styles.statLabel}>Correct</Text>
+                </View>
+
+                <View style={styles.statItem}>
+                  <Text style={[styles.statNumber, { color: getPerformanceColor() }]}>
+                    {accuracyPercentage}%
+                  </Text>
+                  <Text style={styles.statLabel}>Accuracy</Text>
+                </View>
+              </>
+            )}
           </View>
 
           {/* Progress Bar */}
@@ -97,20 +105,28 @@ export const StudyCompletedScreen: React.FC<StudyCompletedScreenProps> = ({
               />
             </View>
             <Text style={styles.progressText}>
-              {stats.studied} of {stats.total} cards completed
+              {stats.studied} of {stats.total} {isGraded ? 'cards' : 'items'} completed
             </Text>
           </View>
         </View>
 
-        {/* FSRS Information */}
+        {/* Session information */}
         <View style={styles.infoCard}>
           <Text style={styles.infoTitle}>What's Next?</Text>
-          <Text style={styles.infoText}>
-            Based on your performance, the FSRS algorithm has scheduled when you'll see these cards again for optimal learning.
-          </Text>
-          <Text style={styles.infoText}>
-            Cards you found difficult will appear sooner, while easy cards will have longer intervals.
-          </Text>
+          {isGraded ? (
+            <>
+              <Text style={styles.infoText}>
+                Based on your performance, the FSRS algorithm has scheduled when you'll see these cards again for optimal learning.
+              </Text>
+              <Text style={styles.infoText}>
+                Cards you found difficult will appear sooner, while easy cards will have longer intervals.
+              </Text>
+            </>
+          ) : (
+            <Text style={styles.infoText}>
+              This review pass was not logged and did not change card mastery.
+            </Text>
+          )}
         </View>
 
         {/* Action Buttons */}
