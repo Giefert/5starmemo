@@ -18,6 +18,10 @@ Prod (`api.tusavor.com` / VPS at 149.56.134.158) is the working environment. No 
 - The mobile app always hits prod, including local Expo runs (`mobile-app/services/api.ts` no longer has a `__DEV__` → localhost branch). Iterating on UI tweaks in the iOS sim "just works" — `npx expo start --ios` from `mobile-app/` pulls real data from `api.tusavor.com`. Use a test login, not a real student's, since actions write to the live DB.
 - Mention this only if relevant; don't add a "deploy to prod" step to every task — assume the user will deploy when they're ready.
 
+## Deployment access TODO
+
+Before real users are on the product, replace any broad personal/local SSH access with a dedicated deploy-only key and unprivileged deploy user. Revoke/rotate the current broad all-access SSH key so it is defunct before launch, remove old server `authorized_keys` entries, restrict the new key to the project deploy command where practical, and keep deploy approval explicit.
+
 ## Cost safeguards
 
 MVP — any new recurring cost is a problem. Paid services in use:
