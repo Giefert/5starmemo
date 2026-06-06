@@ -1,8 +1,12 @@
 # Handoff: Upgrade FSRS engine to FSRS-6 (defaults) — mobile-api
 
 **Status: not started.** Scope is deliberately bounded — read "NOT in scope" before
-expanding it. This was designed across two prior sessions and the handoff kept getting
-lost because it was never written to a file. This is that file.
+expanding it.
+
+**Production baseline update (2026-06-06, commit `a3ecf98`):** a rating-submit hotfix is
+already deployed. It keeps the hand-rolled scheduler but fixes the existing-row
+snake_case → camelCase mapping, makes the old short-term learning formula finite, and
+widens `fsrs_cards.stability` via migration `016_widen_fsrs_stability.sql`.
 
 ## Task
 Replace the hand-rolled FSRS engine in `mobile-api` with the maintained **`ts-fsrs`**
@@ -23,6 +27,8 @@ no new SaaS/paid services.
 - **Pre-4.5 exponential forgetting curve** `exp(ln(0.9)·t/S)` — `fsrs.ts:199`
   (`calculateRetrievability`). 4.5+ uses a power curve; this is older than even the 4.5 set.
 - **No real short-term/same-day modeling** beyond a crude `shortTermStability` heuristic.
+  The previous invalid `w[17]`/`w[18]` reference was hotfixed in `a3ecf98`, but the
+  scheduler is still not FSRS-6.
 
 FSRS-6 fixes all three: power forgetting curve, same-day modeling (FSRS-5's contribution),
 the full 21-parameter formulas, and modern benchmark-trained defaults. **That engine jump
@@ -43,7 +49,7 @@ is where the accuracy win is — NOT personalization** (see decision note at the
    - `:3` — `import { FSRS, Rating } from '../utils/fsrs';`
    - `:24` — `private static fsrs = new FSRS();`
    - `:103` — `this.fsrs.next(fsrsCard, review.rating as Rating)`
-   - `:107` — upsert into `fsrs_cards` (keep this table, **NO schema change**).
+   - `:107` — upsert into `fsrs_cards` (keep this table, **NO additional schema change**).
    HTTP entry is `routes/progress.ts:209` (`POST /review`, rating validated 1–4) →
    `submitReview` called at `routes/progress.ts:240`.
 
@@ -57,19 +63,18 @@ is where the accuracy win is — NOT personalization** (see decision note at the
    **Do NOT add a DB column, `fsrs_weights`, `optimized_at`, or any unused fields** — that
    would be dead schema / designing for a hypothetical.
 
-## Data mapping / migration notes (important — there's a latent bug here)
+## Data mapping / migration notes
 
 `fsrs_cards` columns: `card_id, user_id, difficulty, stability, retrievability, grade,
 lapses, reps, state ('new'|'learning'|'review'|'relearning'), last_review, next_review,
-created_at, updated_at`. Rating scale is **1–4 = Again/Hard/Good/Easy**.
+created_at, updated_at`. Rating scale is **1–4 = Again/Hard/Good/Easy**. After migration
+`016_widen_fsrs_stability.sql`, `stability` is `DECIMAL(13,8)`; keep that type.
 
-- `getFSRSCard` (`progress.ts:324`) returns the **raw snake_case DB row** for existing
-  cards (`result.rows[0]`) but a **camelCase object** for new cards (`:338-353`). The old
-  hand-rolled engine reads `card.lastReview` / `card.stability` etc., so for *existing*
-  review cards those camelCase reads are `undefined` against a snake_case row — a latent
-  correctness bug. **The new code must map the DB row → a ts-fsrs `Card` explicitly**
-  (snake_case → ts-fsrs fields), not pass the raw row through. Map state strings to
-  ts-fsrs `State`, `last_review`/`next_review` to `Date`, etc.
+- `getFSRSCard` now maps existing DB rows through `mapFSRSRow` before the old scheduler
+  sees them. The FSRS-6 migration still must map explicitly into a ts-fsrs `Card`; do not
+  pass raw snake_case rows or the existing app-facing `FSRSCard` object directly into the
+  library. Map state strings to ts-fsrs `State`, `last_review`/`next_review` to `Date`,
+  etc.
 - ts-fsrs's scheduler returns a `RecordLog`/`Card`; map its fields back to the existing
   upsert params at `progress.ts:127-138` (difficulty, stability, retrievability/`R`?,
   grade, lapses, reps, state, next_review). `retrievability` is stored — derive it from the
@@ -82,7 +87,10 @@ created_at, updated_at`. Rating scale is **1–4 = Again/Hard/Good/Easy**.
 - Exercise `POST /review` against prod with a **test login** (writes to the live DB) across
   all four ratings on a new card and an existing review card; confirm `fsrs_cards` rows get
   sane difficulty (1–10), stability (>0), and a `next_review` that grows with Good/Easy.
-- Deploy: SSH to VPS, `git pull && docker compose up -d --build` for mobile-api.
+- Include a regression pass on an already-reviewed card that is in `learning` or
+  `relearning`; this is the path that produced the Chu Maki 500 before `a3ecf98`.
+- Deploy: SSH to VPS, `git pull && docker compose up -d --build mobile-api`. Rebuild
+  `web-api` too only if the FSRS-6 work adds another DB migration.
 
 ## NOT in scope — do not build
 - No optimizer / training package (`@open-spaced-repetition/binding`, `fsrs-rs`).
