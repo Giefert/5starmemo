@@ -38,19 +38,23 @@ export class FSRS {
    * Calculate next review for a card based on rating
    */
   next(card: FSRSCard, rating: Rating, reviewTime: Date = new Date()): ReviewResult {
+    const currentStability = this.positiveNumber(card.stability, 0.1);
+    const currentDifficulty = this.clamp(this.positiveNumber(card.difficulty, 1), 1, 10);
+    const currentLapses = this.nonNegativeInteger(card.lapses);
+    const currentReps = this.nonNegativeInteger(card.reps);
     const elapsedDays = card.lastReview 
       ? Math.max(0, (reviewTime.getTime() - card.lastReview.getTime()) / (1000 * 60 * 60 * 24))
       : 0;
 
     const retrievability = card.lastReview 
-      ? this.calculateRetrievability(elapsedDays, card.stability)
+      ? this.calculateRetrievability(elapsedDays, currentStability)
       : 1;
 
     let newState = card.state;
-    let newLapses = card.lapses;
-    let newReps = card.reps + 1;
-    let newDifficulty = card.difficulty;
-    let newStability = card.stability;
+    let newLapses = currentLapses;
+    let newReps = currentReps + 1;
+    let newDifficulty = currentDifficulty;
+    let newStability = currentStability;
 
     // Handle different states and ratings
     switch (card.state) {
@@ -84,14 +88,18 @@ export class FSRS {
         break;
     }
 
+    const difficulty = this.clamp(this.positiveNumber(newDifficulty, 1), 1, 10);
+    const stability = this.clamp(this.positiveNumber(newStability, 0.1), 0.1, FSRS_PARAMS.maximumInterval);
+    const reviewRetrievability = this.clamp(this.finiteNumber(retrievability, 1), 0, 1);
+
     // Calculate next review date
-    const interval = this.nextInterval(newStability);
+    const interval = this.nextInterval(stability);
     const nextReview = new Date(reviewTime.getTime() + interval * 24 * 60 * 60 * 1000);
 
     return {
-      difficulty: Math.max(1, Math.min(10, newDifficulty)),
-      stability: Math.max(0.1, newStability),
-      retrievability,
+      difficulty,
+      stability,
+      retrievability: reviewRetrievability,
       grade: rating,
       lapses: newLapses,
       reps: newReps,
@@ -165,7 +173,15 @@ export class FSRS {
    * Calculate stability for short-term learning
    */
   private shortTermStability(stability: number, rating: Rating): number {
-    return stability * Math.exp(this.w[17] * (rating - 3 + this.w[18]));
+    const currentStability = this.positiveNumber(stability, 0.1);
+    const multiplierByRating: Record<Rating, number> = {
+      [Rating.Again]: 0.5,
+      [Rating.Hard]: FSRS_PARAMS.hardFactor,
+      [Rating.Good]: 2,
+      [Rating.Easy]: 2 * FSRS_PARAMS.easyBonus
+    };
+
+    return currentStability * multiplierByRating[rating];
   }
 
   /**
@@ -196,15 +212,31 @@ export class FSRS {
    * Calculate retrievability based on elapsed time and stability
    */
   private calculateRetrievability(elapsedDays: number, stability: number): number {
-    return Math.exp(Math.log(0.9) * elapsedDays / stability);
+    return Math.exp(Math.log(0.9) * elapsedDays / this.positiveNumber(stability, 0.1));
   }
 
   /**
    * Calculate next interval in days
    */
   private nextInterval(stability: number): number {
-    const interval = stability * (Math.log(FSRS_PARAMS.requestRetention) / Math.log(0.9));
+    const interval = this.positiveNumber(stability, 0.1) * (Math.log(FSRS_PARAMS.requestRetention) / Math.log(0.9));
     return Math.min(Math.max(1, Math.round(interval)), FSRS_PARAMS.maximumInterval);
+  }
+
+  private positiveNumber(value: number, fallback: number): number {
+    return Number.isFinite(value) && value > 0 ? value : fallback;
+  }
+
+  private finiteNumber(value: number, fallback: number): number {
+    return Number.isFinite(value) ? value : fallback;
+  }
+
+  private nonNegativeInteger(value: number): number {
+    return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+  }
+
+  private clamp(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, value));
   }
 
   /**

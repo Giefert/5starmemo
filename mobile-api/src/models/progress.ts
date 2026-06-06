@@ -146,7 +146,7 @@ export class ProgressModel {
       }
 
       await client.query('COMMIT');
-      return fsrsResult.rows[0];
+      return mapFSRSRow(fsrsResult.rows[0], userId);
 
     } catch (error) {
       await client.query('ROLLBACK');
@@ -331,7 +331,7 @@ export class ProgressModel {
     const result = await client.query(query, [userId, cardId]);
 
     if (result.rows.length > 0) {
-      return result.rows[0];
+      return mapFSRSRow(result.rows[0], userId);
     }
 
     // Return default new card data
@@ -352,6 +352,25 @@ export class ProgressModel {
       updatedAt: new Date()
     };
   }
+}
+
+function mapFSRSRow(row: any, userId: string): FSRSCard {
+  return {
+    id: row.id,
+    cardId: row.card_id,
+    userId: row.user_id ?? userId,
+    difficulty: parseFloat(row.difficulty) || 0,
+    stability: parseFloat(row.stability) || 0,
+    retrievability: parseFloat(row.retrievability) || 0,
+    grade: parseInt(row.grade) || 0,
+    lapses: parseInt(row.lapses) || 0,
+    reps: parseInt(row.reps) || 0,
+    state: row.state || 'new',
+    lastReview: row.last_review ?? undefined,
+    nextReview: row.next_review || new Date(),
+    createdAt: row.created_at || new Date(),
+    updatedAt: row.updated_at || new Date()
+  };
 }
 
 function mapSessionRow(row: any): StudySession {
