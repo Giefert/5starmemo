@@ -22,6 +22,8 @@ Prod (`api.tusavor.com` / VPS at 149.56.134.158) is the working environment. No 
 
 Before real users are on the product, replace any broad personal/local SSH access with a dedicated deploy-only key and unprivileged deploy user. Revoke/rotate the current broad all-access SSH key so it is defunct before launch, remove old server `authorized_keys` entries, restrict the new key to the project deploy command where practical, and keep deploy approval explicit.
 
+Before launch, replace the current broad GitHub OAuth credential (`repo`, `gist`, `read:org` scopes) with a fine-grained credential limited to `Giefert/5starmemo`, or move to a PR-based workflow where local AI sessions cannot push directly to `main`.
+
 ## Cost safeguards
 
 MVP — any new recurring cost is a problem. Paid services in use:

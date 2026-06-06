@@ -483,6 +483,21 @@ export interface StudyCardData {
   isNew: boolean;
 }
 
+export interface StudyDeckSearchMatchDetail {
+  field: string;
+  value: string;
+}
+
+export interface StudyDeckSearchMatch {
+  itemName: string;
+  details: StudyDeckSearchMatchDetail[];
+}
+
+export interface StudyDeckSearchResult {
+  deckIds: string[];
+  matchesByDeckId: Record<string, StudyDeckSearchMatch[]>;
+}
+
 export interface StudyCardSearchResult {
   cardId: string;
   deckId: string;

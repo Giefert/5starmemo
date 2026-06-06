@@ -8,6 +8,7 @@ import {
   StudentDeck,
   StudyCardData,
   StudyCardSearchResult,
+  StudyDeckSearchResult,
   StudyStats,
   StudySession,
   ReviewInput,
@@ -146,15 +147,15 @@ class ApiService {
     throw new Error(response.data.error || 'Failed to fetch decks');
   }
 
-  async searchStudyDeckIds(query: string): Promise<string[]> {
+  async searchStudyDecks(query: string): Promise<StudyDeckSearchResult> {
     const headers = await this.getAuthHeaders();
-    const response = await apiClient.get<ApiResponse<{ deckIds: string[] }>>(
+    const response = await apiClient.get<ApiResponse<StudyDeckSearchResult>>(
       `/decks/search`,
       { headers, params: { q: query } }
     );
 
     if (response.data.success && response.data.data) {
-      return response.data.data.deckIds;
+      return response.data.data;
     }
 
     throw new Error(response.data.error || 'Failed to search decks');

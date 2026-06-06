@@ -1,5 +1,5 @@
 import pool from '../config/database';
-import { StudentDeck, StudyCardData, StudyCardSearchResult, Card, FSRSCard } from '../../../shared/types';
+import { StudentDeck, StudyCardData, StudyDeckSearchResult, StudyCardSearchResult, Card, FSRSCard } from '../../../shared/types';
 
 // SQL predicate selecting deck IDs the student can see in their restaurant.
 // A student has access iff a direct grant (user_deck_access) exists OR they
@@ -80,26 +80,91 @@ export class DeckModel {
     userId: string,
     restaurantId: string,
     search: string
-  ): Promise<string[]> {
+  ): Promise<StudyDeckSearchResult> {
     const query = `
       WITH accessible AS (${ACCESSIBLE_DECK_IDS_SQL})
-      SELECT DISTINCT d.id
+      SELECT DISTINCT
+        d.id,
+        card_match.item_name,
+        card_match.field_key,
+        card_match.field_value
       FROM decks d
-      LEFT JOIN cards c ON c.deck_id = d.id
+      LEFT JOIN LATERAL (
+        SELECT
+          c.restaurant_data->>'itemName' AS item_name,
+          matched.field_key,
+          matched.field_value
+        FROM cards c
+        JOIN LATERAL (
+          SELECT cleaned.field_key, cleaned.field_value
+          FROM (
+            SELECT
+              raw_field_value.field_key,
+              btrim(regexp_replace(raw_field_value.field_value, '[*_]', '', 'g')) AS field_value
+            FROM jsonb_each(c.restaurant_data) AS field(key, value)
+            CROSS JOIN LATERAL (
+              SELECT field.key AS field_key, jsonb_array_elements_text(field.value) AS field_value
+              WHERE jsonb_typeof(field.value) = 'array'
+              UNION ALL
+              SELECT field.key AS field_key, split_value.field_value
+              FROM regexp_split_to_table(field.value #>> '{}', ',|\\n') AS split_value(field_value)
+              WHERE jsonb_typeof(field.value) = 'string'
+              UNION ALL
+              SELECT field.key AS field_key, field.value #>> '{}' AS field_value
+              WHERE jsonb_typeof(field.value) NOT IN ('array', 'string')
+            ) AS raw_field_value
+          ) AS cleaned
+          WHERE cleaned.field_value <> ''
+            AND cleaned.field_value ILIKE $3
+        ) AS matched ON true
+        WHERE c.deck_id = d.id
+          AND c.restaurant_data IS NOT NULL
+      ) AS card_match ON true
       WHERE d.id IN (SELECT id FROM accessible)
         AND (
           d.title ILIKE $3
-          OR EXISTS (
-            SELECT 1
-            FROM jsonb_each_text(c.restaurant_data) AS field(key, value)
-            WHERE field.value ILIKE $3
-          )
+          OR card_match.item_name IS NOT NULL
         )
-      ORDER BY d.id ASC
+      ORDER BY d.id ASC, card_match.item_name ASC, card_match.field_key ASC, card_match.field_value ASC
     `;
 
     const result = await pool.query(query, [userId, restaurantId, `%${search}%`]);
-    return result.rows.map(row => row.id);
+    const deckIds: string[] = [];
+    const deckIdSet = new Set<string>();
+    const matchesByDeckId = new Map<
+      string,
+      Map<string, Array<{ field: string; value: string }>>
+    >();
+
+    for (const row of result.rows) {
+      if (!deckIdSet.has(row.id)) {
+        deckIdSet.add(row.id);
+        deckIds.push(row.id);
+      }
+      if (row.item_name) {
+        const deckMatches = matchesByDeckId.get(row.id) ?? new Map<string, Array<{ field: string; value: string }>>();
+        const itemDetails = deckMatches.get(row.item_name) ?? [];
+        if (row.field_key && row.field_value) {
+          const exists = itemDetails.some(
+            detail => detail.field === row.field_key && detail.value === row.field_value,
+          );
+          if (!exists) {
+            itemDetails.push({ field: row.field_key, value: row.field_value });
+          }
+        }
+        deckMatches.set(row.item_name, itemDetails);
+        matchesByDeckId.set(row.id, deckMatches);
+      }
+    }
+
+    const matchesByDeckIdObject = Object.fromEntries(
+      [...matchesByDeckId.entries()].map(([deckId, itemMatches]) => [
+        deckId,
+        [...itemMatches.entries()].map(([itemName, details]) => ({ itemName, details })),
+      ]),
+    );
+
+    return { deckIds, matchesByDeckId: matchesByDeckIdObject };
   }
 
   /**

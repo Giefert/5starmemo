@@ -129,7 +129,7 @@ router.get('/search',
         });
       }
 
-      const deckIds = await DeckModel.searchAvailableDeckIds(
+      const searchResult = await DeckModel.searchAvailableDeckIds(
         req.user!.id,
         req.user!.restaurantId,
         req.query.q as string
@@ -137,7 +137,7 @@ router.get('/search',
 
       const response: ApiResponse = {
         success: true,
-        data: { deckIds },
+        data: searchResult,
         message: 'Deck search completed successfully'
       };
 

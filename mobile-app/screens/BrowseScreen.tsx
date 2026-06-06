@@ -7,11 +7,12 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
+import type { StyleProp, TextStyle } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Rect, Defs, Pattern } from 'react-native-svg';
 import apiService from '../services/api';
-import { StudyCardData } from '../types/shared';
+import { StudyCardData, StudyDeckSearchMatch, StudyDeckSearchMatchDetail } from '../types/shared';
 import { StudyCard, LinkedTerm } from '../components/StudyCard';
 import { SwipeableCard } from '../components/SwipeableCard';
 import { GlossaryTermModal } from '../components/GlossaryTermModal';
@@ -28,18 +29,71 @@ const COLORS = {
   amber: '#E89A2B',
 };
 
+function textContainsQuery(text: string, query: string) {
+  const q = query.trim().toLowerCase();
+  return q.length > 0 && text.toLowerCase().includes(q);
+}
+
+function formatSearchFieldLabel(field: string) {
+  return field
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function mergeSearchMatches(matches: StudyDeckSearchMatch[]): StudyDeckSearchMatch[] {
+  const merged = new Map<string, StudyDeckSearchMatch>();
+
+  for (const match of matches) {
+    const existing = merged.get(match.itemName) ?? { itemName: match.itemName, details: [] };
+    for (const detail of match.details) {
+      const exists = existing.details.some(
+        existingDetail => existingDetail.field === detail.field && existingDetail.value === detail.value,
+      );
+      if (!exists) existing.details.push(detail);
+    }
+    merged.set(match.itemName, existing);
+  }
+
+  return [...merged.values()];
+}
+
+function getVisibleSearchDetails(
+  match: StudyDeckSearchMatch | undefined,
+  query: string,
+): StudyDeckSearchMatchDetail[] {
+  const q = query.trim().toLowerCase();
+  if (!match || !q) return [];
+
+  return match.details.filter(detail =>
+    detail.field !== 'itemName' &&
+    detail.value.toLowerCase().includes(q),
+  );
+}
+
 interface BrowseScreenProps {
   deckId: string;
   deckTitle: string;
   onExit: () => void;
   backLabel?: string;
+  searchQuery?: string;
+  searchMatches?: StudyDeckSearchMatch[];
   // When set, open straight to this card's detail view instead of the deck
   // list — used by the bulletin, where tapping a card item opens the card
   // itself. Backing out then returns to the caller, skipping the list.
   initialCardId?: string;
 }
 
-export const BrowseScreen: React.FC<BrowseScreenProps> = ({ deckId, deckTitle, onExit, backLabel = 'Back', initialCardId }) => {
+export const BrowseScreen: React.FC<BrowseScreenProps> = ({
+  deckId,
+  deckTitle,
+  onExit,
+  backLabel = 'Back',
+  searchQuery = '',
+  searchMatches = [],
+  initialCardId,
+}) => {
   const insets = useSafeAreaInsets();
   const [cards, setCards] = useState<StudyCardData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -228,7 +282,15 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({ deckId, deckTitle, o
 
   // Card list view — Carte browse list, shared shape with the Bulletin tab's
   // section browse list: dark back ribbon, paper title block, item rows.
-  const count = cards.length;
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const searchMatchByItemName = new Map(
+    mergeSearchMatches(searchMatches).map(match => [match.itemName, match]),
+  );
+  const isSearchFiltered = normalizedSearch.length > 0 && searchMatchByItemName.size > 0;
+  const visibleCards = isSearchFiltered
+    ? cards.filter(card => searchMatchByItemName.has(card.card.restaurantData?.itemName || ''))
+    : cards;
+  const count = visibleCards.length;
 
   return (
     <View style={styles.container}>
@@ -251,7 +313,9 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({ deckId, deckTitle, o
 
       {/* Paper title block. */}
       <View style={styles.titleBlock}>
-        <Text style={styles.titleEyebrow}>Browsing the deck</Text>
+        <Text style={styles.titleEyebrow}>
+          {isSearchFiltered ? 'Matching cards' : 'Browsing the deck'}
+        </Text>
         <View style={styles.titleRow}>
           <Text style={styles.titleName}>{deckTitle}</Text>
           <Text style={styles.titleCount}>
@@ -265,20 +329,24 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({ deckId, deckTitle, o
         <View style={[styles.body, styles.centerContainer]}>
           <ActivityIndicator size="large" color={COLORS.amber} />
         </View>
-      ) : cards.length === 0 ? (
+      ) : visibleCards.length === 0 ? (
         <View style={[styles.body, styles.centerContainer]}>
-          <Text style={styles.emptyText}>No cards in this deck</Text>
+          <Text style={styles.emptyText}>
+            {isSearchFiltered ? 'No matching cards in this deck' : 'No cards in this deck'}
+          </Text>
         </View>
       ) : (
         <FlatList
           style={styles.body}
-          data={cards}
+          data={visibleCards}
           keyExtractor={(item) => item.card.id}
           contentContainerStyle={[styles.itemsList, { paddingBottom: insets.bottom + 16 }]}
           renderItem={({ item, index }) => (
             <CardRow
               card={item}
-              isLast={index === cards.length - 1}
+              isLast={index === visibleCards.length - 1}
+              searchQuery={searchQuery}
+              searchMatch={searchMatchByItemName.get(item.card.restaurantData?.itemName || '')}
               onPress={() => handleSelectCard(item)}
             />
           )}
@@ -317,14 +385,19 @@ function StripePlaceholder({ size }: { size: number }) {
 function CardRow({
   card,
   isLast,
+  searchQuery,
+  searchMatch,
   onPress,
 }: {
   card: StudyCardData;
   isLast: boolean;
+  searchQuery: string;
+  searchMatch?: StudyDeckSearchMatch;
   onPress: () => void;
 }) {
   const imageUrl = card.card.imageUrl;
   const name = card.card.restaurantData?.itemName || 'Untitled Card';
+  const searchDetails = getVisibleSearchDetails(searchMatch, searchQuery);
 
   return (
     <TouchableOpacity
@@ -340,9 +413,21 @@ function CardRow({
         )}
       </View>
       <View style={styles.itemText}>
-        <Text style={styles.itemName} numberOfLines={2}>
-          {name}
-        </Text>
+        <HighlightedText
+          text={name}
+          query={searchQuery}
+          textStyle={styles.itemName}
+          numberOfLines={2}
+        />
+        {searchDetails.map((detail, index) => (
+          <HighlightedText
+            key={`${detail.field}-${detail.value}-${index}`}
+            text={`${detail.value} (${formatSearchFieldLabel(detail.field)})`}
+            query={searchQuery}
+            textStyle={styles.itemSearchDetail}
+            numberOfLines={2}
+          />
+        ))}
       </View>
       <Svg width={8} height={14} viewBox="0 0 8 14" style={styles.itemChevron}>
         <Path
@@ -355,6 +440,57 @@ function CardRow({
         />
       </Svg>
     </TouchableOpacity>
+  );
+}
+
+function HighlightedText({
+  text,
+  query,
+  textStyle,
+  numberOfLines,
+}: {
+  text: string;
+  query: string;
+  textStyle: StyleProp<TextStyle>;
+  numberOfLines?: number;
+}) {
+  const q = query.trim().toLowerCase();
+  if (!q || !textContainsQuery(text, query)) {
+    return (
+      <Text style={textStyle} numberOfLines={numberOfLines}>
+        {text}
+      </Text>
+    );
+  }
+
+  const parts: Array<{ text: string; isMatch: boolean }> = [];
+  const lower = text.toLowerCase();
+  let cursor = 0;
+
+  while (cursor < text.length) {
+    const index = lower.indexOf(q, cursor);
+    if (index === -1) {
+      parts.push({ text: text.slice(cursor), isMatch: false });
+      break;
+    }
+    if (index > cursor) {
+      parts.push({ text: text.slice(cursor, index), isMatch: false });
+    }
+    parts.push({ text: text.slice(index, index + q.length), isMatch: true });
+    cursor = index + q.length;
+  }
+
+  return (
+    <Text style={textStyle} numberOfLines={numberOfLines}>
+      {parts.map((part, index) => (
+        <Text
+          key={`${part.text}-${index}`}
+          style={part.isMatch ? styles.itemSearchAmber : undefined}
+        >
+          {part.text}
+        </Text>
+      ))}
+    </Text>
   );
 }
 
@@ -472,6 +608,16 @@ const styles = StyleSheet.create({
     fontSize: 22,
     letterSpacing: -0.35,
     lineHeight: 24,
+  },
+  itemSearchDetail: {
+    color: COLORS.inkMute,
+    fontFamily: 'Newsreader_500Medium_Italic',
+    fontSize: 14,
+    lineHeight: 19,
+    marginTop: 4,
+  },
+  itemSearchAmber: {
+    color: COLORS.amber,
   },
   itemChevron: {
     flexShrink: 0,

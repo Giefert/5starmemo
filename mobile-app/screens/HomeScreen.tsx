@@ -29,7 +29,14 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { useAuth } from '../contexts/AuthContext';
-import { StudentDeck, DeckType, GlossaryTermSummary } from '../types/shared';
+import {
+  StudentDeck,
+  DeckType,
+  GlossaryTermSummary,
+  StudyDeckSearchMatch,
+  StudyDeckSearchMatchDetail,
+  StudyDeckSearchResult,
+} from '../types/shared';
 import apiService from '../services/api';
 import { loadFavorites, saveFavorites } from '../utils/favorites';
 import {
@@ -49,6 +56,10 @@ import { CustomDeckBuilder } from '../components/CustomDeckBuilder';
 
 type ScreenState = 'home' | 'study' | 'completed' | 'browse';
 type Mode = 'recommended' | 'full' | 'browse' | 'custom';
+type SearchSnapshot = {
+  query: string;
+  result: StudyDeckSearchResult;
+};
 
 // Carte tokens — shared with BulletinScreen so the two tabs read as one app.
 const COLORS = {
@@ -87,18 +98,91 @@ const CATEGORY_ORDER: { type: DeckType; label: string }[] = [
   { type: 'other', label: 'Other' },
 ];
 
-function collectSearchText(value: unknown): string {
-  if (value == null) return '';
+function splitSearchFieldValues(value: string) {
+  return value
+    .split(/,|\n/)
+    .map(part => part.replace(/[*_`]/g, '').trim())
+    .filter(Boolean);
+}
+
+function collectSearchFields(value: unknown, field = ''): StudyDeckSearchMatchDetail[] {
+  if (value == null) return [];
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-    return ` ${value}`;
+    return field
+      ? splitSearchFieldValues(String(value)).map(searchValue => ({
+        field,
+        value: searchValue,
+      }))
+      : [];
   }
   if (Array.isArray(value)) {
-    return value.map(collectSearchText).join(' ');
+    return value.flatMap(item => collectSearchFields(item, field));
   }
   if (typeof value === 'object') {
-    return Object.values(value as Record<string, unknown>).map(collectSearchText).join(' ');
+    return Object.entries(value as Record<string, unknown>).flatMap(([key, nestedValue]) =>
+      collectSearchFields(nestedValue, key),
+    );
   }
-  return '';
+  return [];
+}
+
+function mergeSearchMatches(matches: StudyDeckSearchMatch[]): StudyDeckSearchMatch[] {
+  const merged = new Map<string, StudyDeckSearchMatch>();
+
+  for (const match of matches) {
+    const existing = merged.get(match.itemName) ?? { itemName: match.itemName, details: [] };
+    for (const detail of match.details) {
+      const exists = existing.details.some(
+        existingDetail => existingDetail.field === detail.field && existingDetail.value === detail.value,
+      );
+      if (!exists) {
+        existing.details.push(detail);
+      }
+    }
+    merged.set(match.itemName, existing);
+  }
+
+  return [...merged.values()];
+}
+
+function valueIncludesQuery(value: string, query: string) {
+  return value.toLowerCase().includes(query);
+}
+
+function narrowSearchResultForQuery(
+  result: StudyDeckSearchResult,
+  decks: StudentDeck[],
+  query: string,
+): StudyDeckSearchResult {
+  const q = query.trim().toLowerCase();
+  if (!q) return result;
+
+  const decksById = new Map(decks.map(deck => [deck.id, deck]));
+  const deckIds: string[] = [];
+  const matchesByDeckId: StudyDeckSearchResult['matchesByDeckId'] = {};
+
+  for (const deckId of result.deckIds) {
+    const deck = decksById.get(deckId);
+    const deckTitleMatches = deck ? valueIncludesQuery(deck.title, q) : false;
+    const matches = mergeSearchMatches(result.matchesByDeckId[deckId] ?? [])
+      .map(match => {
+        const itemNameMatches = valueIncludesQuery(match.itemName, q);
+        const details = match.details.filter(detail => valueIncludesQuery(detail.value, q));
+        return itemNameMatches || details.length > 0
+          ? { itemName: match.itemName, details: itemNameMatches ? match.details : details }
+          : null;
+      })
+      .filter((match): match is StudyDeckSearchMatch => match != null);
+
+    if (deckTitleMatches || matches.length > 0) {
+      deckIds.push(deckId);
+      if (matches.length > 0) {
+        matchesByDeckId[deckId] = matches;
+      }
+    }
+  }
+
+  return { deckIds, matchesByDeckId };
 }
 
 // How long a deck must be held to toggle Favorites. The grow animation ramps
@@ -114,7 +198,7 @@ export const HomeScreen: React.FC = () => {
   const [screenState, setScreenState] = useState<ScreenState>('home');
   const [mode, setMode] = useState<Mode>('recommended');
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchMatchDeckIds, setSearchMatchDeckIds] = useState<string[] | null>(null);
+  const [searchSnapshot, setSearchSnapshot] = useState<SearchSnapshot | null>(null);
   const [isSearchLoading, setIsSearchLoading] = useState(false);
   const [selectedDeck, setSelectedDeck] = useState<StudentDeck | null>(null);
   const [selectedCustomStudy, setSelectedCustomStudy] = useState<{
@@ -145,7 +229,8 @@ export const HomeScreen: React.FC = () => {
   const barX = useRef(new Animated.Value(0)).current;
   const barW = useRef(new Animated.Value(0)).current;
   const toggleLayouts = useRef<Record<string, { x: number; width: number }>>({});
-  const cardSearchTextCache = useRef<Record<string, string>>({});
+  const cardSearchTextCache = useRef<Record<string, Array<{ itemName: string; fields: StudyDeckSearchMatchDetail[] }>>>({});
+  const searchRequestSeq = useRef(0);
 
   const moveBar = useCallback(
     (value: Mode, animate: boolean) => {
@@ -204,9 +289,26 @@ export const HomeScreen: React.FC = () => {
     [decks],
   );
   const normalizedSearch = searchQuery.trim().toLowerCase();
+  const visibleSearchResult = useMemo(() => {
+    if (!normalizedSearch || !searchSnapshot) return null;
+
+    const snapshotQuery = searchSnapshot.query.trim().toLowerCase();
+    if (snapshotQuery === normalizedSearch) {
+      return searchSnapshot.result;
+    }
+
+    const canReuseSnapshot =
+      snapshotQuery.length > 0 &&
+      (normalizedSearch.startsWith(snapshotQuery) || snapshotQuery.startsWith(normalizedSearch));
+    if (!canReuseSnapshot) return null;
+
+    return normalizedSearch.startsWith(snapshotQuery)
+      ? narrowSearchResultForQuery(searchSnapshot.result, decks, normalizedSearch)
+      : searchSnapshot.result;
+  }, [decks, normalizedSearch, searchSnapshot]);
   const searchMatchDeckIdSet = useMemo(
-    () => new Set(searchMatchDeckIds ?? []),
-    [searchMatchDeckIds],
+    () => new Set(visibleSearchResult?.deckIds ?? []),
+    [visibleSearchResult],
   );
   const filteredDecks = useMemo(() => {
     if (!normalizedSearch) return decks;
@@ -221,23 +323,44 @@ export const HomeScreen: React.FC = () => {
   const searchCardsFromDeckPayloads = useCallback(
     async (query: string) => {
       const q = query.trim().toLowerCase();
-      if (!q) return [];
+      if (!q) return { deckIds: [], matchesByDeckId: {} };
 
       const matches = await Promise.all(
         decks.map(async deck => {
-          let searchText = cardSearchTextCache.current[deck.id];
-          if (searchText == null) {
+          let cards = cardSearchTextCache.current[deck.id];
+          if (cards == null) {
             const studyData = await apiService.getDeckForStudy(deck.id, 'full');
-            searchText = collectSearchText(
-              studyData.cards.map(cardData => cardData.card?.restaurantData),
-            ).toLowerCase();
-            cardSearchTextCache.current[deck.id] = searchText;
+            cards = studyData.cards
+              .map(cardData => {
+                const itemName = cardData.card.restaurantData?.itemName;
+                if (!itemName) return null;
+                return {
+                  itemName,
+                  fields: collectSearchFields(cardData.card.restaurantData),
+                };
+              })
+              .filter((item): item is { itemName: string; fields: StudyDeckSearchMatchDetail[] } => item != null);
+            cardSearchTextCache.current[deck.id] = cards;
           }
-          return searchText.includes(q) ? deck.id : null;
+          const cardMatches = cards
+            .map(card => {
+              const details = card.fields.filter(field =>
+                field.value.toLowerCase().includes(q),
+              );
+              return details.length > 0 ? { itemName: card.itemName, details } : null;
+            })
+            .filter((item): item is StudyDeckSearchMatch => item != null);
+          return cardMatches.length > 0 ? [deck.id, mergeSearchMatches(cardMatches)] as const : null;
         }),
       );
 
-      return matches.filter((id): id is string => id != null);
+      const filteredMatches = matches.filter((item): item is readonly [string, StudyDeckSearchMatch[]] => item != null);
+      return {
+        deckIds: filteredMatches.map(([deckId]) => deckId),
+        matchesByDeckId: Object.fromEntries(
+          filteredMatches.map(([deckId, deckMatches]) => [deckId, deckMatches]),
+        ),
+      };
     },
     [decks],
   );
@@ -352,32 +475,42 @@ export const HomeScreen: React.FC = () => {
   useEffect(() => {
     const q = searchQuery.trim();
     if (!q) {
-      setSearchMatchDeckIds(null);
+      searchRequestSeq.current += 1;
+      setSearchSnapshot(null);
       setIsSearchLoading(false);
       return;
     }
 
+    const requestSeq = searchRequestSeq.current + 1;
+    searchRequestSeq.current = requestSeq;
     let cancelled = false;
     setIsSearchLoading(true);
-    setSearchMatchDeckIds(null);
 
     const timer = setTimeout(() => {
-      apiService.searchStudyDeckIds(q)
-        .then(deckIds => {
-          if (!cancelled) setSearchMatchDeckIds(deckIds);
+      apiService.searchStudyDecks(q)
+        .then(result => {
+          if (!cancelled && searchRequestSeq.current === requestSeq) {
+            setSearchSnapshot({ query: q, result });
+          }
         })
         .catch(async error => {
           console.warn('Failed to search study decks:', error);
           try {
-            const deckIds = await searchCardsFromDeckPayloads(q);
-            if (!cancelled) setSearchMatchDeckIds(deckIds);
+            const result = await searchCardsFromDeckPayloads(q);
+            if (!cancelled && searchRequestSeq.current === requestSeq) {
+              setSearchSnapshot({ query: q, result });
+            }
           } catch (fallbackError) {
             console.warn('Failed to search study deck cards:', fallbackError);
-            if (!cancelled) setSearchMatchDeckIds([]);
+            if (!cancelled && searchRequestSeq.current === requestSeq) {
+              setSearchSnapshot({ query: q, result: { deckIds: [], matchesByDeckId: {} } });
+            }
           }
         })
         .finally(() => {
-          if (!cancelled) setIsSearchLoading(false);
+          if (!cancelled && searchRequestSeq.current === requestSeq) {
+            setIsSearchLoading(false);
+          }
         });
     }, 250);
 
@@ -386,6 +519,12 @@ export const HomeScreen: React.FC = () => {
       clearTimeout(timer);
     };
   }, [searchQuery, searchCardsFromDeckPayloads]);
+
+  useEffect(() => {
+    if (normalizedSearch && visibleSearchResult && mode !== 'browse' && mode !== 'custom') {
+      setMode('browse');
+    }
+  }, [mode, normalizedSearch, visibleSearchResult]);
 
   // Hydrate favorites for the active restaurant.
   useEffect(() => {
@@ -487,7 +626,7 @@ export const HomeScreen: React.FC = () => {
   };
 
   const handleDeckTap = (deck: StudentDeck) => {
-    if (mode === 'browse') {
+    if (isSearchingDecks || mode === 'browse') {
       handleBrowseDeck(deck);
     } else {
       handleStartStudy(deck);
@@ -684,6 +823,8 @@ export const HomeScreen: React.FC = () => {
         deckTitle={selectedDeck.title}
         onExit={handleBackToHome}
         backLabel="Study"
+        searchQuery={searchQuery}
+        searchMatches={visibleSearchResult?.matchesByDeckId[selectedDeck.id] ?? []}
       />
     );
   }
@@ -695,6 +836,8 @@ export const HomeScreen: React.FC = () => {
   const favSet = new Set(favoriteIds);
   const favoriteDecks = filteredDecks.filter(d => favSet.has(d.id));
   const rest = filteredDecks.filter(d => !favSet.has(d.id));
+  const getSearchMatches = (deck: StudentDeck) =>
+    visibleSearchResult?.matchesByDeckId[deck.id] ?? [];
 
   // A section is a Glossary-style header (large serif title + count) followed by
   // its rows. Rendered only when the section has decks — unless an `emptyText`
@@ -718,6 +861,9 @@ export const HomeScreen: React.FC = () => {
             isFirstInGroup={i === 0}
             isFavorite={favSet.has(deck.id)}
             mode={mode}
+            isSearching={isSearchingDecks}
+            searchQuery={searchQuery}
+            searchMatches={getSearchMatches(deck)}
             onTap={handleDeckTap}
             onToggleFavorite={toggleFavorite}
           />
@@ -847,6 +993,9 @@ export const HomeScreen: React.FC = () => {
           isFirstInGroup={i === 0}
           isFavorite
           mode={mode}
+          isSearching={isSearchingDecks}
+          searchQuery={searchQuery}
+          searchMatches={getSearchMatches(deck)}
           onTap={handleDeckTap}
           onToggleFavorite={toggleFavorite}
         />
@@ -864,6 +1013,9 @@ export const HomeScreen: React.FC = () => {
         isFirstInGroup={i === 0}
         isFavorite={favSet.has(deck.id)}
         mode={mode}
+        isSearching={isSearchingDecks}
+        searchQuery={searchQuery}
+        searchMatches={getSearchMatches(deck)}
         onTap={handleDeckTap}
         onToggleFavorite={toggleFavorite}
       />
@@ -1084,6 +1236,9 @@ function DeckRow({
   isFirstInGroup,
   isFavorite,
   mode,
+  isSearching,
+  searchQuery,
+  searchMatches,
   onTap,
   onToggleFavorite,
 }: {
@@ -1091,6 +1246,9 @@ function DeckRow({
   isFirstInGroup: boolean;
   isFavorite: boolean;
   mode: Mode;
+  isSearching: boolean;
+  searchQuery: string;
+  searchMatches: StudyDeckSearchMatch[];
   onTap: (deck: StudentDeck) => void;
   onToggleFavorite: (deck: StudentDeck) => void;
 }) {
@@ -1143,19 +1301,138 @@ function DeckRow({
           {deck.title}
         </Text>
 
-        {!!deck.description && (
+        {isSearching ? (
+          <SearchMatchList matches={searchMatches} query={searchQuery} />
+        ) : !!deck.description ? (
           <Text style={styles.deckDescription} numberOfLines={2}>
             {deck.description}
           </Text>
-        )}
+        ) : null}
 
-        <DeckStats
-          key={`${deck.masteredCards}-${deck.learningCards}-${deck.weakCards}-${deck.cardCount}`}
-          deck={deck}
-          mode={mode}
-        />
+        {!isSearching && (
+          <DeckStats
+            key={`${deck.masteredCards}-${deck.learningCards}-${deck.weakCards}-${deck.cardCount}`}
+            deck={deck}
+            mode={mode}
+          />
+        )}
       </Pressable>
     </Animated.View>
+  );
+}
+
+function SearchMatchList({ matches, query }: { matches: StudyDeckSearchMatch[]; query: string }) {
+  const visibleMatches = mergeSearchMatches(matches).filter(match => match.itemName);
+  if (visibleMatches.length === 0) return null;
+
+  return (
+    <View style={styles.searchMatchList}>
+      {visibleMatches.map((match, index) => {
+        const titleMatches = textContainsQuery(match.itemName, query);
+        const detailLines = titleMatches ? [] : match.details;
+
+        return (
+          <View key={`${match.itemName}-${index}`} style={styles.searchMatchItem}>
+            <Svg
+              width={13}
+              height={13}
+              viewBox="0 0 15 15"
+              style={styles.searchMatchIcon}
+            >
+              <Circle cx={6.3} cy={6.3} r={4.6} stroke={COLORS.amber} strokeWidth={1.4} fill="none" />
+              <Line x1={9.7} y1={9.7} x2={13.6} y2={13.6} stroke={COLORS.amber} strokeWidth={1.4} strokeLinecap="round" />
+            </Svg>
+            <View style={styles.searchMatchCopy}>
+              <HighlightedMatchText text={match.itemName} query={query} />
+              {detailLines.map((detail, detailIndex) => (
+                <HighlightedMatchDetail
+                  key={`${detail.field}-${detail.value}-${detailIndex}`}
+                  detail={detail}
+                  query={query}
+                />
+              ))}
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function textContainsQuery(text: string, query: string) {
+  const q = query.trim().toLowerCase();
+  return q.length > 0 && text.toLowerCase().includes(q);
+}
+
+function formatSearchFieldLabel(field: string) {
+  return field
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function HighlightedMatchDetail({
+  detail,
+  query,
+}: {
+  detail: StudyDeckSearchMatchDetail;
+  query: string;
+}) {
+  return (
+    <HighlightedMatchText
+      text={`${detail.value} (${formatSearchFieldLabel(detail.field)})`}
+      query={query}
+      variant="detail"
+    />
+  );
+}
+
+function HighlightedMatchText({
+  text,
+  query,
+  variant = 'title',
+}: {
+  text: string;
+  query: string;
+  variant?: 'title' | 'detail';
+}) {
+  const textStyle = [
+    styles.searchMatchText,
+    variant === 'detail' ? styles.searchMatchDetailText : undefined,
+  ];
+  const q = query.trim().toLowerCase();
+  if (!q) {
+    return <Text style={textStyle}>{text}</Text>;
+  }
+
+  const parts: Array<{ text: string; isMatch: boolean }> = [];
+  const lower = text.toLowerCase();
+  let cursor = 0;
+  while (cursor < text.length) {
+    const index = lower.indexOf(q, cursor);
+    if (index === -1) {
+      parts.push({ text: text.slice(cursor), isMatch: false });
+      break;
+    }
+    if (index > cursor) {
+      parts.push({ text: text.slice(cursor, index), isMatch: false });
+    }
+    parts.push({ text: text.slice(index, index + q.length), isMatch: true });
+    cursor = index + q.length;
+  }
+
+  return (
+    <Text style={textStyle}>
+      {parts.map((part, index) => (
+        <Text
+          key={`${part.text}-${index}`}
+          style={part.isMatch ? styles.searchMatchTextAmber : undefined}
+        >
+          {part.text}
+        </Text>
+      ))}
+    </Text>
   );
 }
 
@@ -1608,6 +1885,34 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     color: COLORS.inkMute,
     marginTop: 8,
+  },
+  searchMatchList: {
+    marginTop: 10,
+    gap: 7,
+  },
+  searchMatchItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  searchMatchIcon: {
+    marginTop: 3,
+    marginRight: 8,
+  },
+  searchMatchCopy: {
+    flex: 1,
+  },
+  searchMatchText: {
+    fontFamily: 'Newsreader_500Medium_Italic',
+    fontSize: 14,
+    lineHeight: 20,
+    color: COLORS.inkMute,
+  },
+  searchMatchDetailText: {
+    marginTop: 2,
+    color: COLORS.inkFaint,
+  },
+  searchMatchTextAmber: {
+    color: COLORS.amber,
   },
   customRowFooter: {
     flexDirection: 'row',
