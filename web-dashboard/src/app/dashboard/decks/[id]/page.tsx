@@ -144,7 +144,7 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
     }
   };
 
-  const handleCardSubmit = async (data: { restaurantData: RestaurantCardData; imageUrl?: string }) => {
+  const handleCardSubmit = async (data: { restaurantData: RestaurantCardData; imageUrl?: string | null }) => {
     try {
       if (editingCard) {
         const updatedCard = await deckApi.updateCard(editingCard.id, {

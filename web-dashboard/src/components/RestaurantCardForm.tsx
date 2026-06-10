@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Plus, Trash2 } from 'lucide-react';
 import {
   RestaurantCardData,
   RestaurantCardDataV1,
@@ -14,7 +15,7 @@ import { getImageUrl } from '@/lib/utils';
 import { ImagePreview } from '@/components/ui/ImagePreview';
 
 interface RestaurantCardFormProps {
-  onSubmit: (data: { restaurantData: RestaurantCardData; imageUrl?: string }) => Promise<void>;
+  onSubmit: (data: { restaurantData: RestaurantCardData; imageUrl?: string | null }) => Promise<void>;
   onCancel: () => void;
   initialData?: {
     restaurantData?: RestaurantCardData;
@@ -23,6 +24,170 @@ interface RestaurantCardFormProps {
   isEditing?: boolean;
 }
 
+type HighlightMarker = '*' | '**';
+
+interface HighlightableListItem {
+  value: string;
+  highlighted: boolean;
+  marker: HighlightMarker;
+}
+
+const DEFAULT_HIGHLIGHT_MARKER: HighlightMarker = '*';
+
+const cleanStringArray = (items: string[]) =>
+  items.map(item => item.trim()).filter(Boolean);
+
+const splitCommaList = (value: string) =>
+  value.split(',').map(item => item.trim()).filter(Boolean);
+
+const parseHighlightableItem = (rawValue: string): HighlightableListItem => {
+  const value = rawValue.trim();
+
+  if (value.startsWith('**') && value.endsWith('**') && value.length > 4) {
+    return {
+      value: value.slice(2, -2).trim(),
+      highlighted: true,
+      marker: '**',
+    };
+  }
+
+  if (value.startsWith('*') && value.endsWith('*') && value.length > 2) {
+    return {
+      value: value.slice(1, -1).trim(),
+      highlighted: true,
+      marker: '*',
+    };
+  }
+
+  return {
+    value,
+    highlighted: false,
+    marker: DEFAULT_HIGHLIGHT_MARKER,
+  };
+};
+
+const serializeHighlightableItem = (item: HighlightableListItem) => {
+  const value = item.value.trim();
+  if (!value) return '';
+  return item.highlighted ? `${item.marker}${value}${item.marker}` : value;
+};
+
+const serializeHighlightableItems = (items: HighlightableListItem[]) =>
+  items.map(serializeHighlightableItem);
+
+const serializeCommaList = (items: string[]) =>
+  cleanStringArray(items).join(', ');
+
+interface HighlightableListFieldProps {
+  label: string;
+  value: string[];
+  onChange: (items: string[]) => void;
+  addLabel?: string;
+  placeholder?: string;
+}
+
+const HighlightableListField: React.FC<HighlightableListFieldProps> = ({
+  label,
+  value,
+  onChange,
+  addLabel = 'Add item',
+  placeholder = 'Item',
+}) => {
+  const [items, setItems] = useState<HighlightableListItem[]>(
+    () => value.map(parseHighlightableItem)
+  );
+  const preferredMarker =
+    items.find(item => item.highlighted)?.marker || DEFAULT_HIGHLIGHT_MARKER;
+
+  const commitItems = (nextItems: HighlightableListItem[]) => {
+    setItems(nextItems);
+    onChange(serializeHighlightableItems(nextItems));
+  };
+
+  const updateItem = (index: number, patch: Partial<HighlightableListItem>) => {
+    const nextItems = items.map((item, itemIndex) =>
+      itemIndex === index ? { ...item, ...patch } : item
+    );
+    commitItems(nextItems);
+  };
+
+  const addItem = () => {
+    commitItems([
+      ...items,
+      { value: '', highlighted: false, marker: preferredMarker },
+    ]);
+  };
+
+  const removeItem = (index: number) => {
+    commitItems(items.filter((_, itemIndex) => itemIndex !== index));
+  };
+
+  return (
+    <div className="space-y-2 rounded-md border border-gray-200 bg-white p-3">
+      <div className="flex items-center justify-between gap-3">
+        <label className="block text-sm font-medium text-gray-700">
+          {label}
+        </label>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={addItem}
+          className="gap-1.5"
+        >
+          <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+          {addLabel}
+        </Button>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="rounded-md border border-dashed border-gray-200 px-3 py-2 text-sm text-gray-400">
+          No items yet.
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {items.map((item, index) => (
+            <div
+              key={index}
+              className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center"
+            >
+              <Input
+                value={item.value}
+                onChange={(e) => updateItem(index, { value: e.target.value })}
+                placeholder={placeholder}
+              />
+              <label className="inline-flex h-9 items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 text-xs font-medium text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={item.highlighted}
+                  onChange={(e) =>
+                    updateItem(index, {
+                      highlighted: e.target.checked,
+                      marker: e.target.checked ? preferredMarker : item.marker,
+                    })
+                  }
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                />
+                Highlight
+              </label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => removeItem(index)}
+                aria-label={`Remove ${label.toLowerCase()} item ${index + 1}`}
+                className="justify-self-start text-gray-400 hover:text-red-600 sm:justify-self-auto"
+              >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
   onSubmit,
   onCancel,
@@ -30,7 +195,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
   isEditing = false,
 }) => {
   // Type assertion helper for initializing from existing data
-  const initData = initialData?.restaurantData as any;
+  const initData = initialData?.restaurantData as Partial<RestaurantCardDataV1> | undefined;
 
   // Restaurant-specific fields
   const [itemName, setItemName] = useState(initData?.itemName || '');
@@ -76,11 +241,20 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
   const [foodPairings, setFoodPairings] = useState<string[]>(
     initData?.foodPairings || []
   );
+  const [toppingItems, setToppingItems] = useState<string[]>(
+    splitCommaList(initData?.topping || '')
+  );
+  const [baseItems, setBaseItems] = useState<string[]>(
+    splitCommaList(initData?.base || '')
+  );
+  const [sauceItems, setSauceItems] = useState<string[]>(
+    splitCommaList(initData?.sauce || '')
+  );
+  const [paperItems, setPaperItems] = useState<string[]>(
+    splitCommaList(initData?.paper || '')
+  );
 
   // Raw input strings for array fields to preserve user input formatting
-  const [ingredientsRaw, setIngredientsRaw] = useState(
-    initData?.ingredients?.join(', ') || ''
-  );
   const [allergensRaw, setAllergensRaw] = useState(
     initData?.allergens?.join(', ') || ''
   );
@@ -90,12 +264,6 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
   const [foodPairingsRaw, setFoodPairingsRaw] = useState(
     initData?.foodPairings?.join(', ') || ''
   );
-  const [alcoholRaw, setAlcoholRaw] = useState(
-    initData?.alcohol?.join(', ') || ''
-  );
-  const [otherRaw, setOtherRaw] = useState(
-    initData?.other?.join(', ') || ''
-  );
   const [pricePoint, setPricePoint] = useState<PricePoint>(
     initData?.pricePoint || 'not-specified'
   );
@@ -103,10 +271,6 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
   const [specialNotes, setSpecialNotes] = useState(initData?.specialNotes || '');
 
   // Maki-specific fields
-  const [topping, setTopping] = useState(initData?.topping || '');
-  const [base, setBase] = useState(initData?.base || '');
-  const [sauce, setSauce] = useState(initData?.sauce || '');
-  const [paper, setPaper] = useState(initData?.paper || '');
   const [gluten, setGluten] = useState<'yes' | 'no' | 'optional' | undefined>(
     initData?.gluten || undefined
   );
@@ -144,11 +308,6 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleArrayInput = (value: string, setter: (arr: string[]) => void) => {
-    const items = value.split(',').map(item => item.trim()).filter(Boolean);
-    setter(items);
-  };
 
   const handleRawArrayInput = (
     rawValue: string, 
@@ -229,17 +388,29 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
       }
 
       // Build V1 format with all fields, then migrate to V2 (strips category-incompatible fields)
-      const restaurantDataV1: RestaurantCardData = {
+      const cleanedIngredients = cleanStringArray(ingredients);
+      const cleanedAllergens = cleanStringArray(allergens);
+      const cleanedGrapeVarieties = cleanStringArray(grapeVarieties);
+      const cleanedTastingNotes = cleanStringArray(tastingNotes);
+      const cleanedFoodPairings = cleanStringArray(foodPairings);
+      const cleanedAlcohol = cleanStringArray(alcohol);
+      const cleanedOther = cleanStringArray(other);
+      const topping = serializeCommaList(toppingItems);
+      const base = serializeCommaList(baseItems);
+      const sauce = serializeCommaList(sauceItems);
+      const paper = serializeCommaList(paperItems);
+
+      const restaurantDataV1: RestaurantCardDataV1 = {
         itemName: itemName.trim(),
         category,
         description: description.trim() || undefined,
-        ingredients: ingredients.length > 0 ? ingredients : undefined,
-        allergens: allergens.length > 0 ? allergens : undefined,
+        ingredients: cleanedIngredients.length > 0 ? cleanedIngredients : undefined,
+        allergens: cleanedAllergens.length > 0 ? cleanedAllergens : undefined,
         region: region.trim() || undefined,
         producer: producer.trim() || undefined,
         vintage: vintage ? parseInt(vintage) : undefined,
         abv: abv ? parseFloat(abv) : undefined,
-        grapeVarieties: grapeVarieties.length > 0 ? grapeVarieties : undefined,
+        grapeVarieties: cleanedGrapeVarieties.length > 0 ? cleanedGrapeVarieties : undefined,
         appellation: appellation.trim() || undefined,
         bodyLevel: bodyLevel,
         sweetnessLevel: sweetnessLevel,
@@ -247,9 +418,9 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
         tanninLevel: tanninLevel,
         classification: classification.trim() || undefined,
         riceVariety: riceVariety.trim() || undefined,
-        tastingNotes: tastingNotes.length > 0 ? tastingNotes : undefined,
+        tastingNotes: cleanedTastingNotes.length > 0 ? cleanedTastingNotes : undefined,
         servingTemp: servingTemp.trim() || undefined,
-        foodPairings: foodPairings.length > 0 ? foodPairings : undefined,
+        foodPairings: cleanedFoodPairings.length > 0 ? cleanedFoodPairings : undefined,
         pricePoint,
         price: price.trim() || undefined,
         specialNotes: specialNotes.trim() || undefined,
@@ -260,8 +431,8 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
         paper: paper.trim() || (category === 'maki' ? 'None' : undefined),
         gluten: gluten || undefined,
         // Cocktail-specific fields
-        alcohol: alcohol.length > 0 ? alcohol : undefined,
-        other: other.length > 0 ? other : undefined,
+        alcohol: cleanedAlcohol.length > 0 ? cleanedAlcohol : undefined,
+        other: cleanedOther.length > 0 ? cleanedOther : undefined,
         garnish: garnish.trim() || undefined,
         taste: taste.trim() || undefined,
         country: country.trim() || undefined,
@@ -275,15 +446,14 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
       // Migrate to V2: strips fields incompatible with selected category
       const restaurantData = migrateToV2(restaurantDataV1);
 
-      const submissionData: any = {
-        restaurantData
+      const submissionData: { restaurantData: RestaurantCardData; imageUrl: string | null } = {
+        restaurantData,
+        imageUrl: finalImageUrl && finalImageUrl.trim() ? finalImageUrl.trim() : null,
       };
-
-      // Always include imageUrl, even when null/empty to handle image removal
-      submissionData.imageUrl = finalImageUrl && finalImageUrl.trim() ? finalImageUrl.trim() : null;
 
       await onSubmit(submissionData);
     } catch (error) {
+      console.error('Error submitting restaurant card:', error);
     } finally {
       setIsSubmitting(false);
       setIsUploading(false);
@@ -494,52 +664,35 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
 
       {/* Maki-specific fields */}
       {category === 'maki' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Topping
-            </label>
-            <Input
-              value={topping}
-              onChange={(e) => setTopping(e.target.value)}
-              placeholder="e.g., Tuna, Salmon"
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <HighlightableListField
+              label="Topping"
+              value={toppingItems}
+              onChange={setToppingItems}
+              placeholder="e.g., Tuna"
+            />
+            <HighlightableListField
+              label="Base"
+              value={baseItems}
+              onChange={setBaseItems}
+              placeholder="e.g., Sushi rice"
+            />
+            <HighlightableListField
+              label="Sauce"
+              value={sauceItems}
+              onChange={setSauceItems}
+              placeholder="e.g., Spicy mayo"
+            />
+            <HighlightableListField
+              label="Paper"
+              value={paperItems}
+              onChange={setPaperItems}
+              placeholder="e.g., Nori"
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Base
-            </label>
-            <Input
-              value={base}
-              onChange={(e) => setBase(e.target.value)}
-              placeholder="e.g., Sushi Rice, Brown Rice"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Sauce
-            </label>
-            <Input
-              value={sauce}
-              onChange={(e) => setSauce(e.target.value)}
-              placeholder="e.g., Spicy Mayo, Eel Sauce"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Paper
-            </label>
-            <Input
-              value={paper}
-              onChange={(e) => setPaper(e.target.value)}
-              placeholder="e.g., Nori, Soy Paper"
-            />
-          </div>
-
-          <div>
+          <div className="max-w-sm">
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Gluten
             </label>
@@ -563,28 +716,20 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
 
       {/* Cocktail-specific fields */}
       {category === 'cocktail' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Alcohol
-            </label>
-            <Input
-              value={alcoholRaw}
-              onChange={(e) => handleRawArrayInput(e.target.value, setAlcoholRaw, setAlcohol)}
-              placeholder="vodka, tequila, vermouth"
-            />
-          </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <HighlightableListField
+            label="Alcohol"
+            value={alcohol}
+            onChange={setAlcohol}
+            placeholder="e.g., Vodka"
+          />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Other
-            </label>
-            <Input
-              value={otherRaw}
-              onChange={(e) => handleRawArrayInput(e.target.value, setOtherRaw, setOther)}
-              placeholder="simple syrup, cranberry juice"
-            />
-          </div>
+          <HighlightableListField
+            label="Other"
+            value={other}
+            onChange={setOther}
+            placeholder="e.g., Simple syrup"
+          />
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -601,16 +746,12 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
 
       {/* Sauce-specific fields */}
       {category === 'sauce' && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Ingredients
-          </label>
-          <Input
-            value={ingredientsRaw}
-            onChange={(e) => handleRawArrayInput(e.target.value, setIngredientsRaw, setIngredients)}
-            placeholder="tomatoes, garlic, basil (comma separated)"
-          />
-        </div>
+        <HighlightableListField
+          label="Ingredients"
+          value={ingredients}
+          onChange={setIngredients}
+          placeholder="e.g., Tomatoes"
+        />
       )}
 
       {/* Fish-specific fields */}
@@ -687,17 +828,13 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
 
       {/* Starters / Sashimi-specific fields */}
       {(category === 'starters' || category === 'sashimi') && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Ingredients
-            </label>
-            <Input
-              value={ingredientsRaw}
-              onChange={(e) => handleRawArrayInput(e.target.value, setIngredientsRaw, setIngredients)}
-              placeholder="tuna, rice, nori (comma separated)"
-            />
-          </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <HighlightableListField
+            label="Ingredients"
+            value={ingredients}
+            onChange={setIngredients}
+            placeholder="e.g., Tuna"
+          />
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Allergens
