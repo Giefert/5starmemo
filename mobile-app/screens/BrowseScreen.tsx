@@ -128,7 +128,7 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({
         const match = data.cards.find((c) => c.card.id === initialCardId);
         if (match) {
           setSelectedCard(match);
-          setIsFlipped(false);
+          setIsFlipped(true);
           setOpenedDirectly(true);
         }
       }
@@ -151,7 +151,7 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({
 
   const handleSelectCard = (card: StudyCardData) => {
     setSelectedCard(card);
-    setIsFlipped(false);
+    setIsFlipped(true);
     setOpenedDirectly(false);
   };
 
