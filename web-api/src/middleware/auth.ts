@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyToken } from '../utils/auth';
+import pool from '../config/database';
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -10,7 +11,7 @@ export interface AuthenticatedRequest extends Request {
   };
 }
 
-export const authenticateToken = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+export const authenticateToken = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
@@ -31,6 +32,15 @@ export const authenticateToken = (req: AuthenticatedRequest, res: Response, next
         error: 'Session expired, please log in again'
       });
     }
+    // Validate that the user actually exists in the database
+    const userResult = await pool.query('SELECT id FROM users WHERE id = $1', [decoded.id]);
+    if (userResult.rows.length === 0) {
+      return res.status(401).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
     req.user = decoded;
     next();
   } catch (error) {
