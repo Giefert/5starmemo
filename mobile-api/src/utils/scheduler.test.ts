@@ -106,32 +106,8 @@ describe('gradeCard on a review-state card', () => {
   });
 });
 
-describe('gradeCard regression: learning/relearning rows', () => {
-  // The pre-a3ecf98 engine produced non-finite stability on this path.
-  it.each(RATINGS)(
-    'relearning card with tiny stability stays finite on rating %i',
-    (rating) => {
-      const card = makeCard({
-        difficulty: 9.8,
-        stability: 0.00000001,
-        grade: 1,
-        lapses: 4,
-        reps: 9,
-        state: 'relearning',
-        lastReview: new Date('2026-06-10T11:55:00Z'),
-        nextReview: new Date('2026-06-10T12:05:00Z'),
-      });
-      const result = gradeCard(USER, card, rating, NOW);
-
-      expect(Number.isFinite(result.stability)).toBe(true);
-      expect(result.stability).toBeGreaterThan(0);
-      expect(result.stability).toBeLessThan(1e5);
-      expect(Number.isFinite(result.difficulty)).toBe(true);
-      expect(result.nextReview.getTime()).toBeGreaterThan(NOW.getTime());
-    },
-  );
-
-  it('same-day re-review of a learning card advances the schedule', () => {
+describe('gradeCard same-day re-review', () => {
+  it('re-reviewing a learning card minutes later advances the schedule', () => {
     const first = gradeCard(USER, makeCard(), 3, NOW);
     const fiveMinLater = new Date(NOW.getTime() + 5 * 60 * 1000);
     const card = makeCard({

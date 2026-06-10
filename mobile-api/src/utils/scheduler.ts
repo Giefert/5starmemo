@@ -1,14 +1,4 @@
-import {
-  fsrs,
-  generatorParameters,
-  createEmptyCard,
-  Rating,
-  State,
-  Card,
-  Grade,
-  S_MIN,
-  S_MAX,
-} from 'ts-fsrs';
+import { fsrs, generatorParameters, createEmptyCard, Rating, State, Card, Grade } from 'ts-fsrs';
 import { FSRSCard } from '../../../shared/types';
 
 // FSRS-6 with library default weights (21 params) and default decay.
@@ -61,11 +51,8 @@ function toTsFsrsCard(card: FSRSCard, now: Date): Card {
   }
   return {
     due: new Date(card.nextReview),
-    // Rows written by the old hand-rolled engine can hold values outside
-    // ts-fsrs's valid memory-state domain, which makes it throw. Clamp them
-    // in rather than failing the review.
-    stability: Math.min(Math.max(card.stability, S_MIN), S_MAX),
-    difficulty: Math.min(Math.max(card.difficulty, 1), 10),
+    stability: card.stability,
+    difficulty: card.difficulty,
     elapsed_days: 0,
     scheduled_days: 0,
     learning_steps: 0,
