@@ -26,40 +26,31 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import Svg, { Circle, Line, Path } from 'react-native-svg';
+import Svg, { Circle, Line } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { useAuth } from '../contexts/AuthContext';
-import {
-  StudentDeck,
-  DeckType,
-  GlossaryTermSummary,
-  StudyDeckSearchMatch,
-  StudyDeckSearchMatchDetail,
-  StudyDeckSearchResult,
-} from '../types/shared';
+import { StudentDeck, DeckType, GlossaryTermSummary } from '../types/shared';
 import apiService from '../services/api';
 import { loadFavorites, saveFavorites } from '../utils/favorites';
 import {
   CustomDeckDraft,
   CustomStudyDeck,
   customReferenceItemToTermSummary,
-  getCustomDeckCounts,
   loadCustomDecks,
   makeCustomDeck,
   saveCustomDecks,
 } from '../utils/customDecks';
+import { describeLoadError } from '../utils/loadErrorMessages';
+import { useDeckSearch } from '../hooks/useDeckSearch';
 import { StudySessionItem } from '../services/StudySessionManager';
 import { StudyScreen } from './StudyScreen';
 import { StudyCompletedScreen } from './StudyCompletedScreen';
 import { BrowseScreen } from './BrowseScreen';
 import { CustomDeckBuilder } from '../components/CustomDeckBuilder';
+import { DeckRow, Mode } from '../components/DeckRow';
+import { CustomDeckRow } from '../components/CustomDeckRow';
 
 type ScreenState = 'home' | 'study' | 'completed' | 'browse';
-type Mode = 'recommended' | 'full' | 'browse' | 'custom';
-type SearchSnapshot = {
-  query: string;
-  result: StudyDeckSearchResult;
-};
 
 // Carte tokens — shared with BulletinScreen so the two tabs read as one app.
 const COLORS = {
@@ -98,97 +89,6 @@ const CATEGORY_ORDER: { type: DeckType; label: string }[] = [
   { type: 'other', label: 'Other' },
 ];
 
-function splitSearchFieldValues(value: string) {
-  return value
-    .split(/,|\n/)
-    .map(part => part.replace(/[*_`]/g, '').trim())
-    .filter(Boolean);
-}
-
-function collectSearchFields(value: unknown, field = ''): StudyDeckSearchMatchDetail[] {
-  if (value == null) return [];
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-    return field
-      ? splitSearchFieldValues(String(value)).map(searchValue => ({
-        field,
-        value: searchValue,
-      }))
-      : [];
-  }
-  if (Array.isArray(value)) {
-    return value.flatMap(item => collectSearchFields(item, field));
-  }
-  if (typeof value === 'object') {
-    return Object.entries(value as Record<string, unknown>).flatMap(([key, nestedValue]) =>
-      collectSearchFields(nestedValue, key),
-    );
-  }
-  return [];
-}
-
-function mergeSearchMatches(matches: StudyDeckSearchMatch[]): StudyDeckSearchMatch[] {
-  const merged = new Map<string, StudyDeckSearchMatch>();
-
-  for (const match of matches) {
-    const existing = merged.get(match.itemName) ?? { itemName: match.itemName, details: [] };
-    for (const detail of match.details) {
-      const exists = existing.details.some(
-        existingDetail => existingDetail.field === detail.field && existingDetail.value === detail.value,
-      );
-      if (!exists) {
-        existing.details.push(detail);
-      }
-    }
-    merged.set(match.itemName, existing);
-  }
-
-  return [...merged.values()];
-}
-
-function valueIncludesQuery(value: string, query: string) {
-  return value.toLowerCase().includes(query);
-}
-
-function narrowSearchResultForQuery(
-  result: StudyDeckSearchResult,
-  decks: StudentDeck[],
-  query: string,
-): StudyDeckSearchResult {
-  const q = query.trim().toLowerCase();
-  if (!q) return result;
-
-  const decksById = new Map(decks.map(deck => [deck.id, deck]));
-  const deckIds: string[] = [];
-  const matchesByDeckId: StudyDeckSearchResult['matchesByDeckId'] = {};
-
-  for (const deckId of result.deckIds) {
-    const deck = decksById.get(deckId);
-    const deckTitleMatches = deck ? valueIncludesQuery(deck.title, q) : false;
-    const matches = mergeSearchMatches(result.matchesByDeckId[deckId] ?? [])
-      .map(match => {
-        const itemNameMatches = valueIncludesQuery(match.itemName, q);
-        const details = match.details.filter(detail => valueIncludesQuery(detail.value, q));
-        return itemNameMatches || details.length > 0
-          ? { itemName: match.itemName, details: itemNameMatches ? match.details : details }
-          : null;
-      })
-      .filter((match): match is StudyDeckSearchMatch => match != null);
-
-    if (deckTitleMatches || matches.length > 0) {
-      deckIds.push(deckId);
-      if (matches.length > 0) {
-        matchesByDeckId[deckId] = matches;
-      }
-    }
-  }
-
-  return { deckIds, matchesByDeckId };
-}
-
-// How long a deck must be held to toggle Favorites. The grow animation ramps
-// over this same window so the swell peaks exactly as the toggle fires.
-const LONG_PRESS_MS = 600;
-
 export const HomeScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -197,9 +97,6 @@ export const HomeScreen: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [screenState, setScreenState] = useState<ScreenState>('home');
   const [mode, setMode] = useState<Mode>('recommended');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchSnapshot, setSearchSnapshot] = useState<SearchSnapshot | null>(null);
-  const [isSearchLoading, setIsSearchLoading] = useState(false);
   const [selectedDeck, setSelectedDeck] = useState<StudentDeck | null>(null);
   const [selectedCustomStudy, setSelectedCustomStudy] = useState<{
     title: string;
@@ -217,9 +114,20 @@ export const HomeScreen: React.FC = () => {
   const [isStartingCustomDeck, setIsStartingCustomDeck] = useState(false);
   const { logout, restaurant } = useAuth();
 
+  const {
+    searchQuery,
+    setSearchQuery,
+    isSearchLoading,
+    isSearchingDecks,
+    normalizedSearch,
+    visibleSearchResult,
+    filteredDecks,
+    invalidateCardSearchCache,
+  } = useDeckSearch(decks);
+
   // Favorites — a personal, on-device pinning of decks to the top of the list.
   // Long-pressing a deck pops it in or out with a haptic + little scale swell;
-  // the swell itself lives in each DeckRow (see below).
+  // the swell itself lives in each DeckRow.
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
 
   // Mode toggle underline — the amber bar slides beneath the active mode and
@@ -229,8 +137,6 @@ export const HomeScreen: React.FC = () => {
   const barX = useRef(new Animated.Value(0)).current;
   const barW = useRef(new Animated.Value(0)).current;
   const toggleLayouts = useRef<Record<string, { x: number; width: number }>>({});
-  const cardSearchTextCache = useRef<Record<string, Array<{ itemName: string; fields: StudyDeckSearchMatchDetail[] }>>>({});
-  const searchRequestSeq = useRef(0);
 
   const moveBar = useCallback(
     (value: Mode, animate: boolean) => {
@@ -286,82 +192,6 @@ export const HomeScreen: React.FC = () => {
   // and the always-on "Favorites" tab ahead of the dashboard categories.
   const presentCategories = useMemo(
     () => CATEGORY_ORDER.filter(c => decks.some(d => d.deckType === c.type)),
-    [decks],
-  );
-  const normalizedSearch = searchQuery.trim().toLowerCase();
-  const visibleSearchResult = useMemo(() => {
-    if (!normalizedSearch || !searchSnapshot) return null;
-
-    const snapshotQuery = searchSnapshot.query.trim().toLowerCase();
-    if (snapshotQuery === normalizedSearch) {
-      return searchSnapshot.result;
-    }
-
-    const canReuseSnapshot =
-      snapshotQuery.length > 0 &&
-      (normalizedSearch.startsWith(snapshotQuery) || snapshotQuery.startsWith(normalizedSearch));
-    if (!canReuseSnapshot) return null;
-
-    return normalizedSearch.startsWith(snapshotQuery)
-      ? narrowSearchResultForQuery(searchSnapshot.result, decks, normalizedSearch)
-      : searchSnapshot.result;
-  }, [decks, normalizedSearch, searchSnapshot]);
-  const searchMatchDeckIdSet = useMemo(
-    () => new Set(visibleSearchResult?.deckIds ?? []),
-    [visibleSearchResult],
-  );
-  const filteredDecks = useMemo(() => {
-    if (!normalizedSearch) return decks;
-    return decks.filter(
-      deck =>
-        deck.title.toLowerCase().includes(normalizedSearch) ||
-        searchMatchDeckIdSet.has(deck.id),
-    );
-  }, [decks, normalizedSearch, searchMatchDeckIdSet]);
-  const isSearchingDecks = normalizedSearch.length > 0;
-
-  const searchCardsFromDeckPayloads = useCallback(
-    async (query: string) => {
-      const q = query.trim().toLowerCase();
-      if (!q) return { deckIds: [], matchesByDeckId: {} };
-
-      const matches = await Promise.all(
-        decks.map(async deck => {
-          let cards = cardSearchTextCache.current[deck.id];
-          if (cards == null) {
-            const studyData = await apiService.getDeckForStudy(deck.id, 'full');
-            cards = studyData.cards
-              .map(cardData => {
-                const itemName = cardData.card.restaurantData?.itemName;
-                if (!itemName) return null;
-                return {
-                  itemName,
-                  fields: collectSearchFields(cardData.card.restaurantData),
-                };
-              })
-              .filter((item): item is { itemName: string; fields: StudyDeckSearchMatchDetail[] } => item != null);
-            cardSearchTextCache.current[deck.id] = cards;
-          }
-          const cardMatches = cards
-            .map(card => {
-              const details = card.fields.filter(field =>
-                field.value.toLowerCase().includes(q),
-              );
-              return details.length > 0 ? { itemName: card.itemName, details } : null;
-            })
-            .filter((item): item is StudyDeckSearchMatch => item != null);
-          return cardMatches.length > 0 ? [deck.id, mergeSearchMatches(cardMatches)] as const : null;
-        }),
-      );
-
-      const filteredMatches = matches.filter((item): item is readonly [string, StudyDeckSearchMatch[]] => item != null);
-      return {
-        deckIds: filteredMatches.map(([deckId]) => deckId),
-        matchesByDeckId: Object.fromEntries(
-          filteredMatches.map(([deckId, deckMatches]) => [deckId, deckMatches]),
-        ),
-      };
-    },
     [decks],
   );
 
@@ -473,54 +303,6 @@ export const HomeScreen: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const q = searchQuery.trim();
-    if (!q) {
-      searchRequestSeq.current += 1;
-      setSearchSnapshot(null);
-      setIsSearchLoading(false);
-      return;
-    }
-
-    const requestSeq = searchRequestSeq.current + 1;
-    searchRequestSeq.current = requestSeq;
-    let cancelled = false;
-    setIsSearchLoading(true);
-
-    const timer = setTimeout(() => {
-      apiService.searchStudyDecks(q)
-        .then(result => {
-          if (!cancelled && searchRequestSeq.current === requestSeq) {
-            setSearchSnapshot({ query: q, result });
-          }
-        })
-        .catch(async error => {
-          console.warn('Failed to search study decks:', error);
-          try {
-            const result = await searchCardsFromDeckPayloads(q);
-            if (!cancelled && searchRequestSeq.current === requestSeq) {
-              setSearchSnapshot({ query: q, result });
-            }
-          } catch (fallbackError) {
-            console.warn('Failed to search study deck cards:', fallbackError);
-            if (!cancelled && searchRequestSeq.current === requestSeq) {
-              setSearchSnapshot({ query: q, result: { deckIds: [], matchesByDeckId: {} } });
-            }
-          }
-        })
-        .finally(() => {
-          if (!cancelled && searchRequestSeq.current === requestSeq) {
-            setIsSearchLoading(false);
-          }
-        });
-    }, 250);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [searchQuery, searchCardsFromDeckPayloads]);
-
-  useEffect(() => {
     if (normalizedSearch && visibleSearchResult && mode !== 'browse' && mode !== 'custom') {
       setMode('browse');
     }
@@ -563,49 +345,18 @@ export const HomeScreen: React.FC = () => {
       if (!isRefreshing) setIsLoading(true);
       const decksData = await apiService.getAvailableDecks();
       setDecks(decksData);
-      cardSearchTextCache.current = {};
+      invalidateCardSearchCache();
     } catch (error) {
       // Handle authentication errors by logging out
       if (error instanceof Error && error.name === 'AuthenticationError') {
         logout();
         return; // Don't show alert, user will be redirected to login
       }
-      
-      // Provide network-specific error messages
-      let alertTitle = 'Connection Error';
-      let alertMessage = 'Failed to load study data. Please try again.';
-      
-      if (error && typeof error === 'object' && 'code' in error) {
-        switch (error.code) {
-          case 'ECONNABORTED':
-            alertTitle = 'Request Timeout';
-            alertMessage = 'The server is taking too long to respond. Please check if the API server is running and try again.';
-            break;
-          case 'ECONNREFUSED':
-            alertTitle = 'Connection Refused';
-            alertMessage = 'Cannot reach the server. Please check your internet connection and try again.';
-            break;
-          case 'ENOTFOUND':
-            alertTitle = 'Server Not Found';
-            alertMessage = 'Cannot find the API server. Please check your network configuration.';
-            break;
-          default:
-            alertMessage = `Network error (${error.code}): ${error instanceof Error ? error.message : 'Unknown error'}`;
-        }
-      } else if (error && typeof error === 'object' && 'response' in error) {
-        const axiosError = error as any;
-        if (axiosError.response?.status) {
-          alertTitle = 'Server Error';
-          alertMessage = `Server returned error ${axiosError.response.status}. Please try again later.`;
-        }
-      } else {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-        alertMessage = `Failed to load study data.\n\nError: ${errorMessage}`;
-      }
-      
+
+      const { title, message } = describeLoadError(error);
       Alert.alert(
-        alertTitle,
-        alertMessage,
+        title,
+        message,
         [
           { text: 'Retry', onPress: () => loadData() },
           { text: 'Continue Offline', onPress: () => {
@@ -912,7 +663,7 @@ export const HomeScreen: React.FC = () => {
       >
         <Pressable
           onPress={() => setIsBuildingCustomDeck(true)}
-          style={({ pressed }) => [styles.createCustomButton, pressed && styles.rowPressed]}
+          style={({ pressed }) => [styles.createCustomButton, pressed && styles.createCustomPressed]}
         >
           <Text style={styles.createCustomLabel}>CREATE DECK</Text>
         </Pressable>
@@ -1221,427 +972,6 @@ export const HomeScreen: React.FC = () => {
   );
 };
 
-// One deck row. Each row owns its scale `Animated.Value`, created fresh on
-// mount — so when a favorite toggle reorders the list and remounts this row
-// under a new section, it starts at rest. Sharing one value across remounts
-// (e.g. a parent-held map) leaves the native transform clinging to the old
-// node and the row stuck at the grown size, so we deliberately don't.
-//
-// Holding grows the row steadily over the long-press window (feedback that
-// something's coming); `onLongPress` then commits the favorite toggle. Released
-// early, the swell springs back. `isFirstInGroup` drops the top divider so each
-// section's first row sits flush under its header.
-function DeckRow({
-  deck,
-  isFirstInGroup,
-  isFavorite,
-  mode,
-  isSearching,
-  searchQuery,
-  searchMatches,
-  onTap,
-  onToggleFavorite,
-}: {
-  deck: StudentDeck;
-  isFirstInGroup: boolean;
-  isFavorite: boolean;
-  mode: Mode;
-  isSearching: boolean;
-  searchQuery: string;
-  searchMatches: StudyDeckSearchMatch[];
-  onTap: (deck: StudentDeck) => void;
-  onToggleFavorite: (deck: StudentDeck) => void;
-}) {
-  const scale = useRef(new Animated.Value(1)).current;
-
-  const grow = () =>
-    Animated.timing(scale, {
-      toValue: 1.08,
-      duration: LONG_PRESS_MS,
-      useNativeDriver: true,
-    }).start();
-  const settle = () =>
-    Animated.spring(scale, {
-      toValue: 1,
-      useNativeDriver: true,
-      speed: 20,
-      bounciness: 8,
-    }).start();
-
-  return (
-    <Animated.View style={{ transform: [{ scale }] }}>
-      <Pressable
-        onPress={() => onTap(deck)}
-        onPressIn={grow}
-        onPressOut={settle}
-        onLongPress={() => onToggleFavorite(deck)}
-        delayLongPress={LONG_PRESS_MS}
-        style={({ pressed }) => [
-          styles.row,
-          !isFirstInGroup && styles.rowDivider,
-          pressed && styles.rowPressed,
-        ]}
-      >
-        {isFavorite && (
-          <Svg
-            width={18}
-            height={18}
-            viewBox="0 0 24 24"
-            style={styles.favoriteStar}
-            accessibilityLabel="Favorite"
-          >
-            <Path
-              d="M12 1.5 l3.09 6.91 7.41.57 -5.71 4.83 1.85 7.19 -6.64-4.13 -6.64 4.13 1.85-7.19 -5.71-4.83 7.41-.57 z"
-              fill={COLORS.amber}
-            />
-          </Svg>
-        )}
-
-        <Text style={[styles.deckTitle, isFavorite && styles.deckTitleFavorite]}>
-          {deck.title}
-        </Text>
-
-        {isSearching ? (
-          <SearchMatchList matches={searchMatches} query={searchQuery} />
-        ) : !!deck.description ? (
-          <Text style={styles.deckDescription} numberOfLines={2}>
-            {deck.description}
-          </Text>
-        ) : null}
-
-        {!isSearching && (
-          <DeckStats
-            key={`${deck.masteredCards}-${deck.learningCards}-${deck.weakCards}-${deck.cardCount}`}
-            deck={deck}
-            mode={mode}
-          />
-        )}
-      </Pressable>
-    </Animated.View>
-  );
-}
-
-function SearchMatchList({ matches, query }: { matches: StudyDeckSearchMatch[]; query: string }) {
-  const visibleMatches = mergeSearchMatches(matches).filter(match => match.itemName);
-  if (visibleMatches.length === 0) return null;
-
-  return (
-    <View style={styles.searchMatchList}>
-      {visibleMatches.map((match, index) => {
-        const titleMatches = textContainsQuery(match.itemName, query);
-        const detailLines = titleMatches ? [] : match.details;
-
-        return (
-          <View key={`${match.itemName}-${index}`} style={styles.searchMatchItem}>
-            <Svg
-              width={13}
-              height={13}
-              viewBox="0 0 15 15"
-              style={styles.searchMatchIcon}
-            >
-              <Circle cx={6.3} cy={6.3} r={4.6} stroke={COLORS.amber} strokeWidth={1.4} fill="none" />
-              <Line x1={9.7} y1={9.7} x2={13.6} y2={13.6} stroke={COLORS.amber} strokeWidth={1.4} strokeLinecap="round" />
-            </Svg>
-            <View style={styles.searchMatchCopy}>
-              <HighlightedMatchText text={match.itemName} query={query} />
-              {detailLines.map((detail, detailIndex) => (
-                <HighlightedMatchDetail
-                  key={`${detail.field}-${detail.value}-${detailIndex}`}
-                  detail={detail}
-                  query={query}
-                />
-              ))}
-            </View>
-          </View>
-        );
-      })}
-    </View>
-  );
-}
-
-function textContainsQuery(text: string, query: string) {
-  const q = query.trim().toLowerCase();
-  return q.length > 0 && text.toLowerCase().includes(q);
-}
-
-function formatSearchFieldLabel(field: string) {
-  return field
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/[_-]+/g, ' ')
-    .trim()
-    .toLowerCase();
-}
-
-function HighlightedMatchDetail({
-  detail,
-  query,
-}: {
-  detail: StudyDeckSearchMatchDetail;
-  query: string;
-}) {
-  return (
-    <HighlightedMatchText
-      text={`${detail.value} (${formatSearchFieldLabel(detail.field)})`}
-      query={query}
-      variant="detail"
-    />
-  );
-}
-
-function HighlightedMatchText({
-  text,
-  query,
-  variant = 'title',
-}: {
-  text: string;
-  query: string;
-  variant?: 'title' | 'detail';
-}) {
-  const textStyle = [
-    styles.searchMatchText,
-    variant === 'detail' ? styles.searchMatchDetailText : undefined,
-  ];
-  const q = query.trim().toLowerCase();
-  if (!q) {
-    return <Text style={textStyle}>{text}</Text>;
-  }
-
-  const parts: Array<{ text: string; isMatch: boolean }> = [];
-  const lower = text.toLowerCase();
-  let cursor = 0;
-  while (cursor < text.length) {
-    const index = lower.indexOf(q, cursor);
-    if (index === -1) {
-      parts.push({ text: text.slice(cursor), isMatch: false });
-      break;
-    }
-    if (index > cursor) {
-      parts.push({ text: text.slice(cursor, index), isMatch: false });
-    }
-    parts.push({ text: text.slice(index, index + q.length), isMatch: true });
-    cursor = index + q.length;
-  }
-
-  return (
-    <Text style={textStyle}>
-      {parts.map((part, index) => (
-        <Text
-          key={`${part.text}-${index}`}
-          style={part.isMatch ? styles.searchMatchTextAmber : undefined}
-        >
-          {part.text}
-        </Text>
-      ))}
-    </Text>
-  );
-}
-
-function CustomDeckRow({
-  deck,
-  isFirstInGroup,
-  disabled,
-  onTap,
-  onDelete,
-}: {
-  deck: CustomStudyDeck;
-  isFirstInGroup: boolean;
-  disabled: boolean;
-  onTap: (deck: CustomStudyDeck) => void;
-  onDelete: (deck: CustomStudyDeck) => void;
-}) {
-  const counts = getCustomDeckCounts(deck);
-  const detail =
-    counts.cards > 0 && counts.reference > 0
-      ? `${counts.cards} cards / ${counts.reference} reference`
-      : counts.cards > 0
-      ? `${counts.cards} cards`
-      : `${counts.reference} reference`;
-
-  return (
-    <Pressable
-      onPress={() => onTap(deck)}
-      disabled={disabled}
-      style={({ pressed }) => [
-        styles.row,
-        !isFirstInGroup && styles.rowDivider,
-        pressed && styles.rowPressed,
-        disabled && styles.rowDisabled,
-      ]}
-    >
-      <Text style={styles.deckTitle}>{deck.title}</Text>
-      <Text style={styles.deckDescription} numberOfLines={2}>
-        {detail}
-      </Text>
-      <View style={styles.customRowFooter}>
-        <Text style={styles.customRowMeta}>
-          Local only / not logged
-        </Text>
-        <Pressable
-          onPress={event => {
-            event.stopPropagation();
-            onDelete(deck);
-          }}
-          hitSlop={10}
-        >
-          <Text style={styles.customDelete}>DELETE</Text>
-        </Pressable>
-      </View>
-    </Pressable>
-  );
-}
-
-// The stats line shows three mastery counts in `recommended` and a single
-// card count in `full`/`browse`. Switching modes plays a left-anchored reveal:
-// the line's right edge slides between the long form's "Weak" tip and the
-// short form's "Cards" tip, while the two forms crossfade. Both forms are
-// stacked left-aligned inside a clip whose width animates between their two
-// natural widths — so the right edge is the only thing that travels.
-//
-// Those two widths (and the line height for the absolutely-stacked forms) have
-// to be measured first; until then we render the active form at natural size,
-// with an invisible pass laying out both forms to capture their dimensions.
-// The row is keyed on its counts upstream, so a study session that changes a
-// figure remounts this and re-measures.
-function DeckStats({ deck, mode }: { deck: StudentDeck; mode: Mode }) {
-  const fullyMastered = deck.weakCards === 0 && deck.learningCards === 0;
-  const [dims, setDims] = useState<{
-    recW: number;
-    compactW: number;
-    h: number;
-  } | null>(null);
-  const width = useRef(new Animated.Value(0)).current;
-  // 1 = recommended form fully shown, 0 = compact form fully shown.
-  const recShown = useRef(
-    new Animated.Value(mode === 'recommended' ? 1 : 0),
-  ).current;
-  const measured = useRef<{ recW?: number; compactW?: number; h?: number }>({});
-
-  const renderRec = () => (
-    <>
-      <Stat label="Mastered" value={deck.masteredCards} />
-      <Stat label="Learning" value={deck.learningCards} />
-      <Stat label="Weak" value={deck.weakCards} weak />
-    </>
-  );
-  const renderCompact = () => <Stat label="Cards" value={deck.cardCount} />;
-
-  const finishMeasure = () => {
-    const m = measured.current;
-    if (m.recW == null || m.compactW == null || m.h == null) return;
-    // Seat the clip at its resting width before the clipped layer first paints.
-    width.setValue(mode === 'recommended' ? m.recW : m.compactW);
-    setDims({ recW: m.recW, compactW: m.compactW, h: m.h });
-  };
-
-  // Slide the right edge to the new form's tip and crossfade the figures.
-  useEffect(() => {
-    if (!dims) return;
-    const isRec = mode === 'recommended';
-    Animated.parallel([
-      Animated.timing(width, {
-        toValue: isRec ? dims.recW : dims.compactW,
-        duration: 300,
-        easing: Easing.inOut(Easing.cubic),
-        useNativeDriver: false,
-      }),
-      Animated.timing(recShown, {
-        toValue: isRec ? 1 : 0,
-        // Hold the old form while the edge starts moving, then crossfade in the
-        // back half of the slide so the swap reads as "becomes its new form at
-        // the tip" rather than ghosting both at the fixed left edge.
-        delay: 110,
-        duration: 180,
-        easing: Easing.inOut(Easing.quad),
-        useNativeDriver: false,
-      }),
-    ]).start();
-  }, [mode, dims, width, recShown]);
-
-  const compactShown = recShown.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 0],
-  });
-
-  return (
-    <View style={styles.statsRow}>
-      {dims ? (
-        <Animated.View style={[styles.statsClip, { width, height: dims.h }]}>
-          <Animated.View
-            style={[styles.statGroup, styles.statsForm, { opacity: recShown }]}
-          >
-            {renderRec()}
-          </Animated.View>
-          <Animated.View
-            style={[styles.statGroup, styles.statsForm, { opacity: compactShown }]}
-          >
-            {renderCompact()}
-          </Animated.View>
-        </Animated.View>
-      ) : (
-        <View>
-          <View style={styles.statGroup}>
-            {mode === 'recommended' ? renderRec() : renderCompact()}
-          </View>
-          <View style={styles.statsMeasure} pointerEvents="none">
-            <View
-              style={styles.statGroup}
-              onLayout={e => {
-                measured.current.recW = e.nativeEvent.layout.width;
-                measured.current.h = e.nativeEvent.layout.height;
-                finishMeasure();
-              }}
-            >
-              {renderRec()}
-            </View>
-            <View
-              style={styles.statGroup}
-              onLayout={e => {
-                measured.current.compactW = e.nativeEvent.layout.width;
-                finishMeasure();
-              }}
-            >
-              {renderCompact()}
-            </View>
-          </View>
-        </View>
-      )}
-      {fullyMastered && <Text style={styles.allMastered}>All mastered</Text>}
-    </View>
-  );
-}
-
-// When the `weak` count is non-zero, both its figure and label ring red —
-// the "needs attention" signal. Any count of 0 drops the figure to inkMute
-// so the row reads quiet; every non-red label sits faint (inkFaint).
-function Stat({
-  label,
-  value,
-  weak,
-}: {
-  label: string;
-  value: number;
-  weak?: boolean;
-}) {
-  const isRed = !!weak && value > 0;
-  const isZero = value === 0;
-  return (
-    <View style={styles.stat}>
-      <Text
-        style={[
-          styles.statFigure,
-          isZero && styles.statFigureMuted,
-          isRed && styles.statFigureRed,
-        ]}
-      >
-        {value}
-      </Text>
-      <Text style={[styles.statLabel, isRed && styles.statLabelRed]}>
-        {label}
-      </Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.paper },
 
@@ -1721,6 +1051,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1.8,
     color: COLORS.ink,
   },
+  createCustomPressed: { opacity: 0.6 },
   customLoading: {
     paddingVertical: 14,
     alignItems: 'center',
@@ -1812,26 +1143,6 @@ const styles = StyleSheet.create({
     width: '100%',
   },
 
-  // ── Deck row ───────────────────────────────────────────────
-  row: {
-    paddingHorizontal: 24,
-    paddingTop: 22,
-    paddingBottom: 24,
-    position: 'relative',
-  },
-  rowDivider: {
-    borderTopWidth: 1,
-    borderTopColor: COLORS.paperHair,
-  },
-  rowPressed: { opacity: 0.6 },
-  rowDisabled: { opacity: 0.45 },
-
-  favoriteStar: {
-    position: 'absolute',
-    top: 20,
-    right: 22,
-  },
-
   // Section header — mirrors the Reference tab's Glossary letter headers
   // (large serif word + monospace count badge on the baseline).
   sectionHeader: {
@@ -1866,122 +1177,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     paddingTop: 16,
     paddingBottom: 8,
-  },
-
-  deckTitle: {
-    fontFamily: 'Fraunces_600SemiBold',
-    fontSize: 24,
-    color: COLORS.ink,
-    letterSpacing: -0.45,
-    lineHeight: 28,
-  },
-  deckTitleFavorite: {
-    paddingRight: 28, // leaves room for the star
-  },
-
-  deckDescription: {
-    fontFamily: 'Newsreader_500Medium_Italic',
-    fontSize: 14,
-    lineHeight: 21,
-    color: COLORS.inkMute,
-    marginTop: 8,
-  },
-  searchMatchList: {
-    marginTop: 10,
-    gap: 7,
-  },
-  searchMatchItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  searchMatchIcon: {
-    marginTop: 3,
-    marginRight: 8,
-  },
-  searchMatchCopy: {
-    flex: 1,
-  },
-  searchMatchText: {
-    fontFamily: 'Newsreader_500Medium_Italic',
-    fontSize: 14,
-    lineHeight: 20,
-    color: COLORS.inkMute,
-  },
-  searchMatchDetailText: {
-    marginTop: 2,
-    color: COLORS.inkFaint,
-  },
-  searchMatchTextAmber: {
-    color: COLORS.amber,
-  },
-  customRowFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  customRowMeta: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 9,
-    letterSpacing: 1.3,
-    textTransform: 'uppercase',
-    color: COLORS.inkFaint,
-  },
-  customDelete: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 9,
-    letterSpacing: 1.3,
-    color: COLORS.red,
-  },
-
-  // ── Stats row ──────────────────────────────────────────────
-  statsRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    marginTop: 16,
-  },
-  // Holds the mastery/card figures; the gap that used to sit on statsRow lives
-  // here now so "All mastered" can still pin right of it.
-  statGroup: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 18,
-  },
-  // Window onto the stacked forms; its animated width is the sliding right edge.
-  statsClip: { overflow: 'hidden' },
-  // Both forms share the top-left origin so only the right edge ever moves.
-  statsForm: { position: 'absolute', left: 0, top: 0 },
-  // Off-paint layout pass used only to capture both forms' natural sizes.
-  // alignItems flex-start is load-bearing: this column would otherwise stretch
-  // both forms to the wider one's width, making the two measurements equal and
-  // leaving the reveal with no width to animate.
-  statsMeasure: { position: 'absolute', left: 0, top: 0, opacity: 0, alignItems: 'flex-start' },
-  stat: { flexDirection: 'row', alignItems: 'baseline' },
-  statFigure: {
-    fontFamily: 'Fraunces_600SemiBold',
-    fontSize: 18,
-    color: COLORS.ink,
-    letterSpacing: -0.18,
-    marginRight: 6,
-  },
-  statFigureMuted: { color: COLORS.inkMute },
-  statFigureRed: { color: COLORS.red },
-  statLabel: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 9,
-    color: COLORS.inkFaint,
-    letterSpacing: 1.6,
-    textTransform: 'uppercase',
-  },
-  statLabelRed: { color: COLORS.red },
-
-  allMastered: {
-    fontFamily: 'Inter_700Bold',
-    marginLeft: 'auto',
-    fontSize: 9,
-    color: COLORS.inkFaint,
-    letterSpacing: 2,
-    textTransform: 'uppercase',
   },
 
   // ── Empty / loading states ─────────────────────────────────
