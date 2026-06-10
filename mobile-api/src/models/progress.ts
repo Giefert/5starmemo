@@ -1,6 +1,6 @@
 import pool from '../config/database';
 import { StudySession, StudyStats, FSRSCard, ReviewInput, CurationKind } from '../../../shared/types';
-import { FSRS, Rating } from '../utils/fsrs';
+import { gradeCard } from '../utils/scheduler';
 
 // Mirrors deck.ts ACCESSIBLE_DECK_IDS_SQL. $1 = user_id, $2 = restaurant_id.
 const ACCESSIBLE_DECK_IDS_SQL = `
@@ -21,8 +21,6 @@ const ACCESSIBLE_DECK_IDS_SQL = `
 `;
 
 export class ProgressModel {
-  private static fsrs = new FSRS();
-
   /**
    * Create a new study session. Caller must verify the deck or curation
    * kind is valid in the student's restaurant before calling. Exactly one
@@ -100,7 +98,7 @@ export class ProgressModel {
       let fsrsCard = await this.getFSRSCard(userId, review.cardId, client);
 
       // Calculate next review using FSRS
-      const reviewResult = this.fsrs.next(fsrsCard, review.rating as Rating);
+      const reviewResult = gradeCard(userId, fsrsCard, review.rating as 1 | 2 | 3 | 4);
 
       // Update or insert FSRS data
       const upsertQuery = `
