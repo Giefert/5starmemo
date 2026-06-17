@@ -576,6 +576,7 @@ export const HomeScreen: React.FC = () => {
         backLabel="Study"
         searchQuery={searchQuery}
         searchMatches={visibleSearchResult?.matchesByDeckId[selectedDeck.id] ?? []}
+        onSearchQueryChange={setSearchQuery}
       />
     );
   }

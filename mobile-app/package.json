@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.ts",
   "scripts": {
-    "start": "expo start",
+    "start": "(xcrun simctl boot 64E8810F-BB97-4BDA-BD29-A13CFFCB7812 || true) && open -a Simulator && expo start --ios",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web"

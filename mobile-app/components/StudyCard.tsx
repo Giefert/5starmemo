@@ -42,23 +42,74 @@ interface StudyCardProps {
   isFlipped: boolean;
   linkedTerms?: LinkedTerm[];
   onTermPress?: (term: LinkedTerm) => void;
+  searchQuery?: string;
+}
+
+const SearchHighlightContext = React.createContext('');
+
+function renderSearchRuns(text: string, query: string, keyPrefix: string, baseStyle?: any) {
+  if (!text) return null;
+
+  const q = query.trim().toLowerCase();
+  if (!q || !text.toLowerCase().includes(q)) {
+    return baseStyle ? <Text key={`${keyPrefix}-plain`} style={baseStyle}>{text}</Text> : text;
+  }
+
+  const nodes: React.ReactNode[] = [];
+  const lower = text.toLowerCase();
+  let cursor = 0;
+  let partIndex = 0;
+
+  const pushSegment = (segment: string, isMatch: boolean) => {
+    if (!segment) return;
+    const segmentStyle = isMatch
+      ? [baseStyle, styles.searchHighlight]
+      : baseStyle;
+    nodes.push(
+      <Text key={`${keyPrefix}-${partIndex}`} style={segmentStyle}>
+        {segment}
+      </Text>
+    );
+    partIndex += 1;
+  };
+
+  while (cursor < text.length) {
+    const index = lower.indexOf(q, cursor);
+    if (index === -1) {
+      pushSegment(text.slice(cursor), false);
+      break;
+    }
+    if (index > cursor) {
+      pushSegment(text.slice(cursor, index), false);
+    }
+    pushSegment(text.slice(index, index + q.length), true);
+    cursor = index + q.length;
+  }
+
+  return nodes;
 }
 
 // Helper to render text with *highlighted* terms. An optional run-in label is
 // rendered as an inline kicker leading the text so the label and value flow and
 // wrap as a single block (RN has no float, so the label must live inside the Text).
-const HighlightedText: React.FC<{ text: string; style: any; leadingLabel?: string; key?: React.Key }> = ({ text, style, leadingLabel }) => {
-  const lead = leadingLabel ? <Text style={styles.runInLabel}>{`${leadingLabel}  `}</Text> : null;
+const HighlightedText: React.FC<{
+  text: string;
+  style: any;
+  leadingLabel?: string;
+  leadingLabelStyle?: any;
+  key?: React.Key;
+}> = ({ text, style, leadingLabel, leadingLabelStyle }) => {
+  const searchQuery = React.useContext(SearchHighlightContext);
+  const lead = leadingLabel ? <Text style={leadingLabelStyle ?? styles.runInLabel}>{`${leadingLabel}  `}</Text> : null;
   const parts = text.split(/\*(.*?)\*/g);
-  if (parts.length === 1) return <Text style={style}>{lead}{text}</Text>;
   return (
     <Text style={style}>
       {lead}
-      {parts.map((part, i) =>
-        i % 2 === 1
-          ? <Text key={i} style={styles.highlight}>{part}</Text>
-          : part
-      )}
+      {parts.map((part, i) => (
+        <React.Fragment key={i}>
+          {renderSearchRuns(part, searchQuery, `m${i}`, i % 2 === 1 ? styles.highlight : undefined)}
+        </React.Fragment>
+      ))}
     </Text>
   );
 };
@@ -74,6 +125,8 @@ const LinkedText: React.FC<{
   linkedTerms?: LinkedTerm[];
   onTermPress?: (term: LinkedTerm) => void;
 }> = ({ text, style, leadingLabel, linkedTerms, onTermPress }) => {
+  const searchQuery = React.useContext(SearchHighlightContext);
+
   if (!linkedTerms || linkedTerms.length === 0 || !onTermPress) {
     return <HighlightedText text={text} style={style} leadingLabel={leadingLabel} />;
   }
@@ -107,9 +160,12 @@ const LinkedText: React.FC<{
       let j = i;
       while (j < end && isHighlighted(j) === hl) j++;
       const chunk = plain.substring(i, j);
-      runs.push(
-        hl ? <Text key={`${keyPrefix}-${i}`} style={styles.highlight}>{chunk}</Text> : chunk
-      );
+      const rendered = renderSearchRuns(chunk, searchQuery, `${keyPrefix}-${i}`, hl ? styles.highlight : undefined);
+      if (Array.isArray(rendered)) {
+        runs.push(...rendered);
+      } else if (rendered) {
+        runs.push(rendered);
+      }
       i = j;
     }
     return runs;
@@ -200,10 +256,12 @@ const ListField: React.FC<{ label: string; items: string[]; bulleted?: boolean }
 // Allergens — run-in red kicker + red joined value.
 const AllergenField: React.FC<{ allergens: string[] }> = ({ allergens }) => (
   <View style={styles.detailBlock}>
-    <Text style={styles.allergenValue}>
-      <Text style={styles.allergenLabelInline}>{'ALLERGENS  '}</Text>
-      {allergens.join(' · ')}
-    </Text>
+    <HighlightedText
+      leadingLabel="ALLERGENS"
+      leadingLabelStyle={styles.allergenLabelInline}
+      text={allergens.join(' · ')}
+      style={styles.allergenValue}
+    />
   </View>
 );
 
@@ -230,7 +288,7 @@ const WineMeterBar: React.FC<{
   );
 };
 
-export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linkedTerms, onTermPress }) => {
+export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linkedTerms, onTermPress, searchQuery = '' }) => {
   const { card } = cardData;
 
   const imageUrl = card.imageUrl;
@@ -239,37 +297,40 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
   if (!isFlipped) {
     // ── Front (question) — ink ground ──────────────────────────
     return (
-      <View style={[styles.cardContainer, styles.cardFront]}>
-        <View style={styles.frontHeader}>
-          <Text style={styles.eyebrow}>Describe</Text>
-          <Text style={styles.frontTitle}>{itemName}</Text>
+      <SearchHighlightContext.Provider value={searchQuery}>
+        <View style={[styles.cardContainer, styles.cardFront]}>
+          <View style={styles.frontHeader}>
+            <Text style={styles.eyebrow}>Describe</Text>
+            <HighlightedText text={itemName || ''} style={styles.frontTitle} />
+          </View>
+          <View style={styles.imageArea}>
+            {imageUrl ? (
+              <Image
+                source={{ uri: imageUrl }}
+                style={styles.cardImage}
+                contentFit="contain"
+              />
+            ) : (
+              <Text style={styles.emptyImageText}>No Image</Text>
+            )}
+          </View>
         </View>
-        <View style={styles.imageArea}>
-          {imageUrl ? (
-            <Image
-              source={{ uri: imageUrl }}
-              style={styles.cardImage}
-              contentFit="contain"
-            />
-          ) : (
-            <Text style={styles.emptyImageText}>No Image</Text>
-          )}
-        </View>
-      </View>
+      </SearchHighlightContext.Provider>
     );
   }
 
   // ── Back (answer) — warm paper ground ────────────────────────
   return (
-    <View style={[styles.cardContainer, styles.cardBack]}>
-      <View style={styles.backHeader}>
-        <Text style={[styles.eyebrow, styles.eyebrowBack]}>{card.restaurantData?.price || '$-'}</Text>
-        <Text style={styles.backTitle}>{itemName}</Text>
-      </View>
+    <SearchHighlightContext.Provider value={searchQuery}>
+      <View style={[styles.cardContainer, styles.cardBack]}>
+        <View style={styles.backHeader}>
+          <Text style={[styles.eyebrow, styles.eyebrowBack]}>{card.restaurantData?.price || '$-'}</Text>
+          <HighlightedText text={itemName || ''} style={styles.backTitle} />
+        </View>
 
-      {card.restaurantData && (
-        <>
-          <ScrollView style={styles.detailsScroll} showsVerticalScrollIndicator>
+        {card.restaurantData && (
+          <>
+            <ScrollView style={styles.detailsScroll} showsVerticalScrollIndicator>
             <View style={styles.backBody}>
               <View style={styles.detailsContainer}>
                 {/* Sake-specific fields */}
@@ -513,9 +574,10 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
                 </View>
               )}
           </ScrollView>
-        </>
-      )}
-    </View>
+          </>
+        )}
+      </View>
+    </SearchHighlightContext.Provider>
   );
 };
 
@@ -715,6 +777,9 @@ const styles = StyleSheet.create({
   // ── Inline markup ──────────────────────────────────────────
   highlight: {
     backgroundColor: 'rgba(232, 154, 43, 0.22)',
+  },
+  searchHighlight: {
+    color: COLORS.amber,
   },
   linkedTerm: {
     textDecorationLine: 'underline',

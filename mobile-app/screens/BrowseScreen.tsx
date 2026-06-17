@@ -6,16 +6,21 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
+  TextInput,
+  Pressable,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import type { StyleProp, TextStyle } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path, Rect, Defs, Pattern } from 'react-native-svg';
+import Svg, { Path, Rect, Defs, Pattern, Circle, Line } from 'react-native-svg';
 import apiService from '../services/api';
 import { StudyCardData, StudyDeckSearchMatch, StudyDeckSearchMatchDetail } from '../types/shared';
 import { StudyCard, LinkedTerm } from '../components/StudyCard';
 import { SwipeableCard } from '../components/SwipeableCard';
 import { GlossaryTermModal } from '../components/GlossaryTermModal';
+import { collectSearchFields } from '../utils/studySearch';
 
 const COLORS = {
   ink: '#14120F',
@@ -27,6 +32,7 @@ const COLORS = {
   onDark: '#E8E3D6',
   onDarkMute: '#8A8578',
   amber: '#E89A2B',
+  red: '#D94B36',
 };
 
 function textContainsQuery(text: string, query: string) {
@@ -72,6 +78,16 @@ function getVisibleSearchDetails(
   );
 }
 
+function cardMatchesQuery(card: StudyCardData, query: string) {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  if (!card.card.restaurantData) return false;
+
+  return collectSearchFields(card.card.restaurantData).some(field =>
+    field.value.toLowerCase().includes(q),
+  );
+}
+
 interface BrowseScreenProps {
   deckId: string;
   deckTitle: string;
@@ -79,6 +95,7 @@ interface BrowseScreenProps {
   backLabel?: string;
   searchQuery?: string;
   searchMatches?: StudyDeckSearchMatch[];
+  onSearchQueryChange?: (query: string) => void;
   // When set, open straight to this card's detail view instead of the deck
   // list — used by the bulletin, where tapping a card item opens the card
   // itself. Backing out then returns to the caller, skipping the list.
@@ -92,6 +109,7 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({
   backLabel = 'Back',
   searchQuery = '',
   searchMatches = [],
+  onSearchQueryChange,
   initialCardId,
 }) => {
   const insets = useSafeAreaInsets();
@@ -166,11 +184,28 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({
     setIsFlipped(false);
   };
 
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const canEditSearch = typeof onSearchQueryChange === 'function';
+  const selectedCardSearchMiss =
+    !!selectedCard && normalizedSearch.length > 0 && !cardMatchesQuery(selectedCard, searchQuery);
+  const renderBrowseSearchBar = (variant: 'paper' | 'ink') => canEditSearch ? (
+    <BrowseSearchBar
+      query={searchQuery}
+      onChangeQuery={onSearchQueryChange!}
+      isMismatch={selectedCardSearchMiss}
+      variant={variant}
+      bottomInset={insets.bottom}
+    />
+  ) : null;
+
   // Card detail view — mirrors the study session layout (edge-to-edge card,
   // ink masthead, ink/paper flip affordances).
   if (selectedCard) {
     return (
-      <View style={styles.studyContainer}>
+      <KeyboardAvoidingView
+        style={styles.studyContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
         {/* Masthead — ink ground, shared back affordance with the list ribbon */}
         <View style={[styles.masthead, { paddingTop: insets.top + 8 }]}>
           <TouchableOpacity
@@ -207,9 +242,10 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({
                   isFlipped={false}
                   linkedTerms={linkedTerms}
                   onTermPress={setSelectedTerm}
+                  searchQuery={searchQuery}
                 />
               </View>
-              <View style={[styles.gradingZoneInk, { paddingBottom: insets.bottom + 4 }]}>
+              <View style={[styles.gradingZoneInk, !canEditSearch && { paddingBottom: insets.bottom + 4 }]}>
                 <TouchableOpacity
                   style={styles.showAnswerButton}
                   onPress={() => setIsFlipped(true)}
@@ -226,6 +262,7 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({
                     />
                   </Svg>
                 </TouchableOpacity>
+                {renderBrowseSearchBar('ink')}
               </View>
             </View>
           }
@@ -237,9 +274,10 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({
                   isFlipped={true}
                   linkedTerms={linkedTerms}
                   onTermPress={setSelectedTerm}
+                  searchQuery={searchQuery}
                 />
               </View>
-              <View style={[styles.gradingZonePaper, { paddingBottom: insets.bottom + 4 }]}>
+              <View style={[styles.gradingZonePaper, !canEditSearch && { paddingBottom: insets.bottom + 4 }]}>
                 <TouchableOpacity
                   style={styles.swipeHintTap}
                   onPress={() => setIsFlipped(false)}
@@ -256,6 +294,7 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({
                     />
                   </Svg>
                 </TouchableOpacity>
+                {renderBrowseSearchBar('paper')}
               </View>
             </View>
           }
@@ -265,7 +304,7 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({
           term={selectedTerm}
           onDismiss={() => setSelectedTerm(null)}
         />
-      </View>
+      </KeyboardAvoidingView>
     );
   }
 
@@ -282,18 +321,25 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({
 
   // Card list view — Carte browse list, shared shape with the Bulletin tab's
   // section browse list: dark back ribbon, paper title block, item rows.
-  const normalizedSearch = searchQuery.trim().toLowerCase();
   const searchMatchByItemName = new Map(
     mergeSearchMatches(searchMatches).map(match => [match.itemName, match]),
   );
-  const isSearchFiltered = normalizedSearch.length > 0 && searchMatchByItemName.size > 0;
+  const deckTitleMatches = textContainsQuery(deckTitle, searchQuery);
+  const hasCardSearchMatches = searchMatchByItemName.size > 0;
+  const hasActiveSearch = normalizedSearch.length > 0;
+  const isSearchFiltered = normalizedSearch.length > 0 && hasCardSearchMatches;
   const visibleCards = isSearchFiltered
     ? cards.filter(card => searchMatchByItemName.has(card.card.restaurantData?.itemName || ''))
-    : cards;
+    : !hasActiveSearch || deckTitleMatches
+      ? cards
+      : [];
   const count = visibleCards.length;
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       {/* Dark back ribbon. */}
       <View style={[styles.ribbon, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity style={styles.ribbonBack} onPress={onExit} activeOpacity={0.7}>
@@ -332,7 +378,7 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({
       ) : visibleCards.length === 0 ? (
         <View style={[styles.body, styles.centerContainer]}>
           <Text style={styles.emptyText}>
-            {isSearchFiltered ? 'No matching cards in this deck' : 'No cards in this deck'}
+            {hasActiveSearch && !deckTitleMatches ? 'No matching cards in this deck' : 'No cards in this deck'}
           </Text>
         </View>
       ) : (
@@ -352,7 +398,9 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({
           )}
         />
       )}
-    </View>
+
+      {renderBrowseSearchBar('paper')}
+    </KeyboardAvoidingView>
   );
 };
 
@@ -494,6 +542,57 @@ function HighlightedText({
   );
 }
 
+function BrowseSearchBar({
+  query,
+  onChangeQuery,
+  isMismatch,
+  variant,
+  bottomInset,
+}: {
+  query: string;
+  onChangeQuery: (query: string) => void;
+  isMismatch: boolean;
+  variant: 'paper' | 'ink';
+  bottomInset: number;
+}) {
+  const isInk = variant === 'ink';
+  const iconColor = isMismatch ? COLORS.red : isInk ? COLORS.onDarkMute : COLORS.inkFaint;
+
+  return (
+    <View
+      style={[
+        styles.searchRow,
+        isInk ? styles.searchRowInk : styles.searchRowPaper,
+        { paddingBottom: bottomInset + 10 },
+      ]}
+    >
+      <Svg width={15} height={15} viewBox="0 0 15 15">
+        <Circle cx={6.3} cy={6.3} r={4.6} stroke={iconColor} strokeWidth={1.4} fill="none" />
+        <Line x1={9.7} y1={9.7} x2={13.6} y2={13.6} stroke={iconColor} strokeWidth={1.4} strokeLinecap="round" />
+      </Svg>
+      <TextInput
+        style={[
+          styles.searchInput,
+          isInk ? styles.searchInputInk : styles.searchInputPaper,
+          isMismatch && styles.searchInputMismatch,
+        ]}
+        placeholder="Search this deck..."
+        placeholderTextColor={isInk ? COLORS.onDarkMute : COLORS.inkFaint}
+        value={query}
+        onChangeText={onChangeQuery}
+        returnKeyType="search"
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+      {query.length > 0 && (
+        <Pressable onPress={() => onChangeQuery('')} hitSlop={10}>
+          <Text style={styles.searchClear}>CLEAR</Text>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -621,6 +720,43 @@ const styles = StyleSheet.create({
   },
   itemChevron: {
     flexShrink: 0,
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 22,
+    paddingTop: 10,
+    borderTopWidth: 1,
+  },
+  searchRowPaper: {
+    backgroundColor: COLORS.paper,
+    borderTopColor: COLORS.paperHair,
+  },
+  searchRowInk: {
+    backgroundColor: COLORS.ink,
+    borderTopColor: COLORS.bgHair,
+  },
+  searchInput: {
+    flex: 1,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 15,
+    paddingVertical: 4,
+  },
+  searchInputPaper: {
+    color: COLORS.ink,
+  },
+  searchInputInk: {
+    color: COLORS.onDark,
+  },
+  searchInputMismatch: {
+    color: COLORS.red,
+  },
+  searchClear: {
+    color: COLORS.amber,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10,
+    letterSpacing: 1.6,
   },
 
   // ── Card detail view — study session layout ──────────────────
