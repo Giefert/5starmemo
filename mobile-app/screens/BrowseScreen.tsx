@@ -10,6 +10,7 @@ import {
   Pressable,
   KeyboardAvoidingView,
   Platform,
+  Keyboard,
 } from 'react-native';
 import type { StyleProp, TextStyle } from 'react-native';
 import { Image } from 'expo-image';
@@ -119,12 +120,25 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({
   const [isFlipped, setIsFlipped] = useState(false);
   const [linkedTerms, setLinkedTerms] = useState<LinkedTerm[]>([]);
   const [selectedTerm, setSelectedTerm] = useState<LinkedTerm | null>(null);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   // True while the visible card was opened directly (via initialCardId) with
   // no list in between, so its back arrow exits rather than dropping to a list.
   const [openedDirectly, setOpenedDirectly] = useState(false);
 
   useEffect(() => {
     loadCards();
+  }, []);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvent, () => setIsKeyboardVisible(true));
+    const hideSub = Keyboard.addListener(hideEvent, () => setIsKeyboardVisible(false));
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
   }, []);
 
   const loadCards = async () => {
@@ -188,14 +202,35 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({
   const canEditSearch = typeof onSearchQueryChange === 'function';
   const selectedCardSearchMiss =
     !!selectedCard && normalizedSearch.length > 0 && !cardMatchesQuery(selectedCard, searchQuery);
+  const renderKeyboardBackdrop = (variant: 'paper' | 'ink') => (
+    canEditSearch && isKeyboardVisible ? (
+      <View
+        pointerEvents="none"
+        style={[
+          styles.keyboardBackdrop,
+          variant === 'ink' ? styles.keyboardBackdropInk : styles.keyboardBackdropPaper,
+        ]}
+      />
+    ) : null
+  );
   const renderBrowseSearchBar = (variant: 'paper' | 'ink') => canEditSearch ? (
-    <BrowseSearchBar
-      query={searchQuery}
-      onChangeQuery={onSearchQueryChange!}
-      isMismatch={selectedCardSearchMiss}
-      variant={variant}
-      bottomInset={insets.bottom}
-    />
+    <>
+      <BrowseSearchBar
+        query={searchQuery}
+        onChangeQuery={onSearchQueryChange!}
+        isMismatch={selectedCardSearchMiss}
+        variant={variant}
+      />
+      {!isKeyboardVisible && insets.bottom > 0 && (
+        <View
+          style={[
+            styles.searchSafeArea,
+            variant === 'ink' ? styles.searchSafeAreaInk : styles.searchSafeAreaPaper,
+            { height: insets.bottom },
+          ]}
+        />
+      )}
+    </>
   ) : null;
 
   // Card detail view — mirrors the study session layout (edge-to-edge card,
@@ -206,6 +241,8 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({
         style={styles.studyContainer}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
+        {renderKeyboardBackdrop(isFlipped ? 'paper' : 'ink')}
+
         {/* Masthead — ink ground, shared back affordance with the list ribbon */}
         <View style={[styles.masthead, { paddingTop: insets.top + 8 }]}>
           <TouchableOpacity
@@ -267,35 +304,37 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({
             </View>
           }
           back={
-            <View style={styles.backFace}>
-              <View style={styles.cardArea}>
-                <StudyCard
-                  cardData={selectedCard}
-                  isFlipped={true}
-                  linkedTerms={linkedTerms}
-                  onTermPress={setSelectedTerm}
-                  searchQuery={searchQuery}
-                />
+            <View style={styles.face}>
+              <View style={[styles.backFace, canEditSearch && styles.backFaceSearchAttached]}>
+                <View style={styles.cardArea}>
+                  <StudyCard
+                    cardData={selectedCard}
+                    isFlipped={true}
+                    linkedTerms={linkedTerms}
+                    onTermPress={setSelectedTerm}
+                    searchQuery={searchQuery}
+                  />
+                </View>
+                <View style={[styles.gradingZonePaper, !canEditSearch && { paddingBottom: insets.bottom + 4 }]}>
+                  <TouchableOpacity
+                    style={styles.swipeHintTap}
+                    onPress={() => setIsFlipped(false)}
+                    activeOpacity={0.7}
+                  >
+                    <Svg width={44} height={10} viewBox="0 0 44 10">
+                      <Path
+                        d="M 43 5 L 1 5 M 9 1 L 1 5 L 9 9"
+                        stroke={COLORS.inkFaint}
+                        strokeWidth={1}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        fill="none"
+                      />
+                    </Svg>
+                  </TouchableOpacity>
+                </View>
               </View>
-              <View style={[styles.gradingZonePaper, !canEditSearch && { paddingBottom: insets.bottom + 4 }]}>
-                <TouchableOpacity
-                  style={styles.swipeHintTap}
-                  onPress={() => setIsFlipped(false)}
-                  activeOpacity={0.7}
-                >
-                  <Svg width={44} height={10} viewBox="0 0 44 10">
-                    <Path
-                      d="M 43 5 L 1 5 M 9 1 L 1 5 L 9 9"
-                      stroke={COLORS.inkFaint}
-                      strokeWidth={1}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      fill="none"
-                    />
-                  </Svg>
-                </TouchableOpacity>
-                {renderBrowseSearchBar('paper')}
-              </View>
+              {renderBrowseSearchBar('paper')}
             </View>
           }
         />
@@ -340,6 +379,8 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      {renderKeyboardBackdrop('paper')}
+
       {/* Dark back ribbon. */}
       <View style={[styles.ribbon, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity style={styles.ribbonBack} onPress={onExit} activeOpacity={0.7}>
@@ -547,13 +588,11 @@ function BrowseSearchBar({
   onChangeQuery,
   isMismatch,
   variant,
-  bottomInset,
 }: {
   query: string;
   onChangeQuery: (query: string) => void;
   isMismatch: boolean;
   variant: 'paper' | 'ink';
-  bottomInset: number;
 }) {
   const isInk = variant === 'ink';
   const iconColor = isMismatch ? COLORS.red : isInk ? COLORS.onDarkMute : COLORS.inkFaint;
@@ -563,7 +602,6 @@ function BrowseSearchBar({
       style={[
         styles.searchRow,
         isInk ? styles.searchRowInk : styles.searchRowPaper,
-        { paddingBottom: bottomInset + 10 },
       ]}
     >
       <Svg width={15} height={15} viewBox="0 0 15 15">
@@ -583,6 +621,8 @@ function BrowseSearchBar({
         returnKeyType="search"
         autoCapitalize="none"
         autoCorrect={false}
+        multiline={false}
+        numberOfLines={1}
       />
       {query.length > 0 && (
         <Pressable onPress={() => onChangeQuery('')} hitSlop={10}>
@@ -596,6 +636,19 @@ function BrowseSearchBar({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: COLORS.ink,
+  },
+  keyboardBackdrop: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '55%',
+  },
+  keyboardBackdropPaper: {
+    backgroundColor: COLORS.paper,
+  },
+  keyboardBackdropInk: {
     backgroundColor: COLORS.ink,
   },
   centerContainer: {
@@ -725,23 +778,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingHorizontal: 22,
-    paddingTop: 10,
-    borderTopWidth: 1,
+    paddingHorizontal: 26,
+    paddingTop: 14,
+    paddingBottom: 14,
   },
   searchRowPaper: {
     backgroundColor: COLORS.paper,
-    borderTopColor: COLORS.paperHair,
   },
   searchRowInk: {
     backgroundColor: COLORS.ink,
-    borderTopColor: COLORS.bgHair,
   },
   searchInput: {
     flex: 1,
     fontFamily: 'Inter_500Medium',
     fontSize: 15,
-    paddingVertical: 4,
+    padding: 0,
+    lineHeight: 20,
   },
   searchInputPaper: {
     color: COLORS.ink,
@@ -757,6 +809,15 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_700Bold',
     fontSize: 10,
     letterSpacing: 1.6,
+  },
+  searchSafeArea: {
+    borderTopWidth: 0,
+  },
+  searchSafeAreaPaper: {
+    backgroundColor: COLORS.paper,
+  },
+  searchSafeAreaInk: {
+    backgroundColor: COLORS.ink,
   },
 
   // ── Card detail view — study session layout ──────────────────
@@ -776,6 +837,10 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 20,
     overflow: 'hidden',
+  },
+  backFaceSearchAttached: {
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
   },
   cardArea: {
     flex: 1,
