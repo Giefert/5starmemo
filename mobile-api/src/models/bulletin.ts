@@ -10,10 +10,16 @@ import {
   FSRSCard,
 } from '../../../shared/types';
 
-const KINDS: CurationKind[] = ['specials', 'new_item', 'featured', 'in_season'];
+const KINDS: CurationKind[] = [
+  'specials',
+  'new_item',
+  'featured',
+  'in_season',
+  'recently_modified',
+];
 
 export class BulletinModel {
-  // Returns the restaurant header + all four curated lists for the student
+  // Returns the restaurant header + all curated lists for the student
   // bulletin in a single round trip. Read-only; no auth side effects.
   static async getForRestaurant(
     restaurantId: string,
@@ -69,6 +75,7 @@ export class BulletinModel {
       new_item: [],
       featured: [],
       in_season: [],
+      recently_modified: [],
     };
 
     for (const row of curationsResult.rows) {

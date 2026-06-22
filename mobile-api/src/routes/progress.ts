@@ -5,7 +5,13 @@ import { DeckModel } from '../models/deck';
 import { authenticateToken, requireStudent, AuthenticatedRequest } from '../middleware/auth';
 import { ApiResponse, CurationKind, ReviewInput } from '../../../shared/types';
 
-const CURATION_KINDS: CurationKind[] = ['specials', 'new_item', 'featured', 'in_season'];
+const CURATION_KINDS: CurationKind[] = [
+  'specials',
+  'new_item',
+  'featured',
+  'in_season',
+  'recently_modified',
+];
 
 const router = Router();
 

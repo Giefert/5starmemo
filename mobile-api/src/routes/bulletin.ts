@@ -9,7 +9,13 @@ const router = Router();
 router.use(authenticateToken);
 router.use(requireStudent);
 
-const CURATION_KINDS: CurationKind[] = ['specials', 'new_item', 'featured', 'in_season'];
+const CURATION_KINDS: CurationKind[] = [
+  'specials',
+  'new_item',
+  'featured',
+  'in_season',
+  'recently_modified',
+];
 
 router.get('/', async (req: AuthenticatedRequest, res: Response) => {
   try {

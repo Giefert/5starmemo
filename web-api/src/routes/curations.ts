@@ -8,7 +8,13 @@ const router = Router();
 router.use(authenticateToken);
 router.use(requireManagement);
 
-const KINDS: CurationKind[] = ['specials', 'new_item', 'featured', 'in_season'];
+const KINDS: CurationKind[] = [
+  'specials',
+  'new_item',
+  'featured',
+  'in_season',
+  'recently_modified',
+];
 const TARGET_TYPES: CurationTargetType[] = ['card', 'deck'];
 
 router.get('/:kind',

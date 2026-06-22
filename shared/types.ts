@@ -9,10 +9,15 @@ export interface Restaurant {
   updatedAt: Date;
 }
 
-// Bulletin board curation: each restaurant maintains four curated lists
-// (Specials, New items, Featured, In season) shown on the dashboard and
-// consumed by the mobile app. Each list holds cards or decks.
-export type CurationKind = 'specials' | 'new_item' | 'featured' | 'in_season';
+// Bulletin board curation: each restaurant maintains five curated lists
+// (Specials, New items, Featured, In season, Recently modified) shown on the
+// dashboard and consumed by the mobile app. Each list holds cards or decks.
+export type CurationKind =
+  | 'specials'
+  | 'new_item'
+  | 'featured'
+  | 'in_season'
+  | 'recently_modified';
 export type CurationTargetType = 'card' | 'deck';
 
 // Per-card mastery bucket derived from the student's FSRS state, matching the

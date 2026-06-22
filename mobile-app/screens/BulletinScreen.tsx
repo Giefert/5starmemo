@@ -44,13 +44,14 @@ const COLORS = {
   red: '#D94B36',
 };
 
-// The four curation sections, in fixed reading order. Each renders as a
+// The curation sections, in fixed reading order. Each renders as a
 // heading with its items listed directly underneath on the main page.
 const SECTIONS: { kind: CurationKind; label: string }[] = [
   { kind: 'new_item', label: 'New items' },
   { kind: 'featured', label: 'Featured' },
   { kind: 'specials', label: 'Specials' },
   { kind: 'in_season', label: 'In season' },
+  { kind: 'recently_modified', label: 'Recently modified' },
 ];
 
 // The announcement zone caps here; longer notices scroll internally behind
@@ -168,7 +169,6 @@ export default function BulletinScreen() {
   const sectionsWithItems = SECTIONS.filter(
     (s) => (data?.curations[s.kind] ?? []).length > 0,
   );
-
   return (
     <View style={styles.container}>
       {/* Dark masthead — the announcement zone and nothing else. */}
@@ -575,7 +575,6 @@ const styles = StyleSheet.create({
   categoryItems: {
     paddingBottom: 8,
   },
-
   // ── Item rows ──────────────────────────────────────────────
   itemRow: {
     flexDirection: 'row',

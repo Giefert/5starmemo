@@ -176,6 +176,22 @@ export function Masthead({
             onReorder={(items) => onReorderCuration('in_season', items)}
           />
         </StatPanel>
+
+        <StatPanel
+          label="Recently modified"
+          count={curations.recently_modified.length}
+          expanded={expanded === 'recently_modified'}
+          onToggle={() => togglePanel('recently_modified')}
+        >
+          <CurationPanel
+            items={curations.recently_modified}
+            editing={editing}
+            decks={decks}
+            onAdd={(t, id) => onAddCuration('recently_modified', t, id)}
+            onRemove={(t, id) => onRemoveCuration('recently_modified', t, id)}
+            onReorder={(items) => onReorderCuration('recently_modified', items)}
+          />
+        </StatPanel>
       </div>
     </section>
   );

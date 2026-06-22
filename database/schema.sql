@@ -215,7 +215,7 @@ CREATE TABLE public.restaurant_curations (
     target_id uuid NOT NULL,
     "position" integer DEFAULT 0 NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT restaurant_curations_kind_check CHECK ((kind = ANY (ARRAY['specials'::text, 'new_item'::text, 'featured'::text, 'in_season'::text]))),
+    CONSTRAINT restaurant_curations_kind_check CHECK ((kind = ANY (ARRAY['specials'::text, 'new_item'::text, 'featured'::text, 'in_season'::text, 'recently_modified'::text]))),
     CONSTRAINT restaurant_curations_target_type_check CHECK ((target_type = ANY (ARRAY['card'::text, 'deck'::text])))
 );
 
@@ -293,7 +293,7 @@ CREATE TABLE public.study_sessions (
     average_rating numeric(3,2),
     created_at timestamp without time zone DEFAULT now() NOT NULL,
     curation_kind text,
-    CONSTRAINT study_sessions_curation_kind_check CHECK ((curation_kind = ANY (ARRAY['specials'::text, 'new_item'::text, 'featured'::text, 'in_season'::text]))),
+    CONSTRAINT study_sessions_curation_kind_check CHECK ((curation_kind = ANY (ARRAY['specials'::text, 'new_item'::text, 'featured'::text, 'in_season'::text, 'recently_modified'::text]))),
     CONSTRAINT study_sessions_deck_or_curation CHECK (((deck_id IS NOT NULL) OR (curation_kind IS NOT NULL)))
 );
 
@@ -1084,4 +1084,5 @@ INSERT INTO public.schema_migrations (name) VALUES
     ('013_add_deck_featured_order.sql'),
     ('014_drop_deck_featured.sql'),
     ('015_add_deck_type.sql'),
-    ('016_widen_fsrs_stability.sql');
+    ('016_widen_fsrs_stability.sql'),
+    ('017_add_recently_modified_bulletin.sql');

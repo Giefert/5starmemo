@@ -18,7 +18,21 @@ const EMPTY_CURATIONS: Record<CurationKind, RestaurantCurationItem[]> = {
   new_item: [],
   featured: [],
   in_season: [],
+  recently_modified: [],
 };
+
+type ApiError = {
+  response?: {
+    data?: {
+      error?: string;
+    };
+  };
+};
+
+function errorMessage(error: unknown, fallback: string) {
+  const maybeApiError = error as ApiError;
+  return maybeApiError.response?.data?.error || fallback;
+}
 
 export default function DashboardPage() {
   const [decks, setDecks] = useState<Deck[]>([]);
@@ -38,8 +52,9 @@ export default function DashboardPage() {
       curationApi.list('new_item'),
       curationApi.list('featured'),
       curationApi.list('in_season'),
+      curationApi.list('recently_modified'),
     ])
-      .then(([d, r, specials, newItems, featured, inSeason]) => {
+      .then(([d, r, specials, newItems, featured, inSeason, recentlyModified]) => {
         if (cancelled) return;
         setDecks(d);
         setRestaurant(r);
@@ -48,10 +63,11 @@ export default function DashboardPage() {
           new_item: newItems,
           featured,
           in_season: inSeason,
+          recently_modified: recentlyModified,
         });
       })
-      .catch((err: any) => {
-        if (!cancelled) setError(err.response?.data?.error || 'Failed to load dashboard');
+      .catch((err: unknown) => {
+        if (!cancelled) setError(errorMessage(err, 'Failed to load dashboard'));
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);
@@ -66,8 +82,8 @@ export default function DashboardPage() {
     try {
       await deckApi.delete(deckId);
       setDecks((prev) => prev.filter((d) => d.id !== deckId));
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to delete deck');
+    } catch (err: unknown) {
+      alert(errorMessage(err, 'Failed to delete deck'));
     }
   };
 
