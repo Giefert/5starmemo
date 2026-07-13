@@ -204,6 +204,18 @@ CREATE TABLE public.glossary_terms (
 
 
 --
+-- Name: in_season_bulletin_suppressions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.in_season_bulletin_suppressions (
+    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    restaurant_id uuid NOT NULL,
+    card_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+
+--
 -- Name: restaurant_curations; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -415,6 +427,22 @@ ALTER TABLE ONLY public.glossary_terms
 
 
 --
+-- Name: in_season_bulletin_suppressions in_season_bulletin_suppressions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.in_season_bulletin_suppressions
+    ADD CONSTRAINT in_season_bulletin_suppressions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: in_season_bulletin_suppressions in_season_bulletin_suppressions_restaurant_id_card_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.in_season_bulletin_suppressions
+    ADD CONSTRAINT in_season_bulletin_suppressions_restaurant_id_card_id_key UNIQUE (restaurant_id, card_id);
+
+
+--
 -- Name: restaurant_curations restaurant_curations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -573,6 +601,13 @@ CREATE INDEX idx_categories_restaurant_id ON public.categories USING btree (rest
 --
 
 CREATE INDEX idx_curations_lookup ON public.restaurant_curations USING btree (restaurant_id, kind, "position");
+
+
+--
+-- Name: idx_in_season_suppressions_restaurant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_in_season_suppressions_restaurant ON public.in_season_bulletin_suppressions USING btree (restaurant_id, created_at);
 
 
 --
@@ -972,6 +1007,22 @@ ALTER TABLE ONLY public.glossary_terms
 
 
 --
+-- Name: in_season_bulletin_suppressions in_season_bulletin_suppressions_card_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.in_season_bulletin_suppressions
+    ADD CONSTRAINT in_season_bulletin_suppressions_card_id_fkey FOREIGN KEY (card_id) REFERENCES public.cards(id) ON DELETE CASCADE;
+
+
+--
+-- Name: in_season_bulletin_suppressions in_season_bulletin_suppressions_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.in_season_bulletin_suppressions
+    ADD CONSTRAINT in_season_bulletin_suppressions_restaurant_id_fkey FOREIGN KEY (restaurant_id) REFERENCES public.restaurants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: restaurant_curations restaurant_curations_restaurant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1085,4 +1136,5 @@ INSERT INTO public.schema_migrations (name) VALUES
     ('014_drop_deck_featured.sql'),
     ('015_add_deck_type.sql'),
     ('016_widen_fsrs_stability.sql'),
-    ('017_add_recently_modified_bulletin.sql');
+    ('017_add_recently_modified_bulletin.sql'),
+    ('018_add_in_season_suppressions.sql');

@@ -12,6 +12,8 @@ import {
   isSpiritCard,
   isSauceCard,
   isFishCard,
+  formatSeasonality,
+  isMonthInSeason,
   isDietaryCard,
   isStartersCard,
   isSashimiCard
@@ -497,6 +499,21 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
                     )}
                     {card.restaurantData.country && (
                       <DetailField label="COUNTRY" text={card.restaurantData.country} linkedTerms={linkedTerms} onTermPress={onTermPress} />
+                    )}
+                    {formatSeasonality(
+                      card.restaurantData.seasonStartMonth,
+                      card.restaurantData.seasonEndMonth
+                    ) && (
+                      <DetailField
+                        label="SEASONALITY"
+                        text={`${formatSeasonality(
+                          card.restaurantData.seasonStartMonth,
+                          card.restaurantData.seasonEndMonth
+                        )}${isMonthInSeason(
+                          card.restaurantData.seasonStartMonth,
+                          card.restaurantData.seasonEndMonth
+                        ) ? ' · In season now' : ''}`}
+                      />
                     )}
                   </>
                 )}

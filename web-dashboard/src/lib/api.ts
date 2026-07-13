@@ -234,6 +234,13 @@ export const curationApi = {
     return response.data.data!;
   },
 
+  listHiddenInSeason: async (): Promise<RestaurantCurationItem[]> => {
+    const response = await api.get<ApiResponse<RestaurantCurationItem[]>>(
+      '/curations/in_season/hidden'
+    );
+    return response.data.data!;
+  },
+
   add: async (
     kind: CurationKind,
     targetType: CurationTargetType,
@@ -252,6 +259,10 @@ export const curationApi = {
     targetId: string
   ): Promise<void> => {
     await api.delete(`/curations/${kind}/${targetType}/${targetId}`);
+  },
+
+  restoreInSeason: async (targetId: string): Promise<void> => {
+    await api.delete(`/curations/in_season/hidden/card/${targetId}`);
   },
 
   reorder: async (

@@ -18,13 +18,16 @@ interface SearchResult {
 
 export function CurationPanel({
   items,
+  hiddenItems = [],
   editing,
   decks,
   onAdd,
   onRemove,
   onReorder,
+  onRestore,
 }: {
   items: RestaurantCurationItem[];
+  hiddenItems?: RestaurantCurationItem[];
   editing: boolean;
   decks: Deck[];
   onAdd: (targetType: CurationTargetType, targetId: string) => Promise<void>;
@@ -32,6 +35,7 @@ export function CurationPanel({
   onReorder: (
     items: { targetType: CurationTargetType; targetId: string }[]
   ) => Promise<void>;
+  onRestore?: (targetId: string) => Promise<void>;
 }) {
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
@@ -101,8 +105,10 @@ export function CurationPanel({
           key={`${item.targetType}:${item.targetId}`}
           item={item}
           editing={editing}
-          canMoveUp={idx > 0}
-          canMoveDown={idx < items.length - 1}
+          canMoveUp={!item.automatic && idx > 0 && !items[idx - 1].automatic}
+          canMoveDown={
+            !item.automatic && idx < items.length - 1 && !items[idx + 1].automatic
+          }
           onRemove={() => onRemove(item.targetType, item.targetId)}
           onMove={(dir) => {
             const swap = dir === 'up' ? idx - 1 : idx + 1;
@@ -114,6 +120,34 @@ export function CurationPanel({
           }}
         />
       ))}
+
+      {(hiddenItems.length > 0 || editing) && onRestore && (
+        <div
+          className="border-t border-bg-hair"
+          style={{ marginTop: 12, paddingTop: 12 }}
+        >
+          <div
+            className="uppercase text-on-dark-mute"
+            style={{ fontSize: 9, letterSpacing: '0.14em', marginBottom: 6 }}
+          >
+            In-season but not shown · {hiddenItems.length}
+          </div>
+          {hiddenItems.length === 0 ? (
+            <div className="text-on-dark-mute italic" style={{ fontSize: 12 }}>
+              Nothing hidden.
+            </div>
+          ) : (
+            hiddenItems.map((item) => (
+              <HiddenCurationRow
+                key={`${item.targetType}:${item.targetId}`}
+                item={item}
+                editing={editing}
+                onRestore={() => onRestore(item.targetId)}
+              />
+            ))
+          )}
+        </div>
+      )}
 
       {editing && (
         <div style={{ marginTop: items.length > 0 ? 10 : 0 }}>
@@ -212,7 +246,7 @@ function CurationRow({
           </span>
         )}
       </span>
-      <TypeBadge type={item.targetType} />
+      <TypeBadge type={item.targetType} automatic={item.automatic} />
     </span>
   );
 
@@ -271,8 +305,57 @@ function CurationRow({
   );
 }
 
-function TypeBadge({ type }: { type: CurationTargetType }) {
-  const label = type === 'card' ? 'card' : 'deck';
+function HiddenCurationRow({
+  item,
+  editing,
+  onRestore,
+}: {
+  item: RestaurantCurationItem;
+  editing: boolean;
+  onRestore: () => Promise<void>;
+}) {
+  const href = `/dashboard/decks/${item.deckId}#card-${item.targetId}`;
+
+  return (
+    <div className="flex items-center justify-between" style={{ gap: 8, padding: '4px 0' }}>
+      <Link
+        href={href}
+        className="flex-1 text-on-dark transition-colors hover:text-amber truncate"
+        style={{ fontSize: 13, textDecoration: 'none' }}
+      >
+        {item.name}
+        {item.deckTitle && (
+          <span className="text-on-dark-mute" style={{ marginLeft: 6 }}>
+            · {item.deckTitle}
+          </span>
+        )}
+      </Link>
+      {editing ? (
+        <button
+          type="button"
+          onClick={() => void onRestore()}
+          className="text-amber transition-colors hover:text-paper"
+          style={{ fontSize: 11, padding: '2px 4px' }}
+        >
+          Show
+        </button>
+      ) : (
+        <span className="uppercase text-on-dark-mute" style={{ fontSize: 9 }}>
+          Hidden
+        </span>
+      )}
+    </div>
+  );
+}
+
+function TypeBadge({
+  type,
+  automatic = false,
+}: {
+  type: CurationTargetType;
+  automatic?: boolean;
+}) {
+  const label = automatic ? 'auto' : type === 'card' ? 'card' : 'deck';
   return (
     <span
       className="uppercase text-on-dark-mute border border-bg-hair"

@@ -35,7 +35,73 @@ export class BulletinModel {
     const r = restaurantResult.rows[0];
 
     const curationsResult = await pool.query(
-      `SELECT
+      `WITH bulletin_targets AS (
+         SELECT rc.kind, rc.target_type, rc.target_id, rc.position, rc.created_at
+           FROM restaurant_curations rc
+          WHERE rc.restaurant_id = $1
+            AND NOT (
+              rc.kind = 'in_season'
+              AND rc.target_type = 'card'
+              AND EXISTS (
+                SELECT 1
+                  FROM in_season_bulletin_suppressions s
+                 WHERE s.restaurant_id = $1 AND s.card_id = rc.target_id
+              )
+            )
+         UNION ALL
+         SELECT 'in_season'::text,
+                'card'::text,
+                ac.id,
+                100000 + ROW_NUMBER() OVER (
+                  ORDER BY ac.restaurant_data->>'itemName', ac.created_at
+                ),
+                ac.created_at
+           FROM cards ac
+           JOIN decks ad ON ad.id = ac.deck_id
+           CROSS JOIN LATERAL (
+             SELECT
+               CASE
+                 WHEN jsonb_typeof(ac.restaurant_data->'seasonStartMonth') = 'number'
+                 THEN (ac.restaurant_data->>'seasonStartMonth')::int
+               END AS start_month,
+               CASE
+                 WHEN jsonb_typeof(ac.restaurant_data->'seasonEndMonth') = 'number'
+                 THEN (ac.restaurant_data->>'seasonEndMonth')::int
+               END AS end_month
+           ) season
+          WHERE ad.restaurant_id = $1
+            AND ac.restaurant_data->>'category' = 'fish'
+            AND season.start_month BETWEEN 1 AND 12
+            AND season.end_month BETWEEN 1 AND 12
+            AND (
+              (
+                season.start_month <= season.end_month
+                AND EXTRACT(MONTH FROM CURRENT_DATE)::int
+                    BETWEEN season.start_month AND season.end_month
+              )
+              OR (
+                season.start_month > season.end_month
+                AND (
+                  EXTRACT(MONTH FROM CURRENT_DATE)::int >= season.start_month
+                  OR EXTRACT(MONTH FROM CURRENT_DATE)::int <= season.end_month
+                )
+              )
+            )
+            AND NOT EXISTS (
+              SELECT 1
+                FROM in_season_bulletin_suppressions s
+               WHERE s.restaurant_id = $1 AND s.card_id = ac.id
+            )
+            AND NOT EXISTS (
+              SELECT 1
+                FROM restaurant_curations existing
+               WHERE existing.restaurant_id = $1
+                 AND existing.kind = 'in_season'
+                 AND existing.target_type = 'card'
+                 AND existing.target_id = ac.id
+            )
+       )
+       SELECT
          rc.kind,
          rc.target_type,
          rc.target_id,
@@ -56,7 +122,7 @@ export class BulletinModel {
             ORDER BY card_order ASC
             LIMIT 1
          ) AS deck_cover_url
-       FROM restaurant_curations rc
+       FROM bulletin_targets rc
        LEFT JOIN cards c
          ON rc.target_type = 'card' AND c.id = rc.target_id
        LEFT JOIN fsrs_cards fc
@@ -65,7 +131,6 @@ export class BulletinModel {
          ON rc.target_type = 'card' AND dc.id = c.deck_id
        LEFT JOIN decks d
          ON rc.target_type = 'deck' AND d.id = rc.target_id
-       WHERE rc.restaurant_id = $1
        ORDER BY rc.kind ASC, rc.position ASC, rc.created_at ASC`,
       [restaurantId, userId]
     );
@@ -126,15 +191,80 @@ export class BulletinModel {
     kind: CurationKind,
   ): Promise<CurationStudyUnit[]> {
     const curationsResult = await pool.query(
-      `SELECT rc.target_type, rc.target_id, rc.position, rc.created_at,
+      `WITH curation_targets AS (
+         SELECT rc.target_type, rc.target_id, rc.position, rc.created_at
+           FROM restaurant_curations rc
+          WHERE rc.restaurant_id = $1 AND rc.kind = $2
+            AND NOT (
+              rc.kind = 'in_season'
+              AND rc.target_type = 'card'
+              AND EXISTS (
+                SELECT 1
+                  FROM in_season_bulletin_suppressions s
+                 WHERE s.restaurant_id = $1 AND s.card_id = rc.target_id
+              )
+            )
+         UNION ALL
+         SELECT 'card'::text,
+                ac.id,
+                100000 + ROW_NUMBER() OVER (
+                  ORDER BY ac.restaurant_data->>'itemName', ac.created_at
+                ),
+                ac.created_at
+           FROM cards ac
+           JOIN decks ad ON ad.id = ac.deck_id
+           CROSS JOIN LATERAL (
+             SELECT
+               CASE
+                 WHEN jsonb_typeof(ac.restaurant_data->'seasonStartMonth') = 'number'
+                 THEN (ac.restaurant_data->>'seasonStartMonth')::int
+               END AS start_month,
+               CASE
+                 WHEN jsonb_typeof(ac.restaurant_data->'seasonEndMonth') = 'number'
+                 THEN (ac.restaurant_data->>'seasonEndMonth')::int
+               END AS end_month
+           ) season
+          WHERE $2 = 'in_season'
+            AND ad.restaurant_id = $1
+            AND ac.restaurant_data->>'category' = 'fish'
+            AND season.start_month BETWEEN 1 AND 12
+            AND season.end_month BETWEEN 1 AND 12
+            AND (
+              (
+                season.start_month <= season.end_month
+                AND EXTRACT(MONTH FROM CURRENT_DATE)::int
+                    BETWEEN season.start_month AND season.end_month
+              )
+              OR (
+                season.start_month > season.end_month
+                AND (
+                  EXTRACT(MONTH FROM CURRENT_DATE)::int >= season.start_month
+                  OR EXTRACT(MONTH FROM CURRENT_DATE)::int <= season.end_month
+                )
+              )
+            )
+            AND NOT EXISTS (
+              SELECT 1
+                FROM in_season_bulletin_suppressions s
+               WHERE s.restaurant_id = $1 AND s.card_id = ac.id
+            )
+            AND NOT EXISTS (
+              SELECT 1
+                FROM restaurant_curations existing
+               WHERE existing.restaurant_id = $1
+                 AND existing.kind = 'in_season'
+                 AND existing.target_type = 'card'
+                 AND existing.target_id = ac.id
+            )
+       )
+       SELECT rc.target_type, rc.target_id, rc.position, rc.created_at,
               c.restaurant_data->>'itemName' AS card_name,
               d.title AS deck_title
-         FROM restaurant_curations rc
+         FROM curation_targets rc
          LEFT JOIN cards c
            ON rc.target_type = 'card' AND c.id = rc.target_id
          LEFT JOIN decks d
            ON rc.target_type = 'deck' AND d.id = rc.target_id
-        WHERE rc.restaurant_id = $1 AND rc.kind = $2
         ORDER BY rc.position ASC, rc.created_at ASC`,
       [restaurantId, kind],
     );

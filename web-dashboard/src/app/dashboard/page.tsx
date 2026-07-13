@@ -39,6 +39,7 @@ export default function DashboardPage() {
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [curations, setCurations] =
     useState<Record<CurationKind, RestaurantCurationItem[]>>(EMPTY_CURATIONS);
+  const [hiddenInSeason, setHiddenInSeason] = useState<RestaurantCurationItem[]>([]);
   const [filter, setFilter] = useState<CarteFilter>('All');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -53,8 +54,9 @@ export default function DashboardPage() {
       curationApi.list('featured'),
       curationApi.list('in_season'),
       curationApi.list('recently_modified'),
+      curationApi.listHiddenInSeason(),
     ])
-      .then(([d, r, specials, newItems, featured, inSeason, recentlyModified]) => {
+      .then(([d, r, specials, newItems, featured, inSeason, recentlyModified, hidden]) => {
         if (cancelled) return;
         setDecks(d);
         setRestaurant(r);
@@ -65,6 +67,7 @@ export default function DashboardPage() {
           in_season: inSeason,
           recently_modified: recentlyModified,
         });
+        setHiddenInSeason(hidden);
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(errorMessage(err, 'Failed to load dashboard'));
@@ -96,6 +99,9 @@ export default function DashboardPage() {
     async (kind: CurationKind, targetType: CurationTargetType, targetId: string) => {
       const items = await curationApi.add(kind, targetType, targetId);
       setCurations((cur) => ({ ...cur, [kind]: items }));
+      if (kind === 'in_season' && targetType === 'card') {
+        setHiddenInSeason((cur) => cur.filter((item) => item.targetId !== targetId));
+      }
     },
     []
   );
@@ -103,11 +109,30 @@ export default function DashboardPage() {
   const handleRemoveCuration = useCallback(
     async (kind: CurationKind, targetType: CurationTargetType, targetId: string) => {
       await curationApi.remove(kind, targetType, targetId);
-      const items = await curationApi.list(kind);
-      setCurations((cur) => ({ ...cur, [kind]: items }));
+      if (kind === 'in_season') {
+        const [items, hidden] = await Promise.all([
+          curationApi.list(kind),
+          curationApi.listHiddenInSeason(),
+        ]);
+        setCurations((cur) => ({ ...cur, [kind]: items }));
+        setHiddenInSeason(hidden);
+      } else {
+        const items = await curationApi.list(kind);
+        setCurations((cur) => ({ ...cur, [kind]: items }));
+      }
     },
     []
   );
+
+  const handleRestoreInSeason = useCallback(async (targetId: string) => {
+    await curationApi.restoreInSeason(targetId);
+    const [items, hidden] = await Promise.all([
+      curationApi.list('in_season'),
+      curationApi.listHiddenInSeason(),
+    ]);
+    setCurations((cur) => ({ ...cur, in_season: items }));
+    setHiddenInSeason(hidden);
+  }, []);
 
   const handleReorderCuration = useCallback(
     async (
@@ -148,10 +173,12 @@ export default function DashboardPage() {
         restaurant={restaurant}
         decks={decks}
         curations={curations}
+        hiddenInSeason={hiddenInSeason}
         onSaveAnnouncements={handleSaveAnnouncements}
         onAddCuration={handleAddCuration}
         onRemoveCuration={handleRemoveCuration}
         onReorderCuration={handleReorderCuration}
+        onRestoreInSeason={handleRestoreInSeason}
       />
 
       {error && (

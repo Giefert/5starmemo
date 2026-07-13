@@ -61,7 +61,7 @@ export class CurationModel {
     // Drop rows whose target was deleted (the LEFT JOIN returns NULLs for the
     // target columns). Curations table doesn't FK the polymorphic target_id,
     // so we filter dangling entries here rather than maintaining triggers.
-    return result.rows
+    const manualItems = result.rows
       .map((row): RestaurantCurationItem | null => {
         if (row.target_type === 'card') {
           if (!row.card_id) return null;
@@ -81,6 +81,164 @@ export class CurationModel {
         };
       })
       .filter((x): x is RestaurantCurationItem => x !== null);
+
+    if (kind !== 'in_season') return manualItems;
+
+    const [automaticItems, hiddenItems] = await Promise.all([
+      this.listAutomaticInSeason(restaurantId, false),
+      this.listAutomaticInSeason(restaurantId, true),
+    ]);
+    const hiddenCardIds = new Set(hiddenItems.map((item) => item.targetId));
+
+    return [
+      ...manualItems.filter(
+        (item) => item.targetType !== 'card' || !hiddenCardIds.has(item.targetId)
+      ),
+      ...automaticItems,
+    ];
+  }
+
+  static async listHiddenInSeason(
+    restaurantId: string
+  ): Promise<RestaurantCurationItem[]> {
+    return this.listAutomaticInSeason(restaurantId, true);
+  }
+
+  private static async listAutomaticInSeason(
+    restaurantId: string,
+    hidden: boolean
+  ): Promise<RestaurantCurationItem[]> {
+    const result = await pool.query(
+      `SELECT c.id,
+              c.deck_id,
+              c.restaurant_data->>'itemName' AS name,
+              d.title AS deck_title
+         FROM cards c
+         JOIN decks d ON d.id = c.deck_id
+         CROSS JOIN LATERAL (
+           SELECT
+             CASE
+               WHEN jsonb_typeof(c.restaurant_data->'seasonStartMonth') = 'number'
+               THEN (c.restaurant_data->>'seasonStartMonth')::int
+             END AS start_month,
+             CASE
+               WHEN jsonb_typeof(c.restaurant_data->'seasonEndMonth') = 'number'
+               THEN (c.restaurant_data->>'seasonEndMonth')::int
+             END AS end_month
+         ) season
+        WHERE d.restaurant_id = $1
+          AND c.restaurant_data->>'category' = 'fish'
+          AND season.start_month BETWEEN 1 AND 12
+          AND season.end_month BETWEEN 1 AND 12
+          AND (
+                (
+                  season.start_month <= season.end_month
+                  AND EXTRACT(MONTH FROM CURRENT_DATE)::int
+                      BETWEEN season.start_month AND season.end_month
+                )
+                OR (
+                  season.start_month > season.end_month
+                  AND (
+                    EXTRACT(MONTH FROM CURRENT_DATE)::int >= season.start_month
+                    OR EXTRACT(MONTH FROM CURRENT_DATE)::int <= season.end_month
+                  )
+                )
+              )
+          AND EXISTS (
+                SELECT 1
+                  FROM in_season_bulletin_suppressions s
+                 WHERE s.restaurant_id = $1 AND s.card_id = c.id
+              ) = $2
+          AND (
+                $2
+                OR NOT EXISTS (
+                    SELECT 1
+                      FROM restaurant_curations rc
+                     WHERE rc.restaurant_id = $1
+                       AND rc.kind = 'in_season'
+                       AND rc.target_type = 'card'
+                       AND rc.target_id = c.id
+                )
+              )
+        ORDER BY c.restaurant_data->>'itemName' ASC, c.created_at ASC`,
+      [restaurantId, hidden]
+    );
+
+    return result.rows.map((row): RestaurantCurationItem => ({
+      targetType: 'card',
+      targetId: row.id,
+      name: row.name || '(untitled card)',
+      deckId: row.deck_id,
+      deckTitle: row.deck_title || '',
+      automatic: true,
+    }));
+  }
+
+  static async isAutomaticInSeasonCard(
+    targetId: string,
+    restaurantId: string
+  ): Promise<boolean> {
+    const result = await pool.query(
+      `SELECT 1
+         FROM cards c
+         JOIN decks d ON d.id = c.deck_id
+         CROSS JOIN LATERAL (
+           SELECT
+             CASE
+               WHEN jsonb_typeof(c.restaurant_data->'seasonStartMonth') = 'number'
+               THEN (c.restaurant_data->>'seasonStartMonth')::int
+             END AS start_month,
+             CASE
+               WHEN jsonb_typeof(c.restaurant_data->'seasonEndMonth') = 'number'
+               THEN (c.restaurant_data->>'seasonEndMonth')::int
+             END AS end_month
+         ) season
+        WHERE c.id = $1
+          AND d.restaurant_id = $2
+          AND c.restaurant_data->>'category' = 'fish'
+          AND season.start_month BETWEEN 1 AND 12
+          AND season.end_month BETWEEN 1 AND 12
+          AND (
+                (
+                  season.start_month <= season.end_month
+                  AND EXTRACT(MONTH FROM CURRENT_DATE)::int
+                      BETWEEN season.start_month AND season.end_month
+                )
+                OR (
+                  season.start_month > season.end_month
+                  AND (
+                    EXTRACT(MONTH FROM CURRENT_DATE)::int >= season.start_month
+                    OR EXTRACT(MONTH FROM CURRENT_DATE)::int <= season.end_month
+                  )
+                )
+              )`,
+      [targetId, restaurantId]
+    );
+    return result.rows.length > 0;
+  }
+
+  static async suppressInSeasonCard(
+    targetId: string,
+    restaurantId: string
+  ): Promise<void> {
+    await pool.query(
+      `INSERT INTO in_season_bulletin_suppressions (restaurant_id, card_id)
+       VALUES ($1, $2)
+       ON CONFLICT (restaurant_id, card_id) DO NOTHING`,
+      [restaurantId, targetId]
+    );
+  }
+
+  static async restoreInSeasonCard(
+    targetId: string,
+    restaurantId: string
+  ): Promise<boolean> {
+    const result = await pool.query(
+      `DELETE FROM in_season_bulletin_suppressions
+        WHERE restaurant_id = $1 AND card_id = $2`,
+      [restaurantId, targetId]
+    );
+    return (result.rowCount || 0) > 0;
   }
 
   static async add(

@@ -3,7 +3,7 @@
 import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { deckApi, deckAccessApi, roleApi, userApi } from '@/lib/api';
-import { Deck, DeckType, Card, RestaurantCardData, DeckAccess, StudentRoleSummary, UserListItem } from '../../../../../../shared/types';
+import { Deck, DeckType, Card, RestaurantCardData, DeckAccess, StudentRoleSummary, UserListItem, formatSeasonality, isMonthInSeason } from '../../../../../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft, Plus, Edit, Trash2 } from 'lucide-react';
@@ -614,6 +614,23 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
                                     <span className="text-gray-600 ml-1"><HighlightedText text={data.country} /></span>
                                   </div>
                                 )}
+                                <div>
+                                  <span className="font-medium text-gray-700">Seasonality:</span>
+                                  <span className="text-gray-600 ml-1">
+                                    {formatSeasonality(
+                                      data.seasonStartMonth,
+                                      data.seasonEndMonth
+                                    ) || 'Not set'}
+                                  </span>
+                                  {isMonthInSeason(
+                                    data.seasonStartMonth,
+                                    data.seasonEndMonth
+                                  ) && (
+                                    <span className="ml-2 rounded bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-700">
+                                      In season now
+                                    </span>
+                                  )}
+                                </div>
                                 {data.pricePoint && data.pricePoint !== 'not-specified' && (
                                   <div>
                                     <span className="font-medium text-gray-700">Price Point:</span>

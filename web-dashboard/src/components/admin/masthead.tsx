@@ -20,14 +20,17 @@ export function Masthead({
   restaurant,
   decks,
   curations,
+  hiddenInSeason,
   onSaveAnnouncements,
   onAddCuration,
   onRemoveCuration,
   onReorderCuration,
+  onRestoreInSeason,
 }: {
   restaurant: Restaurant | null;
   decks: Deck[];
   curations: Record<CurationKind, RestaurantCurationItem[]>;
+  hiddenInSeason: RestaurantCurationItem[];
   onSaveAnnouncements: (next: string[]) => Promise<void>;
   onAddCuration: (
     kind: CurationKind,
@@ -43,6 +46,7 @@ export function Masthead({
     kind: CurationKind,
     items: { targetType: CurationTargetType; targetId: string }[]
   ) => Promise<void>;
+  onRestoreInSeason: (targetId: string) => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
   const [expanded, setExpanded] = useState<PanelId | null>(null);
@@ -169,11 +173,13 @@ export function Masthead({
         >
           <CurationPanel
             items={curations.in_season}
+            hiddenItems={hiddenInSeason}
             editing={editing}
             decks={decks}
             onAdd={(t, id) => onAddCuration('in_season', t, id)}
             onRemove={(t, id) => onRemoveCuration('in_season', t, id)}
             onReorder={(items) => onReorderCuration('in_season', items)}
+            onRestore={(id) => onRestoreInSeason(id)}
           />
         </StatPanel>
 

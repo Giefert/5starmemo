@@ -17,6 +17,39 @@ const KINDS: CurationKind[] = [
 ];
 const TARGET_TYPES: CurationTargetType[] = ['card', 'deck'];
 
+router.get('/in_season/hidden',
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const items = await CurationModel.listHiddenInSeason(req.user!.restaurantId);
+      const response: ApiResponse = { success: true, data: items };
+      res.json(response);
+    } catch (error) {
+      console.error('Error listing hidden in-season cards:', error);
+      res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+  }
+);
+
+router.delete('/in_season/hidden/card/:targetId',
+  [param('targetId').isUUID()],
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ success: false, error: 'Invalid request' });
+      }
+      await CurationModel.restoreInSeasonCard(
+        req.params.targetId,
+        req.user!.restaurantId
+      );
+      res.status(204).end();
+    } catch (error) {
+      console.error('Error restoring in-season card:', error);
+      res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+  }
+);
+
 router.get('/:kind',
   [param('kind').isIn(KINDS)],
   async (req: AuthenticatedRequest, res: Response) => {
@@ -69,6 +102,9 @@ router.post('/:kind',
         return res.status(404).json({ success: false, error: 'Target not found' });
       }
 
+      if (kind === 'in_season' && targetType === 'card') {
+        await CurationModel.restoreInSeasonCard(targetId, req.user!.restaurantId);
+      }
       await CurationModel.add(kind, targetType, targetId, req.user!.restaurantId);
       const items = await CurationModel.list(kind, req.user!.restaurantId);
       const response: ApiResponse = { success: true, data: items };
@@ -125,12 +161,27 @@ router.delete('/:kind/:targetType/:targetId',
       if (!errors.isEmpty()) {
         return res.status(400).json({ success: false, error: 'Invalid request' });
       }
+      const kind = req.params.kind as CurationKind;
+      const targetType = req.params.targetType as CurationTargetType;
+      const isAutomatic = kind === 'in_season' && targetType === 'card'
+        ? await CurationModel.isAutomaticInSeasonCard(
+            req.params.targetId,
+            req.user!.restaurantId
+          )
+        : false;
+
       await CurationModel.remove(
-        req.params.kind as CurationKind,
-        req.params.targetType as CurationTargetType,
+        kind,
+        targetType,
         req.params.targetId,
         req.user!.restaurantId
       );
+      if (isAutomatic) {
+        await CurationModel.suppressInSeasonCard(
+          req.params.targetId,
+          req.user!.restaurantId
+        );
+      }
       res.status(204).end();
     } catch (error) {
       console.error('Error removing curation:', error);

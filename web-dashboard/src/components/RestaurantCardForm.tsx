@@ -9,6 +9,7 @@ import {
   RestaurantCardDataV1,
   RestaurantCategory,
   PricePoint,
+  MONTH_NAMES,
   migrateToV2
 } from '../../../shared/types';
 import { getImageUrl } from '@/lib/utils';
@@ -292,6 +293,12 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
 
   const [taste, setTaste] = useState(initData?.taste || '');
   const [country, setCountry] = useState(initData?.country || '');
+  const [seasonStartMonth, setSeasonStartMonth] = useState(
+    initData?.seasonStartMonth?.toString() || ''
+  );
+  const [seasonEndMonth, setSeasonEndMonth] = useState(
+    initData?.seasonEndMonth?.toString() || ''
+  );
 
   // Image fields
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -366,6 +373,13 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!itemName.trim() || !category) return;
+    if (
+      category === 'fish' &&
+      Boolean(seasonStartMonth) !== Boolean(seasonEndMonth)
+    ) {
+      alert('Choose both a starting month and an ending month for seasonality.');
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -436,6 +450,8 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
         garnish: garnish.trim() || undefined,
         taste: taste.trim() || undefined,
         country: country.trim() || undefined,
+        seasonStartMonth: seasonStartMonth ? parseInt(seasonStartMonth) : undefined,
+        seasonEndMonth: seasonEndMonth ? parseInt(seasonEndMonth) : undefined,
         // Dietary-specific fields
         starters: starters.trim() || undefined,
         sashimi: sashimi.trim() || undefined,
@@ -776,6 +792,36 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
               onChange={(e) => setCountry(e.target.value)}
               placeholder="e.g., Japan, Norway, Scotland"
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Season starts
+            </label>
+            <select
+              value={seasonStartMonth}
+              onChange={(e) => setSeasonStartMonth(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="">Not specified</option>
+              {MONTH_NAMES.map((month, index) => (
+                <option key={month} value={index + 1}>{month}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Season ends
+            </label>
+            <select
+              value={seasonEndMonth}
+              onChange={(e) => setSeasonEndMonth(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="">Not specified</option>
+              {MONTH_NAMES.map((month, index) => (
+                <option key={month} value={index + 1}>{month}</option>
+              ))}
+            </select>
           </div>
         </div>
       )}

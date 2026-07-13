@@ -35,6 +35,7 @@ export interface RestaurantCurationItem {
   category?: RestaurantCategory; // present when targetType === 'card'
   mastery?: MasteryLevel; // present when targetType === 'card' and the payload
                           // is built for a specific student (mobile bulletin)
+  automatic?: boolean; // true for Fish cards included by their seasonality range
 }
 
 // Read-only payload served to the student mobile app for the bulletin tab.
@@ -133,6 +134,51 @@ export interface Card {
 export type RestaurantCategory = 'wine' | 'beer' | 'cocktail' | 'spirit' | 'maki' | 'sake' | 'sauce' | 'fish' | 'dietary' | 'starters' | 'sashimi';
 export type PricePoint = 'not-specified' | 'budget' | 'mid-range' | 'premium' | 'luxury';
 
+export const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+] as const;
+
+export function formatSeasonality(
+  startMonth?: number,
+  endMonth?: number
+): string | undefined {
+  if (
+    !Number.isInteger(startMonth) ||
+    !Number.isInteger(endMonth) ||
+    startMonth! < 1 ||
+    startMonth! > 12 ||
+    endMonth! < 1 ||
+    endMonth! > 12
+  ) {
+    return undefined;
+  }
+  return `${MONTH_NAMES[startMonth! - 1]}–${MONTH_NAMES[endMonth! - 1]}`;
+}
+
+export function isMonthInSeason(
+  startMonth?: number,
+  endMonth?: number,
+  month = new Date().getMonth() + 1
+): boolean {
+  if (!formatSeasonality(startMonth, endMonth) || month < 1 || month > 12) {
+    return false;
+  }
+  return startMonth! <= endMonth!
+    ? month >= startMonth! && month <= endMonth!
+    : month >= startMonth! || month <= endMonth!;
+}
+
 // V2: Discriminated Union Architecture
 // Base fields that apply to ALL categories
 interface BaseRestaurantCardData {
@@ -218,6 +264,8 @@ export type FishCardData = BaseRestaurantCardData & {
   category: 'fish';
   taste?: string;
   country?: string;
+  seasonStartMonth?: number; // 1 = January, 12 = December
+  seasonEndMonth?: number;   // inclusive; may wrap across the end of the year
 };
 
 export type DietaryCardData = BaseRestaurantCardData & {
@@ -310,6 +358,8 @@ export interface RestaurantCardDataV1 {
   garnish?: string;
   taste?: string;
   country?: string;
+  seasonStartMonth?: number;
+  seasonEndMonth?: number;
   starters?: string;
   sashimi?: string;
   nigiri?: string;
@@ -760,6 +810,8 @@ export function migrateToV2(v1: RestaurantCardDataV1): RestaurantCardData {
         category: 'fish',
         taste: v1.taste,
         country: v1.country,
+        seasonStartMonth: v1.seasonStartMonth,
+        seasonEndMonth: v1.seasonEndMonth,
       };
 
     case 'dietary':
