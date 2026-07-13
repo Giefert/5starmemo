@@ -17,7 +17,8 @@ import {
   GlossaryTerm,
   BulletinPayload,
   CurationKind,
-  CurationStudyPayload
+  CurationStudyPayload,
+  isFishCard,
 } from '../types/shared';
 
 const getApiBaseUrl = () => {
@@ -113,7 +114,62 @@ class ApiService {
     );
 
     if (response.data.success && response.data.data) {
-      return response.data.data;
+      const payload = response.data.data;
+
+      // Older Bulletin responses do not include the fish season fields even
+      // though they are present on the card itself. Hydrate only those missing
+      // rows so the In season calendar can paint its ranges without waiting
+      // for the mobile API deployment to catch up. Once the endpoint includes
+      // the fields, this fallback costs no additional request.
+      const missingSeasonCardIds = payload.curations.in_season
+        .filter((item) => (
+          item.targetType === 'card'
+          && (!Number.isInteger(item.seasonStartMonth)
+            || !Number.isInteger(item.seasonEndMonth))
+        ))
+        .map((item) => item.targetId);
+
+      if (missingSeasonCardIds.length === 0) return payload;
+
+      try {
+        const cards = await this.getStudyCardsByIds(missingSeasonCardIds);
+        const seasonsByCardId = new Map(
+          cards.flatMap(({ card }) => {
+            if (!card.restaurantData || !isFishCard(card.restaurantData)) {
+              return [];
+            }
+            const startMonth = card.restaurantData.seasonStartMonth;
+            const endMonth = card.restaurantData.seasonEndMonth;
+            if (!Number.isInteger(startMonth) || !Number.isInteger(endMonth)) {
+              return [];
+            }
+            return [[card.id, { startMonth, endMonth }] as const];
+          })
+        );
+
+        if (seasonsByCardId.size === 0) return payload;
+
+        return {
+          ...payload,
+          curations: {
+            ...payload.curations,
+            in_season: payload.curations.in_season.map((item) => {
+              const season = seasonsByCardId.get(item.targetId);
+              return season ? {
+                ...item,
+                seasonStartMonth: season.startMonth,
+                seasonEndMonth: season.endMonth,
+              } : item;
+            }),
+          },
+        };
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AuthenticationError') {
+          throw error;
+        }
+        console.warn('Failed to hydrate Bulletin seasonality:', error);
+        return payload;
+      }
     }
 
     throw new Error(response.data.error || 'Failed to fetch bulletin');
