@@ -149,7 +149,7 @@ export function CurationPanel({
             className="uppercase text-on-dark-mute"
             style={{ fontSize: 9, letterSpacing: '0.14em', marginBottom: 6 }}
           >
-            In-season but not shown · {hiddenItems.length}
+            Seasonal fish not shown · {hiddenItems.length}
           </div>
           {hiddenItems.length === 0 ? (
             <div className="text-on-dark-mute italic" style={{ fontSize: 12 }}>
@@ -290,7 +290,7 @@ function SeasonTimeline({ items }: { items: RestaurantCurationItem[] }) {
                   {item.name}
                 </span>
                 <span className="text-on-dark-mute truncate font-dek italic" style={{ fontSize: 10, marginTop: 2 }}>
-                  {range ?? 'Bulletin highlight'}
+                  {range ?? 'Season not specified'}
                 </span>
               </Link>
             );

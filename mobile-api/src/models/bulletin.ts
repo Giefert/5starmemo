@@ -58,35 +58,8 @@ export class BulletinModel {
                 ac.created_at
            FROM cards ac
            JOIN decks ad ON ad.id = ac.deck_id
-           CROSS JOIN LATERAL (
-             SELECT
-               CASE
-                 WHEN jsonb_typeof(ac.restaurant_data->'seasonStartMonth') = 'number'
-                 THEN (ac.restaurant_data->>'seasonStartMonth')::int
-               END AS start_month,
-               CASE
-                 WHEN jsonb_typeof(ac.restaurant_data->'seasonEndMonth') = 'number'
-                 THEN (ac.restaurant_data->>'seasonEndMonth')::int
-               END AS end_month
-           ) season
           WHERE ad.restaurant_id = $1
             AND ac.restaurant_data->>'category' = 'fish'
-            AND season.start_month BETWEEN 1 AND 12
-            AND season.end_month BETWEEN 1 AND 12
-            AND (
-              (
-                season.start_month <= season.end_month
-                AND EXTRACT(MONTH FROM CURRENT_DATE)::int
-                    BETWEEN season.start_month AND season.end_month
-              )
-              OR (
-                season.start_month > season.end_month
-                AND (
-                  EXTRACT(MONTH FROM CURRENT_DATE)::int >= season.start_month
-                  OR EXTRACT(MONTH FROM CURRENT_DATE)::int <= season.end_month
-                )
-              )
-            )
             AND NOT EXISTS (
               SELECT 1
                 FROM in_season_bulletin_suppressions s
@@ -223,36 +196,9 @@ export class BulletinModel {
                 ac.created_at
            FROM cards ac
            JOIN decks ad ON ad.id = ac.deck_id
-           CROSS JOIN LATERAL (
-             SELECT
-               CASE
-                 WHEN jsonb_typeof(ac.restaurant_data->'seasonStartMonth') = 'number'
-                 THEN (ac.restaurant_data->>'seasonStartMonth')::int
-               END AS start_month,
-               CASE
-                 WHEN jsonb_typeof(ac.restaurant_data->'seasonEndMonth') = 'number'
-                 THEN (ac.restaurant_data->>'seasonEndMonth')::int
-               END AS end_month
-           ) season
           WHERE $2 = 'in_season'
             AND ad.restaurant_id = $1
             AND ac.restaurant_data->>'category' = 'fish'
-            AND season.start_month BETWEEN 1 AND 12
-            AND season.end_month BETWEEN 1 AND 12
-            AND (
-              (
-                season.start_month <= season.end_month
-                AND EXTRACT(MONTH FROM CURRENT_DATE)::int
-                    BETWEEN season.start_month AND season.end_month
-              )
-              OR (
-                season.start_month > season.end_month
-                AND (
-                  EXTRACT(MONTH FROM CURRENT_DATE)::int >= season.start_month
-                  OR EXTRACT(MONTH FROM CURRENT_DATE)::int <= season.end_month
-                )
-              )
-            )
             AND NOT EXISTS (
               SELECT 1
                 FROM in_season_bulletin_suppressions s

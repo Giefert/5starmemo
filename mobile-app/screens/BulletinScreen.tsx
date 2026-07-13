@@ -439,7 +439,7 @@ function SeasonTimeline({
                   {item.name}
                 </Text>
                 <Text style={styles.timelineItemRange} numberOfLines={1}>
-                  {range ?? 'Bulletin highlight'}
+                  {range ?? 'Season not specified'}
                 </Text>
               </TouchableOpacity>
             );

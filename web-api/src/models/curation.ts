@@ -140,22 +140,6 @@ export class CurationModel {
          ) season
         WHERE d.restaurant_id = $1
           AND c.restaurant_data->>'category' = 'fish'
-          AND season.start_month BETWEEN 1 AND 12
-          AND season.end_month BETWEEN 1 AND 12
-          AND (
-                (
-                  season.start_month <= season.end_month
-                  AND EXTRACT(MONTH FROM CURRENT_DATE)::int
-                      BETWEEN season.start_month AND season.end_month
-                )
-                OR (
-                  season.start_month > season.end_month
-                  AND (
-                    EXTRACT(MONTH FROM CURRENT_DATE)::int >= season.start_month
-                    OR EXTRACT(MONTH FROM CURRENT_DATE)::int <= season.end_month
-                  )
-                )
-              )
           AND EXISTS (
                 SELECT 1
                   FROM in_season_bulletin_suppressions s
@@ -196,36 +180,9 @@ export class CurationModel {
       `SELECT 1
          FROM cards c
          JOIN decks d ON d.id = c.deck_id
-         CROSS JOIN LATERAL (
-           SELECT
-             CASE
-               WHEN jsonb_typeof(c.restaurant_data->'seasonStartMonth') = 'number'
-               THEN (c.restaurant_data->>'seasonStartMonth')::int
-             END AS start_month,
-             CASE
-               WHEN jsonb_typeof(c.restaurant_data->'seasonEndMonth') = 'number'
-               THEN (c.restaurant_data->>'seasonEndMonth')::int
-             END AS end_month
-         ) season
         WHERE c.id = $1
           AND d.restaurant_id = $2
-          AND c.restaurant_data->>'category' = 'fish'
-          AND season.start_month BETWEEN 1 AND 12
-          AND season.end_month BETWEEN 1 AND 12
-          AND (
-                (
-                  season.start_month <= season.end_month
-                  AND EXTRACT(MONTH FROM CURRENT_DATE)::int
-                      BETWEEN season.start_month AND season.end_month
-                )
-                OR (
-                  season.start_month > season.end_month
-                  AND (
-                    EXTRACT(MONTH FROM CURRENT_DATE)::int >= season.start_month
-                    OR EXTRACT(MONTH FROM CURRENT_DATE)::int <= season.end_month
-                  )
-                )
-              )`,
+          AND c.restaurant_data->>'category' = 'fish'`,
       [targetId, restaurantId]
     );
     return result.rows.length > 0;
