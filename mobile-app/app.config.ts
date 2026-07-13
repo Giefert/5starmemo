@@ -9,6 +9,16 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   icon: './assets/app_icon_1024.png',
   userInterfaceStyle: 'light',
   newArchEnabled: true,
+  plugins: [
+    'expo-localization',
+    [
+      'expo-notifications',
+      {
+        color: '#E89A2B',
+        defaultChannel: 'daily-reminders',
+      },
+    ],
+  ],
   splash: {
     image: './assets/splash-tusavor.png',
     resizeMode: 'cover',

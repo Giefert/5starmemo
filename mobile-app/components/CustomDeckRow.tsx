@@ -32,11 +32,11 @@ export function CustomDeckRow({
 }) {
   const counts = getCustomDeckCounts(deck);
   const detail =
-    counts.cards > 0 && counts.reference > 0
-      ? `${counts.cards} cards / ${counts.reference} reference`
+    counts.cards > 0 && counts.library > 0
+      ? `${counts.cards} cards / ${counts.library} library terms`
       : counts.cards > 0
       ? `${counts.cards} cards`
-      : `${counts.reference} reference`;
+      : `${counts.library} library terms`;
 
   return (
     <Pressable

@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle } from 'react-native-svg';
 import BulletinScreen from '../screens/BulletinScreen';
 import { HomeScreen } from '../screens/HomeScreen';
-import GlossaryScreen from '../screens/GlossaryScreen';
+import LibraryScreen from '../screens/LibraryScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 
 const Tab = createBottomTabNavigator();
@@ -54,7 +54,7 @@ function StudyIcon({ color }: IconProps) {
   );
 }
 
-function ReferenceIcon({ color }: IconProps) {
+function LibraryIcon({ color }: IconProps) {
   return (
     <Svg width={20} height={20} viewBox="0 0 20 20" fill="none">
       <Path
@@ -87,7 +87,7 @@ function SettingsIcon({ color }: IconProps) {
 const TAB_ICONS: Record<string, (p: IconProps) => React.ReactElement> = {
   Bulletin: BulletinIcon,
   Study: StudyIcon,
-  Reference: ReferenceIcon,
+  Library: LibraryIcon,
   Settings: SettingsIcon,
 };
 
@@ -164,9 +164,9 @@ export default function TabNavigator() {
         options={{ tabBarAccessibilityLabel: 'Study' }}
       />
       <Tab.Screen
-        name="Reference"
-        component={GlossaryScreen}
-        options={{ tabBarAccessibilityLabel: 'Reference' }}
+        name="Library"
+        component={LibraryScreen}
+        options={{ tabBarAccessibilityLabel: 'Library' }}
       />
       <Tab.Screen
         name="Settings"

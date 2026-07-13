@@ -13,12 +13,12 @@ const COLORS = {
   amber: '#E89A2B',
 };
 
-interface ReferenceStudyCardProps {
+interface LibraryStudyCardProps {
   term: GlossaryTermSummary;
   isFlipped: boolean;
 }
 
-export const ReferenceStudyCard: React.FC<ReferenceStudyCardProps> = ({
+export const LibraryStudyCard: React.FC<LibraryStudyCardProps> = ({
   term,
   isFlipped,
 }) => {

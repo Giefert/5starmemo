@@ -3,7 +3,9 @@ import { Animated, Dimensions, StyleSheet } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.3;
+const SWIPE_DISTANCE_THRESHOLD = SCREEN_WIDTH * 0.3;
+const SWIPE_FLICK_MIN_DISTANCE = SCREEN_WIDTH * 0.08;
+const SWIPE_PROJECTION_SECONDS = 0.14;
 // Extra space between the front and back panels. Keeps the reverse side
 // safely off-screen even if the snap-back spring overshoots a wrong-direction
 // rubber-band drag, and shows a small visual seam during the reveal swipe.
@@ -24,8 +26,8 @@ interface SwipeableCardProps {
 }
 
 // Renders front and back panels side-by-side and translates them together so
-// the reverse side follows the user's finger during the gesture. The threshold
-// gates whether the swipe commits or springs back.
+// the reverse side follows the user's finger during the gesture. The swipe
+// commits by distance or by projected velocity so fast flicks do not bounce.
 export const SwipeableCard: React.FC<SwipeableCardProps> = ({
   isFlipped,
   onFlippedChange,
@@ -69,11 +71,18 @@ export const SwipeableCard: React.FC<SwipeableCardProps> = ({
     .onEnd((event) => {
       if (isAnimating.current) return;
 
-      const { translationX } = event;
-      const movingTowardFlip =
-        (translationX < 0 && !isFlipped) || (translationX > 0 && isFlipped);
-      const passedThreshold = Math.abs(translationX) >= SWIPE_THRESHOLD;
-      const willFlip = passedThreshold && movingTowardFlip;
+      const { translationX, velocityX } = event;
+      const direction = isFlipped ? 1 : -1;
+      const directedDistance = translationX * direction;
+      const directedVelocity = velocityX * direction;
+      const projectedDistance =
+        directedDistance + directedVelocity * SWIPE_PROJECTION_SECONDS;
+      const passedDistance = directedDistance >= SWIPE_DISTANCE_THRESHOLD;
+      const passedProjected =
+        directedDistance >= SWIPE_FLICK_MIN_DISTANCE &&
+        directedVelocity > 0 &&
+        projectedDistance >= SWIPE_DISTANCE_THRESHOLD;
+      const willFlip = passedDistance || passedProjected;
       const target = willFlip ? (isFlipped ? 0 : 1) : isFlipped ? 1 : 0;
 
       isAnimating.current = true;

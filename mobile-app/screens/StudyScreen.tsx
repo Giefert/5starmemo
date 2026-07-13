@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { studySessionManager } from '../services/StudySessionManager';
 import { StudyCard, LinkedTerm } from '../components/StudyCard';
-import { ReferenceStudyCard } from '../components/ReferenceStudyCard';
+import { LibraryStudyCard } from '../components/LibraryStudyCard';
 import { SwipeableCard } from '../components/SwipeableCard';
 import { GlossaryTermModal } from '../components/GlossaryTermModal';
 import { RatingButtons } from '../components/RatingButtons';
@@ -230,7 +230,7 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
         onTermPress={setSelectedTerm}
       />
     ) : (
-      <ReferenceStudyCard term={currentCard.term} isFlipped={flipped} />
+      <LibraryStudyCard term={currentCard.term} isFlipped={flipped} />
     );
 
   return (

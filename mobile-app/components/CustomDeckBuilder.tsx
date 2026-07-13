@@ -29,7 +29,7 @@ const COLORS = {
 
 const SOURCE_OPTIONS: Array<{ value: CustomDeckSource; label: string }> = [
   { value: 'cards', label: 'Cards' },
-  { value: 'reference', label: 'Reference' },
+  { value: 'reference', label: 'Library' },
   { value: 'both', label: 'Both' },
 ];
 
@@ -226,9 +226,9 @@ export const CustomDeckBuilder: React.FC<CustomDeckBuilderProps> = ({
 
     return (
       <View style={styles.resultSection}>
-        <Text style={styles.resultHeader}>Reference</Text>
+        <Text style={styles.resultHeader}>Library</Text>
         {termResults.length === 0 && !isSearching ? (
-          <Text style={styles.emptyLine}>No reference terms found.</Text>
+          <Text style={styles.emptyLine}>No library terms found.</Text>
         ) : (
           termResults.map(term => {
             const item = termToItem(term);
@@ -307,7 +307,7 @@ export const CustomDeckBuilder: React.FC<CustomDeckBuilderProps> = ({
               ? 'Search cards...'
               : source === 'reference'
               ? 'Search glossary and encyclopedia...'
-              : 'Search cards and reference...'
+              : 'Search cards and library...'
           }
           placeholderTextColor={COLORS.inkFaint}
           value={query}

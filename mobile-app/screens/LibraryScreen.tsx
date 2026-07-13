@@ -25,18 +25,33 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 import RenderHtml from 'react-native-render-html';
+import * as Haptics from 'expo-haptics';
 import apiService from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
-import { GlossaryCategory, GlossaryTermSummary, GlossaryTerm, GlossarySection } from '../types/shared';
+import {
+  DeckType,
+  GlossaryCategory,
+  GlossaryTermSummary,
+  GlossaryTerm,
+  GlossarySection,
+  StudentDeck,
+  StudyDeckSearchMatch,
+} from '../types/shared';
 import { stripHtml, cleanHtml, customHTMLElementModels } from '../utils/html';
+import { loadFavorites, saveFavorites } from '../utils/favorites';
+import { useDeckSearch } from '../hooks/useDeckSearch';
+import { DeckRow } from '../components/DeckRow';
+import { BrowseScreen } from './BrowseScreen';
+import { describeLoadError } from '../utils/loadErrorMessages';
 
 type ViewState = 'list' | 'detail';
+type LibraryTab = 'browse' | GlossarySection;
 
 // Carte tokens — shared verbatim with BulletinScreen / HomeScreen so the
-// Reference tab reads as a sibling of Study and Bulletin.
+// Library tab reads as a sibling of Study and Bulletin.
 const COLORS = {
   ink: '#14120F',
   bgHair: '#28251F',
@@ -53,6 +68,16 @@ const COLORS = {
 };
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+const LIBRARY_TABS: Array<{ key: LibraryTab; label: string }> = [
+  { key: 'browse', label: 'Browse' },
+  { key: 'glossary', label: 'Glossary' },
+  { key: 'encyclopedia', label: 'Encyclopedia' },
+];
+const CATEGORY_ORDER: { type: DeckType; label: string }[] = [
+  { type: 'food', label: 'Food' },
+  { type: 'bar', label: 'Bar' },
+  { type: 'other', label: 'Other' },
+];
 
 interface TermSection {
   key: string;
@@ -75,10 +100,11 @@ function firstLetter(term: string): string {
   return /[A-Z]/.test(c) ? c : '#';
 }
 
-export default function GlossaryScreen() {
+export default function LibraryScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { restaurant } = useAuth();
+  const navigation = useNavigation();
+  const { restaurant, logout } = useAuth();
 
   // Data state — both sections are preloaded once and cached, so switching
   // sub-tabs or typing a search never triggers a refetch that would briefly
@@ -87,9 +113,12 @@ export default function GlossaryScreen() {
     glossary: null,
     encyclopedia: null,
   });
+  const [browseDecks, setBrowseDecks] = useState<StudentDeck[]>([]);
   const [selectedTerm, setSelectedTerm] = useState<GlossaryTerm | null>(null);
+  const [selectedBrowseDeck, setSelectedBrowseDeck] = useState<StudentDeck | null>(null);
 
   // Section state
+  const [activeTab, setActiveTab] = useState<LibraryTab>('browse');
   const [activeSection, setActiveSection] = useState<GlossarySection>('glossary');
 
   // Filter state
@@ -102,8 +131,11 @@ export default function GlossaryScreen() {
   const [viewState, setViewState] = useState<ViewState>('list');
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isBrowseLoading, setIsBrowseLoading] = useState(true);
+  const [isBrowseRefreshing, setIsBrowseRefreshing] = useState(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [error, setError] = useState('');
+  const [browseError, setBrowseError] = useState('');
   // Encyclopedia category swipe — `dragX` tracks the in-progress horizontal
   // drag; `isSwiping` mounts the neighbouring category pages so they slide
   // in alongside the gesture instead of popping into place on release.
@@ -125,10 +157,20 @@ export default function GlossaryScreen() {
   const tabLayouts = useRef<Record<string, { x: number; width: number }>>({});
 
   // Sub-tab underline — the same amber bar treatment as the Index strip,
-  // sliding beneath the active section tab and resizing to its label.
+  // sliding beneath the active Library tab and resizing to its label.
   const subBarX = useRef(new Animated.Value(0)).current;
   const subBarW = useRef(new Animated.Value(0)).current;
   const subtabLayouts = useRef<Record<string, { x: number; width: number }>>({});
+
+  const {
+    searchQuery: browseSearchQuery,
+    setSearchQuery: setBrowseSearchQuery,
+    isSearchLoading: isBrowseSearchLoading,
+    isSearchingDecks: isSearchingBrowseDecks,
+    visibleSearchResult: browseVisibleSearchResult,
+    filteredDecks: filteredBrowseDecks,
+    invalidateCardSearchCache: invalidateBrowseCardSearchCache,
+  } = useDeckSearch(browseDecks);
 
   // Preload both sections once when the screen mounts.
   useEffect(() => {
@@ -142,6 +184,12 @@ export default function GlossaryScreen() {
       StatusBar.setBarStyle('light-content');
     }, []),
   );
+
+  useEffect(() => {
+    navigation.setOptions({
+      tabBarStyle: selectedBrowseDeck ? { display: 'none' } : undefined,
+    });
+  }, [navigation, selectedBrowseDeck]);
 
   const loadData = useCallback(async () => {
     try {
@@ -168,6 +216,31 @@ export default function GlossaryScreen() {
     }
   }, [isRefreshing]);
 
+  const loadBrowseDecks = useCallback(async (refreshing = false) => {
+    try {
+      if (!refreshing) setIsBrowseLoading(true);
+      const decksData = await apiService.getAvailableDecks();
+      setBrowseDecks(decksData);
+      invalidateBrowseCardSearchCache();
+      setBrowseError('');
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AuthenticationError') {
+        logout();
+        return;
+      }
+
+      const { message } = describeLoadError(err);
+      setBrowseError(message);
+    } finally {
+      setIsBrowseLoading(false);
+      setIsBrowseRefreshing(false);
+    }
+  }, [invalidateBrowseCardSearchCache, logout]);
+
+  useEffect(() => {
+    loadBrowseDecks();
+  }, [loadBrowseDecks]);
+
   const handleSectionChange = (newSection: GlossarySection) => {
     if (newSection === activeSection) return;
     setActiveSection(newSection);
@@ -175,10 +248,23 @@ export default function GlossaryScreen() {
     setSelectedCategory(undefined);
   };
 
+  const handleLibraryTabChange = (newTab: LibraryTab) => {
+    if (newTab === activeTab) return;
+    setActiveTab(newTab);
+    if (newTab !== 'browse') {
+      handleSectionChange(newTab);
+    }
+  };
+
   const handleRefresh = () => {
     setIsRefreshing(true);
     loadData();
   };
+
+  const handleBrowseRefresh = useCallback(() => {
+    setIsBrowseRefreshing(true);
+    loadBrowseDecks(true);
+  }, [loadBrowseDecks]);
 
   const handleTermPress = async (termId: string) => {
     setIsLoadingDetail(true);
@@ -336,11 +422,11 @@ export default function GlossaryScreen() {
     return i < 0 ? 0 : i;
   }, [cycle, selectedCategory]);
 
-  // Slide the sub-tab underline to the active section. Placed without
+  // Slide the sub-tab underline to the active Library tab. Placed without
   // animation on first layout, animated thereafter — mirrors moveBar below.
   const moveSubBar = useCallback(
-    (section: GlossarySection, animate: boolean) => {
-      const l = subtabLayouts.current[section];
+    (tab: LibraryTab, animate: boolean) => {
+      const l = subtabLayouts.current[tab];
       if (!l) return;
       if (animate) {
         Animated.parallel([
@@ -366,8 +452,8 @@ export default function GlossaryScreen() {
   );
 
   useEffect(() => {
-    moveSubBar(activeSection, true);
-  }, [activeSection, moveSubBar]);
+    moveSubBar(activeTab, true);
+  }, [activeTab, moveSubBar]);
 
   // Drive the amber underline to a tab. Called without animation the first
   // time a tab reports its layout (so the bar lands in place), and animated
@@ -550,6 +636,20 @@ export default function GlossaryScreen() {
       </Pressable>
     );
   };
+
+  if (selectedBrowseDeck) {
+    return (
+      <BrowseScreen
+        deckId={selectedBrowseDeck.id}
+        deckTitle={selectedBrowseDeck.title}
+        onExit={() => setSelectedBrowseDeck(null)}
+        backLabel="Library"
+        searchQuery={browseSearchQuery}
+        searchMatches={browseVisibleSearchResult?.matchesByDeckId[selectedBrowseDeck.id] ?? []}
+        onSearchQueryChange={setBrowseSearchQuery}
+      />
+    );
+  }
 
   // ── Detail view ─────────────────────────────────────────────
   if (viewState === 'detail') {
@@ -752,28 +852,28 @@ export default function GlossaryScreen() {
       {/* Dark masthead — sibling of the Bulletin masthead. */}
       <View style={[styles.titleBlock, { paddingTop: insets.top + 14 }]}>
         <Text style={styles.titleEyebrow}>{restaurant?.name ?? ''}</Text>
-        <Text style={styles.titleHeadline}>Reference.</Text>
+        <Text style={styles.titleHeadline}>Library.</Text>
       </View>
 
-      {/* Sub-tab strip — amber underline slides between the two sections. */}
+      {/* Sub-tab strip — amber underline slides between Library modes. */}
       <View style={styles.subtabStrip}>
         <View style={styles.subtabRow}>
-          {(['glossary', 'encyclopedia'] as GlossarySection[]).map(section => {
-            const active = activeSection === section;
+          {LIBRARY_TABS.map(tab => {
+            const active = activeTab === tab.key;
             return (
               <Pressable
-                key={section}
-                onPress={() => handleSectionChange(section)}
+                key={tab.key}
+                onPress={() => handleLibraryTabChange(tab.key)}
                 onLayout={e => {
                   const { x, width: w } = e.nativeEvent.layout;
-                  subtabLayouts.current[section] = { x, width: w };
-                  if (section === activeSection) moveSubBar(section, false);
+                  subtabLayouts.current[tab.key] = { x, width: w };
+                  if (tab.key === activeTab) moveSubBar(tab.key, false);
                 }}
                 hitSlop={8}
                 style={styles.subtab}
               >
                 <Text style={[styles.subtabLabel, active && styles.subtabLabelActive]}>
-                  {section === 'glossary' ? 'Glossary' : 'Encyclopedia'}
+                  {tab.label}
                 </Text>
               </Pressable>
             );
@@ -785,13 +885,533 @@ export default function GlossaryScreen() {
         </View>
       </View>
 
-      {/* Index filter strip — both sections. Tapping a category narrows the
-          list; the amber underline slides beneath the active tab and resizes
-          to its label. The full-width ink rule is the divider's old look,
-          now anchored here instead of repeated down the list. */}
-      {categoryNames.length > 0 && (
+      {activeTab === 'browse' ? (
+        <LibraryBrowsePane
+          decks={browseDecks}
+          filteredDecks={filteredBrowseDecks}
+          isLoading={isBrowseLoading}
+          isRefreshing={isBrowseRefreshing}
+          error={browseError}
+          searchQuery={browseSearchQuery}
+          isSearchLoading={isBrowseSearchLoading}
+          isSearchingDecks={isSearchingBrowseDecks}
+          visibleSearchResult={browseVisibleSearchResult}
+          onSearchQueryChange={setBrowseSearchQuery}
+          onRefresh={handleBrowseRefresh}
+          onRetry={() => loadBrowseDecks()}
+          onDeckPress={setSelectedBrowseDeck}
+        />
+      ) : (
+        <>
+          {/* Index filter strip — both sections. Tapping a category narrows the
+              list; the amber underline slides beneath the active tab and resizes
+              to its label. The full-width ink rule is the divider's old look,
+              now anchored here instead of repeated down the list. */}
+          {categoryNames.length > 0 && (
+            <View style={styles.indexStrip}>
+              {/* Static ink rule, behind the tabs, so the amber bar draws over it. */}
+              <View style={styles.indexRule} pointerEvents="none" />
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.tabsRow}
+                keyboardShouldPersistTaps="handled"
+              >
+                {cycle.map((cat, i) => {
+                  const label = cat ?? 'Index';
+                  const active = i === cycleIndex;
+                  return (
+                    <React.Fragment key={label}>
+                      {i > 0 && <Text style={styles.tabDot}>·</Text>}
+                      <Pressable
+                        onPress={() => setSelectedCategory(cat)}
+                        onLayout={e => {
+                          const { x, width: w } = e.nativeEvent.layout;
+                          tabLayouts.current[label] = { x, width: w };
+                          if (i === cycleIndex) moveBar(i, false);
+                        }}
+                        hitSlop={8}
+                        style={styles.tab}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: active }}
+                        accessibilityLabel={`Show ${label}`}
+                      >
+                        <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>
+                          {label}
+                        </Text>
+                      </Pressable>
+                    </React.Fragment>
+                  );
+                })}
+                <Animated.View
+                  pointerEvents="none"
+                  style={[styles.tabBar, { width: barW, transform: [{ translateX: barX }] }]}
+                />
+              </ScrollView>
+            </View>
+          )}
+
+          {/* The list — swipes drag the neighbouring category in */}
+          <View style={styles.listArea} {...swipePan.panHandlers}>
+            {isSwiping && (
+              <Animated.View
+                key="swipe-prev"
+                pointerEvents="none"
+                style={[styles.swipePage, { left: -width, transform: [{ translateX: dragX }] }]}
+              >
+                {renderPage(prevSections, false, cycle[(cycleIndex - 1 + cycle.length) % cycle.length])}
+              </Animated.View>
+            )}
+
+            <Animated.View
+              key="swipe-cur"
+              style={[styles.swipePage, { transform: [{ translateX: dragX }] }]}
+            >
+              {renderPage(sections, true, selectedCategory)}
+            </Animated.View>
+
+            {isSwiping && (
+              <Animated.View
+                key="swipe-next"
+                pointerEvents="none"
+                style={[styles.swipePage, { left: width, transform: [{ translateX: dragX }] }]}
+              >
+                {renderPage(nextSections, false, cycle[(cycleIndex + 1) % cycle.length])}
+              </Animated.View>
+            )}
+
+            {/* A–Z rail — Glossary only */}
+            {activeSection === 'glossary' && sections.length > 0 && (
+              <View
+                style={styles.rail}
+                onLayout={e => {
+                  railHeight.current = e.nativeEvent.layout.height;
+                }}
+                {...railPan.panHandlers}
+              >
+                {ALPHABET.map(letter => {
+                  const present = presentLetters.has(letter);
+                  return (
+                    <Text
+                      key={letter}
+                      accessibilityLabel={`Jump to letter ${letter}`}
+                      style={[styles.railLetter, !present && styles.railLetterDim]}
+                    >
+                      {letter}
+                    </Text>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+
+          {/* Search row — pinned to the bottom of the page */}
+          <View style={styles.searchRow}>
+            <Svg width={15} height={15} viewBox="0 0 15 15">
+              <Circle cx={6.3} cy={6.3} r={4.6} stroke={COLORS.inkFaint} strokeWidth={1.4} fill="none" />
+              <Line x1={9.7} y1={9.7} x2={13.6} y2={13.6} stroke={COLORS.inkFaint} strokeWidth={1.4} strokeLinecap="round" />
+            </Svg>
+            <TextInput
+              style={styles.searchInput}
+              placeholder={placeholder}
+              placeholderTextColor={COLORS.inkFaint}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              returnKeyType="search"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {searchQuery.length > 0 && (
+              <Pressable onPress={() => setSearchQuery('')} hitSlop={10}>
+                <Text style={styles.searchClear}>CLEAR</Text>
+              </Pressable>
+            )}
+          </View>
+        </>
+      )}
+    </KeyboardAvoidingView>
+  );
+}
+
+interface LibraryBrowsePaneProps {
+  decks: StudentDeck[];
+  filteredDecks: StudentDeck[];
+  isLoading: boolean;
+  isRefreshing: boolean;
+  error: string;
+  searchQuery: string;
+  isSearchLoading: boolean;
+  isSearchingDecks: boolean;
+  visibleSearchResult: { matchesByDeckId: Record<string, StudyDeckSearchMatch[]> } | null;
+  onSearchQueryChange: (query: string) => void;
+  onRefresh: () => void;
+  onRetry: () => void;
+  onDeckPress: (deck: StudentDeck) => void;
+}
+
+function LibraryBrowsePane({
+  decks,
+  filteredDecks,
+  isLoading,
+  isRefreshing,
+  error,
+  searchQuery,
+  isSearchLoading,
+  isSearchingDecks,
+  visibleSearchResult,
+  onSearchQueryChange,
+  onRefresh,
+  onRetry,
+  onDeckPress,
+}: LibraryBrowsePaneProps) {
+  const { width } = useWindowDimensions();
+  const { restaurant } = useAuth();
+  const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
+  const [isSwiping, setIsSwiping] = useState(false);
+  const dragX = useRef(new Animated.Value(0)).current;
+  const barX = useRef(new Animated.Value(0)).current;
+  const barW = useRef(new Animated.Value(0)).current;
+  const tabLayouts = useRef<Record<string, { x: number; width: number }>>({});
+
+  useEffect(() => {
+    if (!restaurant?.id) {
+      setFavoriteIds([]);
+      return;
+    }
+    loadFavorites(restaurant.id).then(setFavoriteIds);
+  }, [restaurant?.id]);
+
+  const presentCategories = useMemo(
+    () => CATEGORY_ORDER.filter(c => decks.some(d => d.deckType === c.type)),
+    [decks],
+  );
+  const cycle = useMemo<(string | undefined)[]>(
+    () => [undefined, 'Favorites', ...presentCategories.map(c => c.label)],
+    [presentCategories],
+  );
+  const cycleIndex = useMemo(() => {
+    const i = cycle.indexOf(selectedCategory);
+    return i < 0 ? 0 : i;
+  }, [cycle, selectedCategory]);
+
+  const moveBar = useCallback(
+    (index: number, animate: boolean) => {
+      const l = tabLayouts.current[cycle[index] ?? 'Decks'];
+      if (!l) return;
+      if (animate) {
+        Animated.parallel([
+          Animated.timing(barX, {
+            toValue: l.x,
+            duration: 220,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+          }),
+          Animated.timing(barW, {
+            toValue: l.width,
+            duration: 220,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+          }),
+        ]).start();
+      } else {
+        barX.setValue(l.x);
+        barW.setValue(l.width);
+      }
+    },
+    [barX, barW, cycle],
+  );
+
+  useEffect(() => {
+    moveBar(cycleIndex, true);
+  }, [cycleIndex, moveBar]);
+
+  const settleSwipe = useCallback(
+    (dir: -1 | 0 | 1) => {
+      const toValue = dir === 1 ? -width : dir === -1 ? width : 0;
+      Animated.timing(dragX, {
+        toValue,
+        duration: 210,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start(() => {
+        if (dir !== 0) {
+          setSelectedCategory(cycle[(cycleIndex + dir + cycle.length) % cycle.length]);
+        } else {
+          dragX.setValue(0);
+        }
+        setIsSwiping(false);
+      });
+    },
+    [dragX, width, cycle, cycleIndex],
+  );
+
+  const swipePan = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_e, g) =>
+          cycle.length > 1 &&
+          Math.abs(g.dx) > 14 &&
+          Math.abs(g.dx) > Math.abs(g.dy) * 1.4,
+        onPanResponderGrant: () => {
+          dragX.stopAnimation();
+          setIsSwiping(true);
+        },
+        onPanResponderMove: (_e, g) =>
+          dragX.setValue(Math.max(-width, Math.min(width, g.dx))),
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderRelease: (_e, g) => {
+          const pass = width * 0.26;
+          if (g.dx <= -pass || (g.dx < -24 && g.vx <= -0.35)) settleSwipe(1);
+          else if (g.dx >= pass || (g.dx > 24 && g.vx >= 0.35)) settleSwipe(-1);
+          else settleSwipe(0);
+        },
+        onPanResponderTerminate: () => settleSwipe(0),
+      }),
+    [cycle.length, width, dragX, settleSwipe],
+  );
+
+  useLayoutEffect(() => {
+    dragX.setValue(0);
+  }, [selectedCategory, dragX]);
+
+  const favSet = useMemo(() => new Set(favoriteIds), [favoriteIds]);
+  const favoriteDecks = useMemo(
+    () => filteredDecks.filter(d => favSet.has(d.id)),
+    [filteredDecks, favSet],
+  );
+  const restDecks = useMemo(
+    () => filteredDecks.filter(d => !favSet.has(d.id)),
+    [filteredDecks, favSet],
+  );
+  const getSearchMatches = (deck: StudentDeck) =>
+    visibleSearchResult?.matchesByDeckId[deck.id] ?? [];
+
+  const toggleFavorite = useCallback((deck: StudentDeck) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setFavoriteIds(prev => {
+      const next = prev.includes(deck.id)
+        ? prev.filter(id => id !== deck.id)
+        : [...prev, deck.id];
+      if (restaurant?.id) saveFavorites(restaurant.id, next);
+      return next;
+    });
+  }, [restaurant?.id]);
+
+  const renderSearchEmpty = () => (
+    <View style={styles.stateBlock}>
+      <Text style={styles.emptyTitle}>No deck matches.</Text>
+      <Text style={styles.emptyBody}>Try a different search.</Text>
+    </View>
+  );
+
+  const renderSearchLoading = () => (
+    <View style={styles.stateBlock}>
+      <ActivityIndicator color={COLORS.inkMute} />
+    </View>
+  );
+
+  const renderSection = (
+    title: string,
+    sectionDecks: StudentDeck[],
+    emptyText?: string,
+  ) =>
+    sectionDecks.length > 0 ? (
+      <View key={title}>
+        <View style={styles.browseSectionHeader}>
+          <Text style={styles.browseSectionTitle}>{title}</Text>
+          <Text style={styles.browseSectionCount}>{sectionDecks.length}</Text>
+        </View>
+        {sectionDecks.map((deck, i) => (
+          <DeckRow
+            key={deck.id}
+            deck={deck}
+            isFirstInGroup={i === 0}
+            isFavorite={favSet.has(deck.id)}
+            mode="browse"
+            isSearching={isSearchingDecks}
+            searchQuery={searchQuery}
+            searchMatches={getSearchMatches(deck)}
+            onTap={onDeckPress}
+            onToggleFavorite={toggleFavorite}
+          />
+        ))}
+      </View>
+    ) : emptyText ? (
+      <View key={title}>
+        <View style={styles.browseSectionHeader}>
+          <Text style={styles.browseSectionTitle}>{title}</Text>
+        </View>
+        <Text style={styles.browsePlaceholder}>{emptyText}</Text>
+      </View>
+    ) : null;
+
+  const renderPageContent = (category: string | undefined) => {
+    if (error) {
+      return (
+        <View style={styles.stateBlock}>
+          <Text style={styles.stateEyebrow}>Something went wrong</Text>
+          <Text style={styles.stateLine}>{error}</Text>
+          <Pressable onPress={onRetry} hitSlop={8}>
+            <Text style={styles.retryLink}>Tap to retry</Text>
+          </Pressable>
+        </View>
+      );
+    }
+
+    if (isSearchingDecks && filteredDecks.length === 0) {
+      return isSearchLoading ? renderSearchLoading() : renderSearchEmpty();
+    }
+
+    if (category === undefined) {
+      return (
+        <>
+          {renderSection(
+            'Favorites',
+            favoriteDecks,
+            isSearchingDecks ? undefined : 'Hold a deck to add it to favorites.',
+          )}
+          {presentCategories.map(c =>
+            renderSection(c.label, restDecks.filter(d => d.deckType === c.type)),
+          )}
+        </>
+      );
+    }
+
+    if (category === 'Favorites') {
+      if (favoriteDecks.length === 0) {
+        if (isSearchingDecks && isSearchLoading) return renderSearchLoading();
+        return (
+          <Text style={styles.browsePlaceholder}>
+            {isSearchingDecks
+              ? 'No favorite decks match that search.'
+              : 'Hold a deck to add it to favorites.'}
+          </Text>
+        );
+      }
+      return favoriteDecks.map((deck, i) => (
+        <DeckRow
+          key={deck.id}
+          deck={deck}
+          isFirstInGroup={i === 0}
+          isFavorite
+          mode="browse"
+          isSearching={isSearchingDecks}
+          searchQuery={searchQuery}
+          searchMatches={getSearchMatches(deck)}
+          onTap={onDeckPress}
+          onToggleFavorite={toggleFavorite}
+        />
+      ));
+    }
+
+    const cat = CATEGORY_ORDER.find(c => c.label === category);
+    const catDecks = cat ? filteredDecks.filter(d => d.deckType === cat.type) : [];
+    if (isSearchingDecks && catDecks.length === 0) {
+      return isSearchLoading ? renderSearchLoading() : renderSearchEmpty();
+    }
+    return catDecks.map((deck, i) => (
+      <DeckRow
+        key={deck.id}
+        deck={deck}
+        isFirstInGroup={i === 0}
+        isFavorite={favSet.has(deck.id)}
+        mode="browse"
+        isSearching={isSearchingDecks}
+        searchQuery={searchQuery}
+        searchMatches={getSearchMatches(deck)}
+        onTap={onDeckPress}
+        onToggleFavorite={toggleFavorite}
+      />
+    ));
+  };
+
+  const renderPage = (category: string | undefined, current: boolean) => (
+    <ScrollView
+      style={styles.browseBody}
+      contentContainerStyle={styles.browseBodyContent}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      refreshControl={
+        current ? (
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            tintColor={COLORS.inkMute}
+          />
+        ) : undefined
+      }
+    >
+      {renderPageContent(category)}
+    </ScrollView>
+  );
+
+  const renderSearchRow = () => (
+    <View style={styles.searchRow}>
+      <Svg width={15} height={15} viewBox="0 0 15 15">
+        <Circle cx={6.3} cy={6.3} r={4.6} stroke={COLORS.inkFaint} strokeWidth={1.4} fill="none" />
+        <Line x1={9.7} y1={9.7} x2={13.6} y2={13.6} stroke={COLORS.inkFaint} strokeWidth={1.4} strokeLinecap="round" />
+      </Svg>
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Search card decks…"
+        placeholderTextColor={COLORS.inkFaint}
+        value={searchQuery}
+        onChangeText={onSearchQueryChange}
+        returnKeyType="search"
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+      {searchQuery.length > 0 && (
+        <Pressable onPress={() => onSearchQueryChange('')} hitSlop={10}>
+          <Text style={styles.searchClear}>CLEAR</Text>
+        </Pressable>
+      )}
+    </View>
+  );
+
+  if (isLoading && decks.length === 0) {
+    return (
+      <>
+        <View style={styles.browseBody}>
+          <View style={styles.stateBlock}>
+            <ActivityIndicator color={COLORS.inkMute} />
+          </View>
+        </View>
+        {renderSearchRow()}
+      </>
+    );
+  }
+
+  if (decks.length === 0 && !error) {
+    return (
+      <>
+        <ScrollView
+          style={styles.browseBody}
+          contentContainerStyle={styles.browseBodyContent}
+          keyboardShouldPersistTaps="handled"
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={onRefresh}
+              tintColor={COLORS.inkMute}
+            />
+          }
+        >
+          <View style={styles.stateBlock}>
+            <Text style={styles.emptyTitle}>Nothing on the shelf yet.</Text>
+            <Text style={styles.emptyBody}>Decks the team publishes will show up here.</Text>
+          </View>
+        </ScrollView>
+        {renderSearchRow()}
+      </>
+    );
+  }
+
+  return (
+    <>
+      {cycle.length > 1 && (
         <View style={styles.indexStrip}>
-          {/* Static ink rule, behind the tabs, so the amber bar draws over it. */}
           <View style={styles.indexRule} pointerEvents="none" />
           <ScrollView
             horizontal
@@ -800,7 +1420,7 @@ export default function GlossaryScreen() {
             keyboardShouldPersistTaps="handled"
           >
             {cycle.map((cat, i) => {
-              const label = cat ?? 'Index';
+              const label = cat ?? 'Decks';
               const active = i === cycleIndex;
               return (
                 <React.Fragment key={label}>
@@ -833,83 +1453,37 @@ export default function GlossaryScreen() {
         </View>
       )}
 
-      {/* The list — encyclopedia swipes drag the neighbouring category in */}
       <View style={styles.listArea} {...swipePan.panHandlers}>
         {isSwiping && (
           <Animated.View
-            key="swipe-prev"
+            key="browse-swipe-prev"
             pointerEvents="none"
             style={[styles.swipePage, { left: -width, transform: [{ translateX: dragX }] }]}
           >
-            {renderPage(prevSections, false, cycle[(cycleIndex - 1 + cycle.length) % cycle.length])}
+            {renderPage(cycle[(cycleIndex - 1 + cycle.length) % cycle.length], false)}
           </Animated.View>
         )}
 
         <Animated.View
-          key="swipe-cur"
+          key="browse-swipe-cur"
           style={[styles.swipePage, { transform: [{ translateX: dragX }] }]}
         >
-          {renderPage(sections, true, selectedCategory)}
+          {renderPage(selectedCategory, true)}
         </Animated.View>
 
         {isSwiping && (
           <Animated.View
-            key="swipe-next"
+            key="browse-swipe-next"
             pointerEvents="none"
             style={[styles.swipePage, { left: width, transform: [{ translateX: dragX }] }]}
           >
-            {renderPage(nextSections, false, cycle[(cycleIndex + 1) % cycle.length])}
+            {renderPage(cycle[(cycleIndex + 1) % cycle.length], false)}
           </Animated.View>
         )}
-
-        {/* A–Z rail — Glossary only */}
-        {activeSection === 'glossary' && sections.length > 0 && (
-          <View
-            style={styles.rail}
-            onLayout={e => {
-              railHeight.current = e.nativeEvent.layout.height;
-            }}
-            {...railPan.panHandlers}
-          >
-            {ALPHABET.map(letter => {
-              const present = presentLetters.has(letter);
-              return (
-                <Text
-                  key={letter}
-                  accessibilityLabel={`Jump to letter ${letter}`}
-                  style={[styles.railLetter, !present && styles.railLetterDim]}
-                >
-                  {letter}
-                </Text>
-              );
-            })}
-          </View>
-        )}
       </View>
 
-      {/* Search row — pinned to the bottom of the page */}
-      <View style={styles.searchRow}>
-        <Svg width={15} height={15} viewBox="0 0 15 15">
-          <Circle cx={6.3} cy={6.3} r={4.6} stroke={COLORS.inkFaint} strokeWidth={1.4} fill="none" />
-          <Line x1={9.7} y1={9.7} x2={13.6} y2={13.6} stroke={COLORS.inkFaint} strokeWidth={1.4} strokeLinecap="round" />
-        </Svg>
-        <TextInput
-          style={styles.searchInput}
-          placeholder={placeholder}
-          placeholderTextColor={COLORS.inkFaint}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          returnKeyType="search"
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-        {searchQuery.length > 0 && (
-          <Pressable onPress={() => setSearchQuery('')} hitSlop={10}>
-            <Text style={styles.searchClear}>CLEAR</Text>
-          </Pressable>
-        )}
-      </View>
-    </KeyboardAvoidingView>
+      {renderSearchRow()}
+    </>
   );
 }
 
@@ -1051,6 +1625,13 @@ const styles = StyleSheet.create({
   },
 
   // ── List area ──────────────────────────────────────────────
+  browseBody: {
+    flex: 1,
+    backgroundColor: COLORS.paper,
+  },
+  browseBodyContent: {
+    paddingBottom: 32,
+  },
   listArea: {
     flex: 1,
     position: 'relative',
@@ -1064,6 +1645,40 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     width: '100%',
+  },
+
+  browseSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    paddingHorizontal: 26,
+    paddingTop: 20,
+    paddingBottom: 8,
+    backgroundColor: COLORS.paper,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.paperHairLt,
+  },
+  browseSectionTitle: {
+    fontFamily: 'Fraunces_600SemiBold',
+    fontSize: 28,
+    letterSpacing: -0.4,
+    color: COLORS.ink,
+    marginRight: 10,
+  },
+  browseSectionCount: {
+    fontFamily: 'JetBrainsMono_400Regular',
+    fontSize: 10,
+    color: COLORS.inkFaint,
+    fontVariant: ['tabular-nums'],
+  },
+  browsePlaceholder: {
+    fontFamily: 'JetBrainsMono_400Regular',
+    fontSize: 12,
+    lineHeight: 19,
+    color: COLORS.inkFaint,
+    textAlign: 'center',
+    paddingHorizontal: 32,
+    paddingTop: 16,
+    paddingBottom: 8,
   },
 
   // Glossary letter header
@@ -1178,6 +1793,19 @@ const styles = StyleSheet.create({
     fontFamily: 'Newsreader_500Medium_Italic',
     fontSize: 15,
     lineHeight: 22,
+    color: COLORS.inkMute,
+  },
+  emptyTitle: {
+    fontFamily: 'Fraunces_600SemiBold',
+    fontSize: 22,
+    color: COLORS.ink,
+    letterSpacing: -0.4,
+    marginBottom: 8,
+  },
+  emptyBody: {
+    fontFamily: 'Newsreader_500Medium_Italic',
+    fontSize: 14,
+    lineHeight: 21,
     color: COLORS.inkMute,
   },
   retryLink: {

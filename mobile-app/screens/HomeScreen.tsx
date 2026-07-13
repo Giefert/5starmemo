@@ -35,7 +35,7 @@ import { loadFavorites, saveFavorites } from '../utils/favorites';
 import {
   CustomDeckDraft,
   CustomStudyDeck,
-  customReferenceItemToTermSummary,
+  customLibraryItemToTermSummary,
   loadCustomDecks,
   makeCustomDeck,
   saveCustomDecks,
@@ -67,18 +67,17 @@ const COLORS = {
   red: '#D94B36',
 };
 
-const MODE_LABELS: Array<'Recommended' | 'Full' | 'Browse' | 'Custom'> = [
+const MODE_LABELS: Array<'Recommended' | 'Full' | 'Custom'> = [
   'Recommended',
   'Full',
-  'Browse',
   'Custom',
 ];
 
 // MODE_VALUES lines up index-for-index with MODE_LABELS so the segmented
 // toggle can be labelled without forking the existing `mode` state.
-const MODE_VALUES = ['recommended', 'full', 'browse', 'custom'] as const;
+const MODE_VALUES = ['recommended', 'full', 'custom'] as const;
 
-// The Study tab's Index strip mirrors the Reference tab's: a "Decks" default
+// The Study tab's Index strip mirrors the Library tab's: a "Decks" default
 // (every category) followed by the deck categories the team sets in the
 // dashboard. A deck's category is its deckType; labels and order match the
 // dashboard's Pass. Empty categories are dropped so the strip never shows a
@@ -119,7 +118,6 @@ export const HomeScreen: React.FC = () => {
     setSearchQuery,
     isSearchLoading,
     isSearchingDecks,
-    normalizedSearch,
     visibleSearchResult,
     filteredDecks,
     invalidateCardSearchCache,
@@ -131,7 +129,7 @@ export const HomeScreen: React.FC = () => {
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
 
   // Mode toggle underline — the amber bar slides beneath the active mode and
-  // resizes to its label, matching the Reference tab's Index strip. `barX`/
+  // resizes to its label, matching the Library tab's Index strip. `barX`/
   // `barW` drive the slide; `toggleLayouts` caches each label's measured x/
   // width, keyed by mode value, so the bar can be placed without a re-measure.
   const barX = useRef(new Animated.Value(0)).current;
@@ -172,7 +170,7 @@ export const HomeScreen: React.FC = () => {
   // ── Index strip ─────────────────────────────────────────────
   // The category the deck list is narrowed to; `undefined` is the "Decks"
   // default that shows every category. Set by tapping the strip or swiping
-  // the paper — twin of the Reference tab.
+  // the paper — twin of the Library tab.
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
 
   // Category swipe — `dragX` tracks the in-progress horizontal drag and
@@ -302,12 +300,6 @@ export const HomeScreen: React.FC = () => {
     loadData();
   }, []);
 
-  useEffect(() => {
-    if (normalizedSearch && visibleSearchResult && mode !== 'browse' && mode !== 'custom') {
-      setMode('browse');
-    }
-  }, [mode, normalizedSearch, visibleSearchResult]);
-
   // Hydrate favorites for the active restaurant.
   useEffect(() => {
     if (!restaurant?.id) return;
@@ -377,7 +369,7 @@ export const HomeScreen: React.FC = () => {
   };
 
   const handleDeckTap = (deck: StudentDeck) => {
-    if (isSearchingDecks || mode === 'browse') {
+    if (isSearchingDecks) {
       handleBrowseDeck(deck);
     } else {
       handleStartStudy(deck);
@@ -435,11 +427,11 @@ export const HomeScreen: React.FC = () => {
     try {
       setIsStartingCustomDeck(true);
       const cardIds = deck.items.flatMap(item => item.kind === 'card' ? [item.cardId] : []);
-      const referenceItems = deck.items.flatMap(item => item.kind === 'reference' ? [item] : []);
+      const libraryItems = deck.items.flatMap(item => item.kind === 'reference' ? [item] : []);
       const hydratedCards = await apiService.getStudyCardsByIds(cardIds);
       const cardsById = new Map(hydratedCards.map(cardData => [cardData.card.id, cardData]));
       const hydratedTerms = await Promise.all(
-        referenceItems.map(async item => {
+        libraryItems.map(async item => {
           try {
             const term = await apiService.getGlossaryTerm(item.termId);
             const summary: GlossaryTermSummary = {
@@ -455,7 +447,7 @@ export const HomeScreen: React.FC = () => {
             return [item.termId, summary] as const;
           } catch {
             if (!item.definition) return null;
-            return [item.termId, customReferenceItemToTermSummary(item)] as const;
+            return [item.termId, customLibraryItemToTermSummary(item)] as const;
           }
         }),
       );
@@ -679,7 +671,7 @@ export const HomeScreen: React.FC = () => {
           <View style={styles.stateBlock}>
             <Text style={styles.emptyTitle}>No custom decks yet.</Text>
             <Text style={styles.emptyBody}>
-              Build one from cards, reference terms, or both.
+              Build one from cards, library terms, or both.
             </Text>
           </View>
         ) : (
@@ -1003,7 +995,7 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.bgHair,
   },
   // Inner row with no padding so the bar's translateX shares the labels'
-  // coordinate origin — mirrors the Reference tab's Index strip.
+  // coordinate origin — mirrors the Library tab's Index strip.
   toggleRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -1083,7 +1075,7 @@ const styles = StyleSheet.create({
   },
 
   // ── Index strip ────────────────────────────────────────────
-  // Twin of the Reference tab's Index strip — category tabs on paper with an
+  // Twin of the Library tab's Index strip — category tabs on paper with an
   // amber underline sliding beneath the active one, over a full-width ink rule.
   indexStrip: {
     paddingTop: 16,
@@ -1144,7 +1136,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
 
-  // Section header — mirrors the Reference tab's Glossary letter headers
+  // Section header — mirrors the Library tab's Glossary letter headers
   // (large serif word + monospace count badge on the baseline).
   sectionHeader: {
     flexDirection: 'row',

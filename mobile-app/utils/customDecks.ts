@@ -77,7 +77,7 @@ export function makeCustomDeck(draft: CustomDeckDraft): CustomStudyDeck {
   };
 }
 
-export function customReferenceItemToTermSummary(
+export function customLibraryItemToTermSummary(
   item: Extract<CustomDeckItem, { kind: 'reference' }>,
 ): GlossaryTermSummary {
   return {
@@ -94,10 +94,10 @@ export function customReferenceItemToTermSummary(
 
 export function getCustomDeckCounts(deck: CustomStudyDeck): {
   cards: number;
-  reference: number;
+  library: number;
   total: number;
 } {
   const cards = deck.items.filter(item => item.kind === 'card').length;
-  const reference = deck.items.length - cards;
-  return { cards, reference, total: deck.items.length };
+  const library = deck.items.length - cards;
+  return { cards, library, total: deck.items.length };
 }
