@@ -43,6 +43,14 @@ export class CurationModel {
          c.id AS card_id,
          c.deck_id AS card_deck_id,
          c.restaurant_data->>'itemName' AS card_name,
+         CASE
+           WHEN jsonb_typeof(c.restaurant_data->'seasonStartMonth') = 'number'
+           THEN (c.restaurant_data->>'seasonStartMonth')::int
+         END AS card_season_start_month,
+         CASE
+           WHEN jsonb_typeof(c.restaurant_data->'seasonEndMonth') = 'number'
+           THEN (c.restaurant_data->>'seasonEndMonth')::int
+         END AS card_season_end_month,
          dc.title AS card_deck_title,
          d.id AS deck_id,
          d.title AS deck_title
@@ -70,7 +78,9 @@ export class CurationModel {
             targetId: row.card_id,
             name: row.card_name || '(untitled card)',
             deckId: row.card_deck_id,
-            deckTitle: row.card_deck_title || ''
+            deckTitle: row.card_deck_title || '',
+            seasonStartMonth: row.card_season_start_month ?? undefined,
+            seasonEndMonth: row.card_season_end_month ?? undefined,
           };
         }
         if (!row.deck_id) return null;
@@ -112,7 +122,9 @@ export class CurationModel {
       `SELECT c.id,
               c.deck_id,
               c.restaurant_data->>'itemName' AS name,
-              d.title AS deck_title
+              d.title AS deck_title,
+              season.start_month,
+              season.end_month
          FROM cards c
          JOIN decks d ON d.id = c.deck_id
          CROSS JOIN LATERAL (
@@ -170,6 +182,8 @@ export class CurationModel {
       name: row.name || '(untitled card)',
       deckId: row.deck_id,
       deckTitle: row.deck_title || '',
+      seasonStartMonth: row.start_month,
+      seasonEndMonth: row.end_month,
       automatic: true,
     }));
   }

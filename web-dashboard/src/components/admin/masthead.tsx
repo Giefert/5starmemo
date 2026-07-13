@@ -180,6 +180,7 @@ export function Masthead({
             onRemove={(t, id) => onRemoveCuration('in_season', t, id)}
             onReorder={(items) => onReorderCuration('in_season', items)}
             onRestore={(id) => onRestoreInSeason(id)}
+            showSeasonTimeline
           />
         </StatPanel>
 
