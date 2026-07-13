@@ -33,6 +33,8 @@ export interface RestaurantCurationItem {
   deckTitle?: string; // present when targetType === 'card'
   imageUrl?: string;  // card image | deck cover (first card with an image)
   category?: RestaurantCategory; // present when targetType === 'card'
+  seasonStartMonth?: number; // present for Fish cards with seasonality
+  seasonEndMonth?: number;
   mastery?: MasteryLevel; // present when targetType === 'card' and the payload
                           // is built for a specific student (mobile bulletin)
   automatic?: boolean; // true for Fish cards included by their seasonality range

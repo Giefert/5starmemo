@@ -111,6 +111,14 @@ export class BulletinModel {
          c.image_url AS card_image_url,
          c.restaurant_data->>'itemName' AS card_name,
          c.restaurant_data->>'category' AS card_category,
+         CASE
+           WHEN jsonb_typeof(c.restaurant_data->'seasonStartMonth') = 'number'
+           THEN (c.restaurant_data->>'seasonStartMonth')::int
+         END AS card_season_start_month,
+         CASE
+           WHEN jsonb_typeof(c.restaurant_data->'seasonEndMonth') = 'number'
+           THEN (c.restaurant_data->>'seasonEndMonth')::int
+         END AS card_season_end_month,
          fc.state AS card_fsrs_state,
          fc.stability AS card_fsrs_stability,
          dc.title AS card_deck_title,
@@ -157,6 +165,8 @@ export class BulletinModel {
           deckTitle: row.card_deck_title || '',
           imageUrl: row.card_image_url || undefined,
           category: row.card_category || undefined,
+          seasonStartMonth: row.card_season_start_month ?? undefined,
+          seasonEndMonth: row.card_season_end_month ?? undefined,
           mastery: masteryFromFsrs(row.card_fsrs_state, row.card_fsrs_stability),
         });
       } else {

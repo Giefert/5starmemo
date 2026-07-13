@@ -12,6 +12,7 @@ import {
   LayoutAnimation,
   Platform,
   UIManager,
+  useWindowDimensions,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,6 +23,9 @@ import apiService from '../services/api';
 import {
   BulletinPayload,
   CurationKind,
+  formatSeasonality,
+  isMonthInSeason,
+  MONTH_NAMES,
   RestaurantCurationItem,
 } from '../types/shared';
 import { BrowseScreen } from './BrowseScreen';
@@ -222,14 +226,18 @@ export default function BulletinScreen() {
                 </TouchableOpacity>
                 {isOpen && (
                   <View style={styles.categoryItems}>
-                    {items.map((item, i) => (
-                      <ItemRow
-                        key={`${item.targetType}:${item.targetId}`}
-                        item={item}
-                        isLast={i === items.length - 1}
-                        onPress={() => handleOpenItem(item)}
-                      />
-                    ))}
+                    {section.kind === 'in_season' ? (
+                      <SeasonTimeline items={items} onPress={handleOpenItem} />
+                    ) : (
+                      items.map((item, i) => (
+                        <ItemRow
+                          key={`${item.targetType}:${item.targetId}`}
+                          item={item}
+                          isLast={i === items.length - 1}
+                          onPress={() => handleOpenItem(item)}
+                        />
+                      ))
+                    )}
                   </View>
                 )}
               </View>
@@ -372,6 +380,155 @@ function StripePlaceholder({ size }: { size: number }) {
       </Defs>
       <Rect width={size} height={size} fill="url(#carteStripe)" />
     </Svg>
+  );
+}
+
+const TIMELINE_LABEL_WIDTH = 118;
+const TIMELINE_HEADER_HEIGHT = 48;
+const TIMELINE_ROW_HEIGHT = 66;
+
+function SeasonTimeline({
+  items,
+  onPress,
+}: {
+  items: RestaurantCurationItem[];
+  onPress: (item: RestaurantCurationItem) => void;
+}) {
+  const { width: screenWidth } = useWindowDimensions();
+  const monthViewportWidth = Math.max(screenWidth - 52 - TIMELINE_LABEL_WIDTH, 1);
+  const monthWidth = monthViewportWidth / 3;
+  const now = new Date();
+  const months = Array.from({ length: 12 }, (_, offset) => {
+    const date = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+    return {
+      month: date.getMonth() + 1,
+      year: date.getFullYear(),
+      label: MONTH_NAMES[date.getMonth()].slice(0, 3).toUpperCase(),
+      isCurrent: offset === 0,
+    };
+  });
+
+  return (
+    <View style={styles.timelineShell}>
+      <View style={styles.timelineLegend}>
+        <View style={styles.timelineLegendKey}>
+          <View style={styles.timelineLegendSwatch} />
+          <Text style={styles.timelineLegendText}>Seasonal window</Text>
+        </View>
+        <Text style={styles.timelineSwipeHint}>Swipe months →</Text>
+      </View>
+
+      <View style={styles.timelineTable}>
+        <View style={{ width: TIMELINE_LABEL_WIDTH }}>
+          <View style={[styles.timelineCorner, { height: TIMELINE_HEADER_HEIGHT }]}>
+            <Text style={styles.timelineCornerText}>Item</Text>
+          </View>
+          {items.map((item) => {
+            const range = formatSeasonality(
+              item.seasonStartMonth,
+              item.seasonEndMonth,
+            );
+            return (
+              <TouchableOpacity
+                key={`${item.targetType}:${item.targetId}`}
+                style={[styles.timelineLabelRow, { height: TIMELINE_ROW_HEIGHT }]}
+                onPress={() => onPress(item)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.timelineItemName} numberOfLines={2}>
+                  {item.name}
+                </Text>
+                <Text style={styles.timelineItemRange} numberOfLines={1}>
+                  {range ?? 'Bulletin highlight'}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <ScrollView
+          horizontal
+          nestedScrollEnabled
+          style={{ width: monthViewportWidth }}
+          contentContainerStyle={styles.timelineMonthsContent}
+          showsHorizontalScrollIndicator
+          snapToInterval={monthWidth}
+          decelerationRate="fast"
+        >
+          <View>
+            <View style={[styles.timelineMonthHeaderRow, { height: TIMELINE_HEADER_HEIGHT }]}>
+              {months.map((month) => (
+                <View
+                  key={`${month.year}-${month.month}`}
+                  style={[
+                    styles.timelineMonthHeader,
+                    month.isCurrent && styles.timelineCurrentHeader,
+                    { width: monthWidth },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.timelineMonthName,
+                      month.isCurrent && styles.timelineCurrentMonthName,
+                    ]}
+                  >
+                    {month.label}
+                  </Text>
+                  <Text style={styles.timelineMonthYear}>
+                    {month.isCurrent ? 'NOW' : month.year}
+                  </Text>
+                </View>
+              ))}
+            </View>
+
+            {items.map((item) => (
+              <View
+                key={`${item.targetType}:${item.targetId}`}
+                style={[styles.timelineGridRow, { height: TIMELINE_ROW_HEIGHT }]}
+              >
+                {months.map((month, monthIndex) => {
+                  const active = isMonthInSeason(
+                    item.seasonStartMonth,
+                    item.seasonEndMonth,
+                    month.month,
+                  );
+                  const previousActive = monthIndex > 0 && isMonthInSeason(
+                    item.seasonStartMonth,
+                    item.seasonEndMonth,
+                    months[monthIndex - 1].month,
+                  );
+                  const nextActive = monthIndex < months.length - 1 && isMonthInSeason(
+                    item.seasonStartMonth,
+                    item.seasonEndMonth,
+                    months[monthIndex + 1].month,
+                  );
+                  return (
+                    <View
+                      key={`${month.year}-${month.month}`}
+                      style={[
+                        styles.timelineCell,
+                        month.isCurrent && styles.timelineCurrentCell,
+                        { width: monthWidth },
+                      ]}
+                    >
+                      {active && (
+                        <View
+                          style={[
+                            styles.timelineSeasonBand,
+                            !previousActive && styles.timelineSeasonBandStart,
+                            !nextActive && styles.timelineSeasonBandEnd,
+                          ]}
+                        />
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            ))}
+          </View>
+        </ScrollView>
+      </View>
+    </View>
   );
 }
 
@@ -574,6 +731,143 @@ const styles = StyleSheet.create({
   // Sits between the heading and the next category's rule when expanded.
   categoryItems: {
     paddingBottom: 8,
+  },
+  // ── In-season timeline ────────────────────────────────────
+  timelineShell: {
+    paddingBottom: 12,
+  },
+  timelineLegend: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  timelineLegendKey: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  timelineLegendSwatch: {
+    width: 18,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: COLORS.amber,
+  },
+  timelineLegendText: {
+    color: COLORS.inkMute,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 10,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
+  timelineSwipeHint: {
+    color: COLORS.inkMute,
+    fontFamily: 'Newsreader_500Medium_Italic',
+    fontSize: 12,
+  },
+  timelineTable: {
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderColor: COLORS.paperHair,
+    overflow: 'hidden',
+  },
+  timelineCorner: {
+    justifyContent: 'flex-end',
+    paddingHorizontal: 10,
+    paddingBottom: 8,
+    borderRightWidth: 1,
+    borderRightColor: COLORS.paperHair,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.paperHair,
+    backgroundColor: 'rgba(20,18,15,0.035)',
+  },
+  timelineCornerText: {
+    color: COLORS.inkMute,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 9,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  timelineLabelRow: {
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    borderRightWidth: 1,
+    borderRightColor: COLORS.paperHair,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.paperHair,
+  },
+  timelineItemName: {
+    color: COLORS.ink,
+    fontFamily: 'Fraunces_500Medium',
+    fontSize: 15,
+    lineHeight: 17,
+  },
+  timelineItemRange: {
+    color: COLORS.inkMute,
+    fontFamily: 'Newsreader_500Medium_Italic',
+    fontSize: 10,
+    marginTop: 3,
+  },
+  timelineMonthsContent: {
+    flexGrow: 0,
+  },
+  timelineMonthHeaderRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.paperHair,
+  },
+  timelineMonthHeader: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderRightColor: COLORS.paperHair,
+    backgroundColor: 'rgba(20,18,15,0.035)',
+  },
+  timelineCurrentHeader: {
+    backgroundColor: 'rgba(232,154,43,0.16)',
+  },
+  timelineMonthName: {
+    color: COLORS.inkMute,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10,
+    letterSpacing: 0.8,
+  },
+  timelineCurrentMonthName: {
+    color: COLORS.ink,
+  },
+  timelineMonthYear: {
+    color: COLORS.inkFaint,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 8,
+    letterSpacing: 0.4,
+    marginTop: 2,
+  },
+  timelineGridRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.paperHair,
+  },
+  timelineCell: {
+    justifyContent: 'center',
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderRightColor: COLORS.paperHair,
+  },
+  timelineCurrentCell: {
+    backgroundColor: 'rgba(232,154,43,0.055)',
+  },
+  timelineSeasonBand: {
+    height: 14,
+    backgroundColor: COLORS.amber,
+  },
+  timelineSeasonBandStart: {
+    marginLeft: 6,
+    borderTopLeftRadius: 7,
+    borderBottomLeftRadius: 7,
+  },
+  timelineSeasonBandEnd: {
+    marginRight: 6,
+    borderTopRightRadius: 7,
+    borderBottomRightRadius: 7,
   },
   // ── Item rows ──────────────────────────────────────────────
   itemRow: {
