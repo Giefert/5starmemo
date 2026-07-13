@@ -60,6 +60,14 @@ export class BulletinModel {
            JOIN decks ad ON ad.id = ac.deck_id
           WHERE ad.restaurant_id = $1
             AND ac.restaurant_data->>'category' = 'fish'
+            AND CASE
+                  WHEN jsonb_typeof(ac.restaurant_data->'seasonStartMonth') = 'number'
+                  THEN (ac.restaurant_data->>'seasonStartMonth')::int
+                END BETWEEN 1 AND 12
+            AND CASE
+                  WHEN jsonb_typeof(ac.restaurant_data->'seasonEndMonth') = 'number'
+                  THEN (ac.restaurant_data->>'seasonEndMonth')::int
+                END BETWEEN 1 AND 12
             AND NOT EXISTS (
               SELECT 1
                 FROM in_season_bulletin_suppressions s
@@ -153,6 +161,8 @@ export class BulletinModel {
       }
     }
 
+    curations.in_season = curations.in_season.filter(isSeasonalFishItem);
+
     return {
       restaurant: {
         id: r.id,
@@ -199,6 +209,14 @@ export class BulletinModel {
           WHERE $2 = 'in_season'
             AND ad.restaurant_id = $1
             AND ac.restaurant_data->>'category' = 'fish'
+            AND CASE
+                  WHEN jsonb_typeof(ac.restaurant_data->'seasonStartMonth') = 'number'
+                  THEN (ac.restaurant_data->>'seasonStartMonth')::int
+                END BETWEEN 1 AND 12
+            AND CASE
+                  WHEN jsonb_typeof(ac.restaurant_data->'seasonEndMonth') = 'number'
+                  THEN (ac.restaurant_data->>'seasonEndMonth')::int
+                END BETWEEN 1 AND 12
             AND NOT EXISTS (
               SELECT 1
                 FROM in_season_bulletin_suppressions s
@@ -215,6 +233,15 @@ export class BulletinModel {
        )
        SELECT rc.target_type, rc.target_id, rc.position, rc.created_at,
               c.restaurant_data->>'itemName' AS card_name,
+              c.restaurant_data->>'category' AS card_category,
+              CASE
+                WHEN jsonb_typeof(c.restaurant_data->'seasonStartMonth') = 'number'
+                THEN (c.restaurant_data->>'seasonStartMonth')::int
+              END AS card_season_start_month,
+              CASE
+                WHEN jsonb_typeof(c.restaurant_data->'seasonEndMonth') = 'number'
+                THEN (c.restaurant_data->>'seasonEndMonth')::int
+              END AS card_season_end_month,
               d.title AS deck_title
          FROM curation_targets rc
          LEFT JOIN cards c
@@ -225,9 +252,22 @@ export class BulletinModel {
       [restaurantId, kind],
     );
 
+    const eligibleRows = kind === 'in_season'
+      ? curationsResult.rows.filter((row) => (
+          row.target_type === 'card'
+          && row.card_category === 'fish'
+          && Number.isInteger(row.card_season_start_month)
+          && Number.isInteger(row.card_season_end_month)
+          && row.card_season_start_month >= 1
+          && row.card_season_start_month <= 12
+          && row.card_season_end_month >= 1
+          && row.card_season_end_month <= 12
+        ))
+      : curationsResult.rows;
+
     const cardTargets: string[] = [];
     const deckTargets: string[] = [];
-    for (const row of curationsResult.rows) {
+    for (const row of eligibleRows) {
       if (row.target_type === 'card' && row.card_name !== null) {
         cardTargets.push(row.target_id);
       } else if (row.target_type === 'deck' && row.deck_title !== null) {
@@ -280,7 +320,7 @@ export class BulletinModel {
     }
 
     const units: CurationStudyUnit[] = [];
-    for (const row of curationsResult.rows) {
+    for (const row of eligibleRows) {
       if (row.target_type === 'card') {
         const card = cardRowsByCard.get(row.target_id);
         if (!card) continue;
@@ -304,6 +344,17 @@ export class BulletinModel {
 
     return units;
   }
+}
+
+function isSeasonalFishItem(item: RestaurantCurationItem): boolean {
+  return item.targetType === 'card'
+    && item.category === 'fish'
+    && Number.isInteger(item.seasonStartMonth)
+    && Number.isInteger(item.seasonEndMonth)
+    && item.seasonStartMonth! >= 1
+    && item.seasonStartMonth! <= 12
+    && item.seasonEndMonth! >= 1
+    && item.seasonEndMonth! <= 12;
 }
 
 // Mirrors the bucket math in DeckModel.getAvailableDecks so a card's bulletin

@@ -43,6 +43,7 @@ export class CurationModel {
          c.id AS card_id,
          c.deck_id AS card_deck_id,
          c.restaurant_data->>'itemName' AS card_name,
+         c.restaurant_data->>'category' AS card_category,
          CASE
            WHEN jsonb_typeof(c.restaurant_data->'seasonStartMonth') = 'number'
            THEN (c.restaurant_data->>'seasonStartMonth')::int
@@ -79,6 +80,7 @@ export class CurationModel {
             name: row.card_name || '(untitled card)',
             deckId: row.card_deck_id,
             deckTitle: row.card_deck_title || '',
+            category: row.card_category || undefined,
             seasonStartMonth: row.card_season_start_month ?? undefined,
             seasonEndMonth: row.card_season_end_month ?? undefined,
           };
@@ -102,7 +104,8 @@ export class CurationModel {
 
     return [
       ...manualItems.filter(
-        (item) => item.targetType !== 'card' || !hiddenCardIds.has(item.targetId)
+        (item) => isSeasonalFishItem(item)
+          && !hiddenCardIds.has(item.targetId)
       ),
       ...automaticItems,
     ];
@@ -140,6 +143,8 @@ export class CurationModel {
          ) season
         WHERE d.restaurant_id = $1
           AND c.restaurant_data->>'category' = 'fish'
+          AND season.start_month BETWEEN 1 AND 12
+          AND season.end_month BETWEEN 1 AND 12
           AND EXISTS (
                 SELECT 1
                   FROM in_season_bulletin_suppressions s
@@ -166,6 +171,7 @@ export class CurationModel {
       name: row.name || '(untitled card)',
       deckId: row.deck_id,
       deckTitle: row.deck_title || '',
+      category: 'fish',
       seasonStartMonth: row.start_month,
       seasonEndMonth: row.end_month,
       automatic: true,
@@ -180,9 +186,22 @@ export class CurationModel {
       `SELECT 1
          FROM cards c
          JOIN decks d ON d.id = c.deck_id
+         CROSS JOIN LATERAL (
+           SELECT
+             CASE
+               WHEN jsonb_typeof(c.restaurant_data->'seasonStartMonth') = 'number'
+               THEN (c.restaurant_data->>'seasonStartMonth')::int
+             END AS start_month,
+             CASE
+               WHEN jsonb_typeof(c.restaurant_data->'seasonEndMonth') = 'number'
+               THEN (c.restaurant_data->>'seasonEndMonth')::int
+             END AS end_month
+         ) season
         WHERE c.id = $1
           AND d.restaurant_id = $2
-          AND c.restaurant_data->>'category' = 'fish'`,
+          AND c.restaurant_data->>'category' = 'fish'
+          AND season.start_month BETWEEN 1 AND 12
+          AND season.end_month BETWEEN 1 AND 12`,
       [targetId, restaurantId]
     );
     return result.rows.length > 0;
@@ -277,4 +296,15 @@ export class CurationModel {
       client.release();
     }
   }
+}
+
+function isSeasonalFishItem(item: RestaurantCurationItem): boolean {
+  return item.targetType === 'card'
+    && item.category === 'fish'
+    && Number.isInteger(item.seasonStartMonth)
+    && Number.isInteger(item.seasonEndMonth)
+    && item.seasonStartMonth! >= 1
+    && item.seasonStartMonth! <= 12
+    && item.seasonEndMonth! >= 1
+    && item.seasonEndMonth! <= 12;
 }
