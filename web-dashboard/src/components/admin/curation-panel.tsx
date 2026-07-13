@@ -297,7 +297,7 @@ function SeasonTimeline({ items }: { items: RestaurantCurationItem[] }) {
           })}
         </div>
 
-        <div className="overflow-x-auto" style={{ minWidth: 0 }}>
+        <div className="flex-1 overflow-x-auto" style={{ minWidth: 0 }}>
           <div style={{ width: months.length * TIMELINE_MONTH_WIDTH }}>
             <div className="flex border-b border-bg-hair" style={{ height: TIMELINE_HEADER_HEIGHT }}>
               {months.map((month) => (

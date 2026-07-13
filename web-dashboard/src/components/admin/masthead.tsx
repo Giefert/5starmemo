@@ -115,7 +115,7 @@ export function Masthead({
         </div>
       </div>
 
-      <div className="flex flex-col border-t border-bg-hair">
+      <div className="flex flex-col min-w-0 border-t border-bg-hair">
         <StatPanel
           label="New items"
           count={curations.new_item.length}
