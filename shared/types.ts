@@ -124,12 +124,23 @@ export interface UpdateDeckInput extends Partial<CreateDeckInput> {}
 
 export interface Card {
   id: string;
-  deckId: string;
+  restaurantId?: string;
+  // Present when a card is returned in the context of one particular deck.
+  // Canonical card-library responses instead populate decks/deckIds.
+  deckId?: string;
   imageUrl?: string;
-  order: number;
+  order?: number;
+  deckIds?: string[];
+  decks?: CardDeckMembership[];
   createdAt: Date;
   updatedAt: Date;
   restaurantData?: RestaurantCardData;
+}
+
+export interface CardDeckMembership {
+  id: string;
+  title: string;
+  order: number;
 }
 
 // Helper types for discriminated union
@@ -255,6 +266,8 @@ export type SakeCardData = BaseRestaurantCardData &
     classification?: string;
     vintage?: number;
     riceVariety?: string;
+    yeast?: string;
+    koji?: string;
   };
 
 export type SauceCardData = BaseRestaurantCardData & {
@@ -355,6 +368,8 @@ export interface RestaurantCardDataV1 {
   gluten?: 'yes' | 'no' | 'optional';
   classification?: string;
   riceVariety?: string;
+  yeast?: string;
+  koji?: string;
   alcohol?: string[];
   other?: string[];
   garnish?: string;
@@ -370,8 +385,8 @@ export interface RestaurantCardDataV1 {
 
 export interface CreateCardInput {
   imageUrl?: string;
-  order?: number;
   restaurantData?: RestaurantCardData;
+  deckIds?: string[];
 }
 
 export interface UpdateCardInput extends Partial<CreateCardInput> {}
@@ -797,6 +812,8 @@ export function migrateToV2(v1: RestaurantCardDataV1): RestaurantCardData {
         abv: v1.abv,
         vintage: v1.vintage,
         riceVariety: v1.riceVariety,
+        yeast: v1.yeast,
+        koji: v1.koji,
       };
 
     case 'sauce':

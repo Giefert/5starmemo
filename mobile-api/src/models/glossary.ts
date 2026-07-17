@@ -160,12 +160,20 @@ export class GlossaryModel {
       SELECT gtc.*,
              c.restaurant_data,
              c.image_url,
-             c.deck_id,
-             c.card_order,
+             membership.deck_id,
+             membership.card_order,
              c.created_at as card_created_at,
              c.updated_at as card_updated_at
       FROM glossary_term_cards gtc
       JOIN cards c ON c.id = gtc.card_id
+      LEFT JOIN LATERAL (
+        SELECT dc.deck_id, dc.card_order
+        FROM deck_cards dc
+        JOIN decks d ON d.id = dc.deck_id
+        WHERE dc.card_id = c.id
+        ORDER BY LOWER(d.title)
+        LIMIT 1
+      ) membership ON true
       WHERE gtc.term_id = $1
       ORDER BY gtc.created_at DESC
     `;

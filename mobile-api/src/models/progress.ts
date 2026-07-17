@@ -69,16 +69,12 @@ export class ProgressModel {
     return result.rows[0] ? mapSessionRow(result.rows[0]) : null;
   }
 
-  /**
-   * Verify a card belongs to a deck in the given restaurant. Used by route
-   * layer before recording an FSRS review against a card.
-   */
+  /** Verify a canonical card belongs to the given restaurant. */
   static async cardInRestaurant(cardId: string, restaurantId: string): Promise<boolean> {
     const query = `
       SELECT 1
       FROM cards c
-      JOIN decks d ON d.id = c.deck_id
-      WHERE c.id = $1 AND d.restaurant_id = $2
+      WHERE c.id = $1 AND c.restaurant_id = $2
     `;
     const result = await pool.query(query, [cardId, restaurantId]);
     return result.rows.length > 0;
@@ -163,7 +159,11 @@ export class ProgressModel {
       SELECT COUNT(DISTINCT fc.card_id) as total
       FROM fsrs_cards fc
       JOIN cards c ON fc.card_id = c.id
-      WHERE fc.user_id = $1 AND c.deck_id IN (SELECT id FROM accessible)
+      WHERE fc.user_id = $1
+        AND EXISTS (
+          SELECT 1 FROM deck_cards dc
+          WHERE dc.card_id = c.id AND dc.deck_id IN (SELECT id FROM accessible)
+        )
     `;
 
     const stateCountsQuery = `
@@ -173,7 +173,11 @@ export class ProgressModel {
         COUNT(*) as count
       FROM fsrs_cards fc
       JOIN cards c ON fc.card_id = c.id
-      WHERE fc.user_id = $1 AND c.deck_id IN (SELECT id FROM accessible)
+      WHERE fc.user_id = $1
+        AND EXISTS (
+          SELECT 1 FROM deck_cards dc
+          WHERE dc.card_id = c.id AND dc.deck_id IN (SELECT id FROM accessible)
+        )
       GROUP BY fc.state
     `;
 
@@ -191,7 +195,11 @@ export class ProgressModel {
       SELECT COUNT(*) as new_cards
       FROM cards c
       LEFT JOIN fsrs_cards fc ON c.id = fc.card_id AND fc.user_id = $1
-      WHERE c.deck_id IN (SELECT id FROM accessible) AND fc.card_id IS NULL
+      WHERE fc.card_id IS NULL
+        AND EXISTS (
+          SELECT 1 FROM deck_cards dc
+          WHERE dc.card_id = c.id AND dc.deck_id IN (SELECT id FROM accessible)
+        )
     `;
 
     const [totalResult, statesResult, dailyResult, newResult] = await Promise.all([
@@ -267,16 +275,18 @@ export class ProgressModel {
     let deckFilter = '';
     if (deckIds && deckIds.length > 0) {
       params.push(deckIds);
-      deckFilter = 'AND d.id = ANY($3::uuid[])';
+      deckFilter = `AND EXISTS (
+        SELECT 1 FROM deck_cards dc
+        WHERE dc.card_id = c.id AND dc.deck_id = ANY($3::uuid[])
+      )`;
     }
 
     const query = `
       DELETE FROM fsrs_cards fc
-      USING cards c, decks d
+      USING cards c
       WHERE fc.user_id = $1
         AND fc.card_id = c.id
-        AND c.deck_id = d.id
-        AND d.restaurant_id = $2
+        AND c.restaurant_id = $2
         ${deckFilter}
     `;
 
@@ -298,16 +308,18 @@ export class ProgressModel {
     const query = `
       SELECT 1
         FROM cards c
-        JOIN decks d ON d.id = c.deck_id
        WHERE c.id = $1
-         AND d.restaurant_id = $2
+         AND c.restaurant_id = $2
          AND EXISTS (
            SELECT 1 FROM restaurant_curations rc
             WHERE rc.restaurant_id = $2
               AND rc.kind = $3
               AND (
                 (rc.target_type = 'card' AND rc.target_id = c.id) OR
-                (rc.target_type = 'deck' AND rc.target_id = c.deck_id)
+                (rc.target_type = 'deck' AND EXISTS (
+                  SELECT 1 FROM deck_cards dc
+                  WHERE dc.card_id = c.id AND dc.deck_id = rc.target_id
+                ))
               )
          )
        LIMIT 1

@@ -6,8 +6,7 @@ import {
 } from '../../../shared/types';
 
 export class CurationModel {
-  // Verify the target row exists in the caller's restaurant. Cards inherit
-  // restaurant scope through their parent deck.
+  // Verify the target row exists in the caller's restaurant.
   static async targetBelongsToRestaurant(
     targetType: CurationTargetType,
     targetId: string,
@@ -16,8 +15,7 @@ export class CurationModel {
     if (targetType === 'card') {
       const r = await pool.query(
         `SELECT 1 FROM cards c
-           JOIN decks d ON d.id = c.deck_id
-          WHERE c.id = $1 AND d.restaurant_id = $2`,
+          WHERE c.id = $1 AND c.restaurant_id = $2`,
         [targetId, restaurantId]
       );
       return r.rows.length > 0;
@@ -41,7 +39,7 @@ export class CurationModel {
          rc.target_id,
          rc.position,
          c.id AS card_id,
-         c.deck_id AS card_deck_id,
+         membership.deck_id AS card_deck_id,
          c.restaurant_data->>'itemName' AS card_name,
          c.restaurant_data->>'category' AS card_category,
          CASE
@@ -52,14 +50,20 @@ export class CurationModel {
            WHEN jsonb_typeof(c.restaurant_data->'seasonEndMonth') = 'number'
            THEN (c.restaurant_data->>'seasonEndMonth')::int
          END AS card_season_end_month,
-         dc.title AS card_deck_title,
+         membership.deck_title AS card_deck_title,
          d.id AS deck_id,
          d.title AS deck_title
        FROM restaurant_curations rc
        LEFT JOIN cards c
          ON rc.target_type = 'card' AND c.id = rc.target_id
-       LEFT JOIN decks dc
-         ON rc.target_type = 'card' AND dc.id = c.deck_id
+       LEFT JOIN LATERAL (
+         SELECT dc.deck_id, d.title AS deck_title
+         FROM deck_cards dc
+         JOIN decks d ON d.id = dc.deck_id
+         WHERE dc.card_id = c.id
+         ORDER BY LOWER(d.title)
+         LIMIT 1
+       ) membership ON rc.target_type = 'card'
        LEFT JOIN decks d
          ON rc.target_type = 'deck' AND d.id = rc.target_id
        WHERE rc.restaurant_id = $1 AND rc.kind = $2
@@ -123,13 +127,20 @@ export class CurationModel {
   ): Promise<RestaurantCurationItem[]> {
     const result = await pool.query(
       `SELECT c.id,
-              c.deck_id,
+              membership.deck_id,
               c.restaurant_data->>'itemName' AS name,
-              d.title AS deck_title,
+              membership.deck_title,
               season.start_month,
               season.end_month
          FROM cards c
-         JOIN decks d ON d.id = c.deck_id
+         LEFT JOIN LATERAL (
+           SELECT dc.deck_id, d.title AS deck_title
+           FROM deck_cards dc
+           JOIN decks d ON d.id = dc.deck_id
+           WHERE dc.card_id = c.id
+           ORDER BY LOWER(d.title)
+           LIMIT 1
+         ) membership ON true
          CROSS JOIN LATERAL (
            SELECT
              CASE
@@ -141,7 +152,7 @@ export class CurationModel {
                THEN (c.restaurant_data->>'seasonEndMonth')::int
              END AS end_month
          ) season
-        WHERE d.restaurant_id = $1
+        WHERE c.restaurant_id = $1
           AND c.restaurant_data->>'category' = 'fish'
           AND season.start_month BETWEEN 1 AND 12
           AND season.end_month BETWEEN 1 AND 12
@@ -185,7 +196,6 @@ export class CurationModel {
     const result = await pool.query(
       `SELECT 1
          FROM cards c
-         JOIN decks d ON d.id = c.deck_id
          CROSS JOIN LATERAL (
            SELECT
              CASE
@@ -198,7 +208,7 @@ export class CurationModel {
              END AS end_month
          ) season
         WHERE c.id = $1
-          AND d.restaurant_id = $2
+          AND c.restaurant_id = $2
           AND c.restaurant_data->>'category' = 'fish'
           AND season.start_month BETWEEN 1 AND 12
           AND season.end_month BETWEEN 1 AND 12`,

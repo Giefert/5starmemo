@@ -234,6 +234,8 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
     initData?.tanninLevel
   );
   const [riceVariety, setRiceVariety] = useState(initData?.riceVariety || '');
+  const [yeast, setYeast] = useState(initData?.yeast || '');
+  const [koji, setKoji] = useState(initData?.koji || '');
   const [classification, setClassification] = useState(initData?.classification || '');
   const [tastingNotes, setTastingNotes] = useState<string[]>(
     initData?.tastingNotes || []
@@ -432,6 +434,8 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
         tanninLevel: tanninLevel,
         classification: classification.trim() || undefined,
         riceVariety: riceVariety.trim() || undefined,
+        yeast: yeast.trim() || undefined,
+        koji: koji.trim() || undefined,
         tastingNotes: cleanedTastingNotes.length > 0 ? cleanedTastingNotes : undefined,
         servingTemp: servingTemp.trim() || undefined,
         foodPairings: cleanedFoodPairings.length > 0 ? cleanedFoodPairings : undefined,
@@ -663,16 +667,38 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
           )}
 
           {category === 'sake' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Rice Variety
-              </label>
-              <Input
-                value={riceVariety}
-                onChange={(e) => setRiceVariety(e.target.value)}
-                placeholder="e.g., Yamada Nishiki, Gohyakumangoku"
-              />
-            </div>
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Rice Variety
+                </label>
+                <Input
+                  value={riceVariety}
+                  onChange={(e) => setRiceVariety(e.target.value)}
+                  placeholder="e.g., Yamada Nishiki, Gohyakumangoku"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Yeast
+                </label>
+                <Input
+                  value={yeast}
+                  onChange={(e) => setYeast(e.target.value)}
+                  placeholder="e.g., Association No. 9"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Koji
+                </label>
+                <Input
+                  value={koji}
+                  onChange={(e) => setKoji(e.target.value)}
+                  placeholder="e.g., Yellow koji"
+                />
+              </div>
+            </>
           )}
         </div>
       )}

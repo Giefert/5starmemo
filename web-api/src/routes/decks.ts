@@ -288,8 +288,8 @@ router.post('/:id/cards',
         });
       }
 
-      const cardData: CreateCardInput = req.body;
-      const card = await CardModel.create(req.params.id, cardData);
+      const cardData: CreateCardInput = { ...req.body, deckIds: [req.params.id] };
+      const card = await CardModel.create(req.user!.restaurantId, cardData);
 
       const response: ApiResponse = {
         success: true,
@@ -328,8 +328,7 @@ router.put('/cards/:cardId',
         });
       }
 
-      // Verify card exists and the deck it belongs to is in caller's restaurant
-      const existingCard = await CardModel.findById(req.params.cardId);
+      const existingCard = await CardModel.findById(req.params.cardId, req.user!.restaurantId);
       if (!existingCard) {
         return res.status(404).json({
           success: false,
@@ -337,15 +336,7 @@ router.put('/cards/:cardId',
         });
       }
 
-      const deck = await DeckModel.findById(existingCard.deckId, req.user!.restaurantId);
-      if (!deck) {
-        return res.status(404).json({
-          success: false,
-          error: 'Card not found'
-        });
-      }
-
-      const card = await CardModel.update(req.params.cardId, req.body);
+      const card = await CardModel.update(req.params.cardId, req.user!.restaurantId, req.body);
 
       const response: ApiResponse = {
         success: true,
@@ -364,60 +355,33 @@ router.put('/cards/:cardId',
   }
 );
 
-// Delete card
-router.delete('/cards/:cardId',
-  [param('cardId').isUUID()],
+// Add an existing canonical card to a deck.
+router.post('/:id/cards/:cardId',
+  [param('id').isUUID(), param('cardId').isUUID()],
   async (req: AuthenticatedRequest, res: Response) => {
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({
-          success: false,
-          error: 'Invalid card ID',
-          details: errors.array()
-        });
-      }
-
-      // Verify card exists and the deck it belongs to is in caller's restaurant
-      const existingCard = await CardModel.findById(req.params.cardId);
-      if (!existingCard) {
-        return res.status(404).json({
-          success: false,
-          error: 'Card not found'
-        });
-      }
-
-      const deck = await DeckModel.findById(existingCard.deckId, req.user!.restaurantId);
-      if (!deck) {
-        return res.status(404).json({
-          success: false,
-          error: 'Card not found'
-        });
-      }
-
-      const deleted = await CardModel.delete(req.params.cardId);
-
-      if (!deleted) {
-        return res.status(404).json({
-          success: false,
-          error: 'Card not found'
-        });
-      }
-
-      const response: ApiResponse = {
-        success: true,
-        message: 'Card deleted successfully'
-      };
-
-      res.json(response);
-    } catch (error) {
-      console.error('Error deleting card:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Internal server error'
-      });
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ success: false, error: 'Invalid request' });
+    const added = await CardModel.addToDeck(req.params.cardId, req.params.id, req.user!.restaurantId);
+    if (!added) {
+      const card = await CardModel.findById(req.params.cardId, req.user!.restaurantId);
+      const deck = await DeckModel.findById(req.params.id, req.user!.restaurantId);
+      if (!card || !deck) return res.status(404).json({ success: false, error: 'Card or deck not found' });
     }
-  }
+    const card = await CardModel.findById(req.params.cardId, req.user!.restaurantId);
+    res.status(added ? 201 : 200).json({ success: true, data: card, message: added ? 'Card added to deck' : 'Card already in deck' });
+  },
+);
+
+// Remove only the membership; the canonical card and its progress survive.
+router.delete('/:id/cards/:cardId',
+  [param('id').isUUID(), param('cardId').isUUID()],
+  async (req: AuthenticatedRequest, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ success: false, error: 'Invalid request' });
+    const removed = await CardModel.removeFromDeck(req.params.cardId, req.params.id, req.user!.restaurantId);
+    if (!removed) return res.status(404).json({ success: false, error: 'Card membership not found' });
+    res.json({ success: true, message: 'Card removed from deck' });
+  },
 );
 
 export default router;

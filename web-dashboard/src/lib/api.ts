@@ -27,12 +27,16 @@ import {
   StudentRoleDetail,
   CreateStudentRoleInput,
   UpdateStudentRoleInput,
-  DeckAccess
+  DeckAccess,
+  Card,
+  CreateCardInput,
+  UpdateCardInput,
+  RestaurantCategory,
 } from '../../../shared/types';
 
 export interface CardSearchResult {
   id: string;
-  deckId: string;
+  deckId?: string;
   deckTitle: string;
   name: string;
 }
@@ -126,8 +130,13 @@ export const deckApi = {
     return response.data.data!;
   },
 
-  deleteCard: async (cardId: string): Promise<void> => {
-    await api.delete(`/decks/cards/${cardId}`);
+  addExistingCard: async (deckId: string, cardId: string): Promise<Card> => {
+    const response = await api.post<ApiResponse<Card>>(`/decks/${deckId}/cards/${cardId}`);
+    return response.data.data!;
+  },
+
+  removeCard: async (deckId: string, cardId: string): Promise<void> => {
+    await api.delete(`/decks/${deckId}/cards/${cardId}`);
   },
 };
 
@@ -279,6 +288,35 @@ export const curationApi = {
 
 // Card search (lightweight, dashboard-curation-only)
 export const cardApi = {
+  getAll: async (params?: { q?: string; category?: RestaurantCategory }): Promise<Card[]> => {
+    const response = await api.get<ApiResponse<Card[]>>('/cards', { params });
+    return response.data.data!;
+  },
+
+  getById: async (id: string): Promise<Card> => {
+    const response = await api.get<ApiResponse<Card>>(`/cards/${id}`);
+    return response.data.data!;
+  },
+
+  create: async (data: CreateCardInput): Promise<Card> => {
+    const response = await api.post<ApiResponse<Card>>('/cards', data);
+    return response.data.data!;
+  },
+
+  update: async (id: string, data: UpdateCardInput): Promise<Card> => {
+    const response = await api.put<ApiResponse<Card>>(`/cards/${id}`, data);
+    return response.data.data!;
+  },
+
+  merge: async (survivorId: string, duplicateIds: string[]): Promise<Card> => {
+    const response = await api.post<ApiResponse<Card>>(`/cards/${survivorId}/merge`, { duplicateIds });
+    return response.data.data!;
+  },
+
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/cards/${id}`);
+  },
+
   search: async (q: string, limit = 20): Promise<CardSearchResult[]> => {
     const response = await api.get<ApiResponse<CardSearchResult[]>>('/cards/search', {
       params: { q, limit }

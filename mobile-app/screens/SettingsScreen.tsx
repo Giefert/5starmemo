@@ -493,7 +493,7 @@ export default function SettingsScreen() {
     const resettingAll = selectedDeckIds.size === decks.length;
     const message = resettingAll
       ? 'This will erase your study progress for every deck. You\'ll start fresh on all cards. Continue?'
-      : `This will erase your study progress for ${selectedDeckIds.size} deck${selectedDeckIds.size === 1 ? '' : 's'}. Continue?`;
+      : `This will erase your study progress for cards in ${selectedDeckIds.size} deck${selectedDeckIds.size === 1 ? '' : 's'}. Shared cards will also reset in every other deck that uses them. Continue?`;
     Alert.alert(
       'Reset Progress',
       message,
@@ -729,7 +729,8 @@ export default function SettingsScreen() {
               <Text style={styles.modalTitle}>Reset Study Progress</Text>
               <Text style={styles.modalSubtitle}>
                 Select decks to reset, or reset everything at once. This clears your
-                FSRS ratings so cards behave like new.
+                FSRS ratings so cards behave like new. Progress belongs to the card,
+                so resetting a shared card affects every deck that uses it.
               </Text>
             </View>
 

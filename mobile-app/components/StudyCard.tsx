@@ -347,6 +347,12 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
                     {card.restaurantData.riceVariety && (
                       <DetailField label="RICE VARIETY" text={card.restaurantData.riceVariety} linkedTerms={linkedTerms} onTermPress={onTermPress} />
                     )}
+                    {card.restaurantData.yeast && (
+                      <DetailField label="YEAST" text={card.restaurantData.yeast} linkedTerms={linkedTerms} onTermPress={onTermPress} />
+                    )}
+                    {card.restaurantData.koji && (
+                      <DetailField label="KOJI" text={card.restaurantData.koji} linkedTerms={linkedTerms} onTermPress={onTermPress} />
+                    )}
                     {card.restaurantData.region && (
                       <DetailField label="REGION/ORIGIN" text={card.restaurantData.region} linkedTerms={linkedTerms} onTermPress={onTermPress} />
                     )}

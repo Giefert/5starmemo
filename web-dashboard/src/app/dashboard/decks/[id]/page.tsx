@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { deckApi, deckAccessApi, roleApi, userApi } from '@/lib/api';
+import { cardApi, deckApi, deckAccessApi, roleApi, userApi } from '@/lib/api';
 import { Deck, DeckType, Card, RestaurantCardData, DeckAccess, StudentRoleSummary, UserListItem, formatSeasonality, isMonthInSeason } from '../../../../../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,6 +27,10 @@ function HighlightedText({ text }: { text: string }) {
   );
 }
 
+type ApiError = { response?: { data?: { error?: string } } };
+const errorMessage = (error: unknown, fallback: string) =>
+  (error as ApiError).response?.data?.error || fallback;
+
 export default function EditDeckPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const [deck, setDeck] = useState<Deck | null>(null);
@@ -49,12 +53,33 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
   // Card form state
   const [showCardForm, setShowCardForm] = useState(false);
   const [editingCard, setEditingCard] = useState<Card | null>(null);
+  const [showCardPicker, setShowCardPicker] = useState(false);
+  const [pickerQuery, setPickerQuery] = useState('');
+  const [pickerCards, setPickerCards] = useState<Card[]>([]);
+  const [pickerLoading, setPickerLoading] = useState(false);
   
   const router = useRouter();
 
   useEffect(() => {
     fetchDeck();
   }, [resolvedParams.id]);
+
+  useEffect(() => {
+    if (!showCardPicker) return;
+    const timeout = setTimeout(async () => {
+      setPickerLoading(true);
+      try {
+        const cards = await cardApi.getAll({ q: pickerQuery.trim() || undefined });
+        const currentIds = new Set(deck?.cards?.map(card => card.id) ?? []);
+        setPickerCards(cards.filter(card => !currentIds.has(card.id)));
+      } catch (error: unknown) {
+        setError(errorMessage(error, 'Failed to load card library'));
+      } finally {
+        setPickerLoading(false);
+      }
+    }, 200);
+    return () => clearTimeout(timeout);
+  }, [showCardPicker, pickerQuery, deck?.cards]);
 
   // Honour `#card-<uuid>` on entry so dashboard links land on the right card.
   // Runs once the deck (and therefore card DOM nodes) is loaded.
@@ -181,10 +206,10 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
   };
 
   const handleDeleteCard = async (cardId: string) => {
-    if (!confirm('Are you sure you want to delete this card?')) return;
+    if (!confirm('Remove this card from this deck? The canonical card and its study progress will remain available elsewhere.')) return;
     
     try {
-      await deckApi.deleteCard(cardId);
+      await deckApi.removeCard(resolvedParams.id, cardId);
       setDeck(prev => prev ? {
         ...prev,
         cards: prev.cards?.filter(card => card.id !== cardId),
@@ -192,6 +217,21 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
       } : null);
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to delete card');
+    }
+  };
+
+  const handleAddExistingCard = async (card: Card) => {
+    try {
+      await deckApi.addExistingCard(resolvedParams.id, card.id);
+      setDeck(prev => prev ? {
+        ...prev,
+        cards: [...(prev.cards || []), card]
+          .sort((a, b) => (a.restaurantData?.itemName || '').localeCompare(b.restaurantData?.itemName || '')),
+        cardCount: (prev.cardCount || 0) + 1,
+      } : null);
+      setPickerCards(prev => prev.filter(item => item.id !== card.id));
+    } catch (error: unknown) {
+      alert(errorMessage(error, 'Failed to add card to deck'));
     }
   };
 
@@ -382,14 +422,62 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
               <h2 className="text-lg font-medium text-gray-900">
                 Cards ({deck.cards?.length || 0})
               </h2>
-              <Button onClick={() => { setShowCardForm(true); scrollToElement('add-card-form'); }} disabled={showCardForm}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Card
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowCardPicker(value => !value)}
+                  disabled={showCardForm}
+                >
+                  Add existing
+                </Button>
+                <Button
+                  onClick={() => { setShowCardPicker(false); setShowCardForm(true); scrollToElement('add-card-form'); }}
+                  disabled={showCardForm}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create new
+                </Button>
+              </div>
             </div>
           </div>
 
           <div className="p-6">
+            {showCardPicker && (
+              <div className="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-medium text-gray-900">Add from card library</h3>
+                    <p className="text-xs text-gray-500">The same canonical card can be used in multiple decks.</p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => setShowCardPicker(false)}>Close</Button>
+                </div>
+                <Input
+                  value={pickerQuery}
+                  onChange={event => setPickerQuery(event.target.value)}
+                  placeholder="Search by card name, details, or deck…"
+                  className="mb-3"
+                />
+                {pickerLoading ? (
+                  <p className="py-4 text-center text-sm text-gray-500">Loading cards…</p>
+                ) : pickerCards.length === 0 ? (
+                  <p className="py-4 text-center text-sm text-gray-500">No available cards match.</p>
+                ) : (
+                  <div className="max-h-80 space-y-2 overflow-y-auto">
+                    {pickerCards.map(card => (
+                      <div key={card.id} className="flex items-center justify-between rounded-md border border-gray-200 bg-white px-3 py-2">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{card.restaurantData?.itemName || '(untitled card)'}</p>
+                          <p className="text-xs capitalize text-gray-500">
+                            {card.restaurantData?.category || 'uncategorized'} · {card.decks?.length ?? 0} existing deck{card.decks?.length === 1 ? '' : 's'}
+                          </p>
+                        </div>
+                        <Button size="sm" onClick={() => handleAddExistingCard(card)}>Add</Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             {/* Restaurant Card Form (add new card only) */}
             {showCardForm && !editingCard && (
               <div id="add-card-form">
@@ -408,7 +496,7 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
                 {!showCardForm && (
                   <Button onClick={() => { setShowCardForm(true); scrollToElement('add-card-form'); }} className="mt-4">
                     <Plus className="h-4 w-4 mr-2" />
-                    Add Your First Card
+                    Create Your First Card
                   </Button>
                 )}
               </div>
@@ -500,6 +588,18 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
                                   <div>
                                     <span className="font-medium text-gray-700">Rice Variety:</span>
                                     <span className="text-gray-600 ml-1">{data.riceVariety}</span>
+                                  </div>
+                                )}
+                                {data.yeast && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Yeast:</span>
+                                    <span className="text-gray-600 ml-1">{data.yeast}</span>
+                                  </div>
+                                )}
+                                {data.koji && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Koji:</span>
+                                    <span className="text-gray-600 ml-1">{data.koji}</span>
                                   </div>
                                 )}
                                 {data.producer && (
@@ -899,6 +999,18 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
                                   <div>
                                     <span className="font-medium text-gray-700">Rice Variety:</span>
                                     <span className="text-gray-600 ml-1">{data.riceVariety}</span>
+                                  </div>
+                                )}
+                                {data.yeast && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Yeast:</span>
+                                    <span className="text-gray-600 ml-1">{data.yeast}</span>
+                                  </div>
+                                )}
+                                {data.koji && (
+                                  <div>
+                                    <span className="font-medium text-gray-700">Koji:</span>
+                                    <span className="text-gray-600 ml-1">{data.koji}</span>
                                   </div>
                                 )}
                               </>

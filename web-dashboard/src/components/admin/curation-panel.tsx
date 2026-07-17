@@ -276,7 +276,7 @@ function SeasonTimeline({ items }: { items: RestaurantCurationItem[] }) {
           {items.map((item) => {
             const range = formatSeasonality(item.seasonStartMonth, item.seasonEndMonth);
             const href = item.targetType === 'card'
-              ? `/dashboard/decks/${item.deckId}#card-${item.targetId}`
+              ? `/dashboard/cards#card-${item.targetId}`
               : `/dashboard/decks/${item.targetId}`;
             return (
               <Link
@@ -392,7 +392,7 @@ function CurationRow({
 }) {
   const href =
     item.targetType === 'card'
-      ? `/dashboard/decks/${item.deckId}#card-${item.targetId}`
+      ? `/dashboard/cards#card-${item.targetId}`
       : `/dashboard/decks/${item.targetId}`;
 
   const label = (
@@ -473,7 +473,7 @@ function HiddenCurationRow({
   editing: boolean;
   onRestore: () => Promise<void>;
 }) {
-  const href = `/dashboard/decks/${item.deckId}#card-${item.targetId}`;
+  const href = `/dashboard/cards#card-${item.targetId}`;
 
   return (
     <div className="flex items-center justify-between" style={{ gap: 8, padding: '4px 0' }}>

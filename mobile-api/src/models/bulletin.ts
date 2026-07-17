@@ -57,8 +57,7 @@ export class BulletinModel {
                 ),
                 ac.created_at
            FROM cards ac
-           JOIN decks ad ON ad.id = ac.deck_id
-          WHERE ad.restaurant_id = $1
+          WHERE ac.restaurant_id = $1
             AND ac.restaurant_data->>'category' = 'fish'
             AND CASE
                   WHEN jsonb_typeof(ac.restaurant_data->'seasonStartMonth') = 'number'
@@ -88,7 +87,7 @@ export class BulletinModel {
          rc.target_id,
          rc.position,
          c.id AS card_id,
-         c.deck_id AS card_deck_id,
+         membership.deck_id AS card_deck_id,
          c.image_url AS card_image_url,
          c.restaurant_data->>'itemName' AS card_name,
          c.restaurant_data->>'category' AS card_category,
@@ -102,22 +101,30 @@ export class BulletinModel {
          END AS card_season_end_month,
          fc.state AS card_fsrs_state,
          fc.stability AS card_fsrs_stability,
-         dc.title AS card_deck_title,
+         membership.deck_title AS card_deck_title,
          d.id AS deck_id,
          d.title AS deck_title,
          (
-           SELECT image_url FROM cards
-            WHERE deck_id = d.id AND image_url IS NOT NULL
-            ORDER BY card_order ASC
+           SELECT cover.image_url
+             FROM deck_cards cover_dc
+             JOIN cards cover ON cover.id = cover_dc.card_id
+            WHERE cover_dc.deck_id = d.id AND cover.image_url IS NOT NULL
+            ORDER BY cover_dc.card_order ASC
             LIMIT 1
          ) AS deck_cover_url
        FROM bulletin_targets rc
        LEFT JOIN cards c
          ON rc.target_type = 'card' AND c.id = rc.target_id
+       LEFT JOIN LATERAL (
+         SELECT dc.deck_id, d.title AS deck_title
+         FROM deck_cards dc
+         JOIN decks d ON d.id = dc.deck_id
+         WHERE dc.card_id = c.id
+         ORDER BY LOWER(d.title)
+         LIMIT 1
+       ) membership ON rc.target_type = 'card'
        LEFT JOIN fsrs_cards fc
          ON rc.target_type = 'card' AND fc.card_id = c.id AND fc.user_id = $2
-       LEFT JOIN decks dc
-         ON rc.target_type = 'card' AND dc.id = c.deck_id
        LEFT JOIN decks d
          ON rc.target_type = 'deck' AND d.id = rc.target_id
        ORDER BY rc.kind ASC, rc.position ASC, rc.created_at ASC`,
@@ -205,9 +212,8 @@ export class BulletinModel {
                 ),
                 ac.created_at
            FROM cards ac
-           JOIN decks ad ON ad.id = ac.deck_id
           WHERE $2 = 'in_season'
-            AND ad.restaurant_id = $1
+            AND ac.restaurant_id = $1
             AND ac.restaurant_data->>'category' = 'fish'
             AND CASE
                   WHEN jsonb_typeof(ac.restaurant_data->'seasonStartMonth') = 'number'
@@ -278,7 +284,7 @@ export class BulletinModel {
     const cardRowsByCard = new Map<string, StudyCardData>();
     if (cardTargets.length > 0) {
       const cardResult = await pool.query(
-        `SELECT c.id, c.deck_id, c.image_url, c.card_order, c.restaurant_data,
+        `SELECT c.id, membership.deck_id, c.image_url, membership.card_order, c.restaurant_data,
                 c.created_at, c.updated_at,
                 d.restaurant_id,
                 fc.id AS fsrs_id, fc.difficulty, fc.stability, fc.retrievability,
@@ -286,9 +292,16 @@ export class BulletinModel {
                 fc.last_review, fc.next_review,
                 fc.created_at AS fsrs_created_at, fc.updated_at AS fsrs_updated_at
            FROM cards c
-           JOIN decks d ON d.id = c.deck_id
+           LEFT JOIN LATERAL (
+             SELECT dc.deck_id, dc.card_order
+             FROM deck_cards dc
+             JOIN decks d ON d.id = dc.deck_id
+             WHERE dc.card_id = c.id
+             ORDER BY LOWER(d.title)
+             LIMIT 1
+           ) membership ON true
            LEFT JOIN fsrs_cards fc ON c.id = fc.card_id AND fc.user_id = $2
-          WHERE c.id = ANY($1::uuid[]) AND d.restaurant_id = $3`,
+          WHERE c.id = ANY($1::uuid[]) AND c.restaurant_id = $3`,
         [cardTargets, userId, restaurantId],
       );
       for (const row of cardResult.rows) {
@@ -299,17 +312,18 @@ export class BulletinModel {
     const cardRowsByDeck = new Map<string, StudyCardData[]>();
     if (deckTargets.length > 0) {
       const deckCardResult = await pool.query(
-        `SELECT c.id, c.deck_id, c.image_url, c.card_order, c.restaurant_data,
+        `SELECT c.id, dc.deck_id, c.image_url, dc.card_order, c.restaurant_data,
                 c.created_at, c.updated_at,
                 fc.id AS fsrs_id, fc.difficulty, fc.stability, fc.retrievability,
                 fc.grade, fc.lapses, fc.reps, fc.state,
                 fc.last_review, fc.next_review,
                 fc.created_at AS fsrs_created_at, fc.updated_at AS fsrs_updated_at
-           FROM cards c
-           JOIN decks d ON d.id = c.deck_id
+           FROM deck_cards dc
+           JOIN cards c ON c.id = dc.card_id
+           JOIN decks d ON d.id = dc.deck_id
            LEFT JOIN fsrs_cards fc ON c.id = fc.card_id AND fc.user_id = $2
-          WHERE c.deck_id = ANY($1::uuid[]) AND d.restaurant_id = $3
-          ORDER BY c.card_order ASC, c.created_at ASC`,
+          WHERE dc.deck_id = ANY($1::uuid[]) AND d.restaurant_id = $3
+          ORDER BY dc.card_order ASC, c.created_at ASC`,
         [deckTargets, userId, restaurantId],
       );
       for (const row of deckCardResult.rows) {

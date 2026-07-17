@@ -17,6 +17,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 
   const navItems = [
     { href: '/dashboard', label: 'Decks' },
+    { href: '/dashboard/cards', label: 'Cards' },
     { href: '/dashboard/glossary', label: 'Glossary' },
     { href: '/dashboard/users', label: 'Users' },
   ];

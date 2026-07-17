@@ -76,9 +76,9 @@ export default function BulletinScreen() {
   const [selectedDeck, setSelectedDeck] = useState<{ id: string; title: string; cardId?: string } | null>(null);
   // Accordion: at most one category open at a time. Tapping the open one closes it.
   const [openSection, setOpenSection] = useState<CurationKind | null>(null);
-  // On first load, open the first category that has items so the page doesn't
-  // greet the reader with everything collapsed. One-shot — refreshes and the
-  // reader's own taps thereafter own the open state.
+  // On first load, prefer In season so the Bulletin opens on what's timely.
+  // Fall back to the first populated category when no seasonal items exist.
+  // One-shot — refreshes and the reader's own taps thereafter own the state.
   const didInitOpen = useRef(false);
 
   const loadBulletin = useCallback(async () => {
@@ -87,10 +87,12 @@ export default function BulletinScreen() {
       setData(payload);
       if (!didInitOpen.current) {
         didInitOpen.current = true;
-        const firstWithItems = SECTIONS.find(
-          (s) => (payload.curations[s.kind] ?? []).length > 0,
-        );
-        if (firstWithItems) setOpenSection(firstWithItems.kind);
+        const defaultSection = (payload.curations.in_season ?? []).length > 0
+          ? SECTIONS.find((section) => section.kind === 'in_season')
+          : SECTIONS.find(
+              (section) => (payload.curations[section.kind] ?? []).length > 0,
+            );
+        if (defaultSection) setOpenSection(defaultSection.kind);
       }
       setError('');
     } catch (err: any) {
@@ -209,6 +211,12 @@ export default function BulletinScreen() {
         <View style={styles.sections}>
           {sectionsWithItems.map((section, sectionIndex) => {
             const items = data?.curations[section.kind] ?? [];
+            const itemCount = section.kind === 'in_season'
+              ? items.filter((item) => isMonthInSeason(
+                  item.seasonStartMonth,
+                  item.seasonEndMonth,
+                )).length
+              : items.length;
             const isOpen = openSection === section.kind;
             const isLastBlock = sectionIndex === sectionsWithItems.length - 1;
             return (
@@ -222,7 +230,7 @@ export default function BulletinScreen() {
                   activeOpacity={0.7}
                 >
                   <Text style={styles.categoryTitle}>{section.label}</Text>
-                  <Text style={styles.categoryCount}>{items.length}</Text>
+                  <Text style={styles.categoryCount}>{itemCount}</Text>
                 </TouchableOpacity>
                 {isOpen && (
                   <View style={styles.categoryItems}>

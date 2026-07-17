@@ -81,14 +81,22 @@ export class GlossaryTermModel {
   static async getLinkedCards(termId: string): Promise<GlossaryTermCard[]> {
     const query = `
       SELECT gtc.*,
-             c.deck_id,
+             membership.deck_id,
              c.image_url,
              c.restaurant_data,
-             c.card_order,
+             membership.card_order,
              c.created_at as card_created_at,
              c.updated_at as card_updated_at
       FROM glossary_term_cards gtc
       JOIN cards c ON c.id = gtc.card_id
+      LEFT JOIN LATERAL (
+        SELECT dc.deck_id, dc.card_order
+        FROM deck_cards dc
+        JOIN decks d ON d.id = dc.deck_id
+        WHERE dc.card_id = c.id
+        ORDER BY LOWER(d.title)
+        LIMIT 1
+      ) membership ON true
       WHERE gtc.term_id = $1
       ORDER BY gtc.created_at DESC
     `;
@@ -198,8 +206,7 @@ export class GlossaryTermModel {
     return (result.rowCount || 0) > 0;
   }
 
-  // Auto-suggestion: search cards in the caller's restaurant only. Cards
-  // inherit restaurant scope through their deck.
+  // Auto-suggestion: search canonical cards in the caller's restaurant only.
   static async findMatchingCards(term: string, restaurantId: string, limit = 20): Promise<CardMatchSuggestion[]> {
     const searchPattern = term.toLowerCase();
 
@@ -207,9 +214,9 @@ export class GlossaryTermModel {
       WITH card_matches AS (
         SELECT
           c.id,
-          c.deck_id,
+          membership.deck_id,
           c.image_url,
-          c.card_order,
+          membership.card_order,
           c.restaurant_data,
           c.created_at,
           c.updated_at,
@@ -269,9 +276,16 @@ export class GlossaryTermModel {
             ELSE 0
           END as garnish_score
         FROM cards c
-        JOIN decks d ON d.id = c.deck_id
+        LEFT JOIN LATERAL (
+          SELECT dc.deck_id, dc.card_order
+          FROM deck_cards dc
+          JOIN decks d ON d.id = dc.deck_id
+          WHERE dc.card_id = c.id
+          ORDER BY LOWER(d.title)
+          LIMIT 1
+        ) membership ON true
         WHERE c.restaurant_data IS NOT NULL
-          AND d.restaurant_id = $3
+          AND c.restaurant_id = $3
       )
       SELECT
         *,
@@ -337,13 +351,12 @@ export class GlossaryTermModel {
     });
   }
 
-  // Confirm a card belongs to a given restaurant (via its deck) before linking.
+  // Confirm a card belongs to a given restaurant before linking.
   static async cardBelongsToRestaurant(cardId: string, restaurantId: string): Promise<boolean> {
     const query = `
       SELECT 1
       FROM cards c
-      JOIN decks d ON d.id = c.deck_id
-      WHERE c.id = $1 AND d.restaurant_id = $2
+      WHERE c.id = $1 AND c.restaurant_id = $2
     `;
     const result = await pool.query(query, [cardId, restaurantId]);
     return result.rows.length > 0;

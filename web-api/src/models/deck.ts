@@ -55,7 +55,8 @@ export class DeckModel {
         AVG(ss.average_rating) as average_rating,
         ARRAY_AGG(DISTINCT c.restaurant_data->>'category') FILTER (WHERE c.restaurant_data->>'category' IS NOT NULL) as card_categories
       FROM decks d
-      LEFT JOIN cards c ON d.id = c.deck_id
+      LEFT JOIN deck_cards dc ON d.id = dc.deck_id
+      LEFT JOIN cards c ON c.id = dc.card_id
       LEFT JOIN study_sessions ss ON d.id = ss.deck_id
       WHERE d.restaurant_id = $1
       GROUP BY d.id, d.title, d.description, d.category_id, d.created_by, d.deck_type, d.created_at, d.updated_at
@@ -87,7 +88,8 @@ export class DeckModel {
         d.*,
         COUNT(c.id) as card_count
       FROM decks d
-      LEFT JOIN cards c ON d.id = c.deck_id
+      LEFT JOIN deck_cards dc ON d.id = dc.deck_id
+      LEFT JOIN cards c ON c.id = dc.card_id
       WHERE d.id = $1 AND d.restaurant_id = $2
       GROUP BY d.id, d.title, d.description, d.category_id, d.created_by, d.deck_type, d.created_at, d.updated_at
     `;
@@ -113,10 +115,12 @@ export class DeckModel {
 
     if (includeCards) {
       const cardsQuery = `
-        SELECT id, deck_id, image_url, card_order, restaurant_data, created_at, updated_at
-        FROM cards
-        WHERE deck_id = $1
-        ORDER BY restaurant_data->>'itemName' ASC, created_at ASC
+        SELECT c.id, dc.deck_id, c.image_url, dc.card_order,
+               c.restaurant_data, c.created_at, c.updated_at
+        FROM deck_cards dc
+        JOIN cards c ON c.id = dc.card_id
+        WHERE dc.deck_id = $1
+        ORDER BY c.restaurant_data->>'itemName' ASC, c.created_at ASC
       `;
 
       const cardsResult = await pool.query(cardsQuery, [id]);

@@ -49,7 +49,8 @@ export class DeckModel {
         END) as mastered_cards,
         MIN(CASE WHEN fc.next_review > NOW() THEN fc.next_review END) as next_review_at
       FROM decks d
-      LEFT JOIN cards c ON d.id = c.deck_id
+      LEFT JOIN deck_cards dc ON d.id = dc.deck_id
+      LEFT JOIN cards c ON c.id = dc.card_id
       LEFT JOIN fsrs_cards fc ON c.id = fc.card_id AND fc.user_id = $1
       WHERE d.id IN (SELECT id FROM accessible)
       GROUP BY d.id, d.title, d.description, d.deck_type
@@ -94,7 +95,8 @@ export class DeckModel {
           c.restaurant_data->>'itemName' AS item_name,
           matched.field_key,
           matched.field_value
-        FROM cards c
+        FROM deck_cards deck_card
+        JOIN cards c ON c.id = deck_card.card_id
         JOIN LATERAL (
           SELECT cleaned.field_key, cleaned.field_value
           FROM (
@@ -117,7 +119,7 @@ export class DeckModel {
           WHERE cleaned.field_value <> ''
             AND cleaned.field_value ILIKE $3
         ) AS matched ON true
-        WHERE c.deck_id = d.id
+        WHERE deck_card.deck_id = d.id
           AND c.restaurant_data IS NOT NULL
       ) AS card_match ON true
       WHERE d.id IN (SELECT id FROM accessible)
@@ -181,13 +183,13 @@ export class DeckModel {
       WITH accessible AS (${ACCESSIBLE_DECK_IDS_SQL})
       SELECT
         c.id,
-        c.deck_id,
+        membership.deck_id,
         c.image_url,
-        c.card_order,
+        membership.card_order,
         c.restaurant_data,
         c.created_at,
         c.updated_at,
-        d.title as deck_title,
+        membership.deck_title,
         fc.id as fsrs_id,
         fc.difficulty,
         fc.stability,
@@ -201,16 +203,22 @@ export class DeckModel {
         fc.created_at as fsrs_created_at,
         fc.updated_at as fsrs_updated_at
       FROM cards c
-      JOIN decks d ON d.id = c.deck_id
+      JOIN LATERAL (
+        SELECT dc.deck_id, dc.card_order, d.title AS deck_title
+        FROM deck_cards dc
+        JOIN decks d ON d.id = dc.deck_id
+        WHERE dc.card_id = c.id AND dc.deck_id IN (SELECT id FROM accessible)
+        ORDER BY LOWER(d.title)
+        LIMIT 1
+      ) membership ON true
       LEFT JOIN fsrs_cards fc ON c.id = fc.card_id AND fc.user_id = $1
-      WHERE d.id IN (SELECT id FROM accessible)
-        AND (
-          d.title ILIKE $3
+      WHERE (
+          membership.deck_title ILIKE $3
           OR c.restaurant_data::text ILIKE $3
         )
       ORDER BY
         LOWER(COALESCE(c.restaurant_data->>'itemName', '')) ASC,
-        LOWER(d.title) ASC
+        LOWER(membership.deck_title) ASC
       LIMIT $4
     `;
 
@@ -242,9 +250,9 @@ export class DeckModel {
       WITH accessible AS (${ACCESSIBLE_DECK_IDS_SQL})
       SELECT
         c.id,
-        c.deck_id,
+        membership.deck_id,
         c.image_url,
-        c.card_order,
+        membership.card_order,
         c.restaurant_data,
         c.created_at,
         c.updated_at,
@@ -261,10 +269,15 @@ export class DeckModel {
         fc.created_at as fsrs_created_at,
         fc.updated_at as fsrs_updated_at
       FROM cards c
-      JOIN decks d ON d.id = c.deck_id
+      JOIN LATERAL (
+        SELECT dc.deck_id, dc.card_order
+        FROM deck_cards dc
+        WHERE dc.card_id = c.id AND dc.deck_id IN (SELECT id FROM accessible)
+        ORDER BY dc.deck_id
+        LIMIT 1
+      ) membership ON true
       LEFT JOIN fsrs_cards fc ON c.id = fc.card_id AND fc.user_id = $1
-      WHERE d.id IN (SELECT id FROM accessible)
-        AND c.id = ANY($3::uuid[])
+      WHERE c.id = ANY($3::uuid[])
       ORDER BY array_position($3::uuid[], c.id)
     `;
 
@@ -311,9 +324,9 @@ export class DeckModel {
     const query = `
       SELECT
         c.id,
-        c.deck_id,
+        dc.deck_id,
         c.image_url,
-        c.card_order,
+        dc.card_order,
         c.restaurant_data,
         c.created_at,
         c.updated_at,
@@ -329,10 +342,11 @@ export class DeckModel {
         fc.next_review,
         fc.created_at as fsrs_created_at,
         fc.updated_at as fsrs_updated_at
-      FROM cards c
-      JOIN decks d ON d.id = c.deck_id
+      FROM deck_cards dc
+      JOIN cards c ON c.id = dc.card_id
+      JOIN decks d ON d.id = dc.deck_id
       LEFT JOIN fsrs_cards fc ON c.id = fc.card_id AND fc.user_id = $2
-      WHERE c.deck_id = $1 AND d.restaurant_id = $3
+      WHERE dc.deck_id = $1 AND d.restaurant_id = $3
       ${mode === 'recommended' ? recommendedFilter : ''}
       ${orderBy}
     `;
@@ -399,9 +413,9 @@ export class DeckModel {
       WITH accessible AS (${ACCESSIBLE_DECK_IDS_SQL})
       SELECT
         c.id,
-        c.deck_id,
+        membership.deck_id,
         c.image_url,
-        c.card_order,
+        membership.card_order,
         c.restaurant_data,
         c.created_at,
         c.updated_at,
@@ -417,14 +431,20 @@ export class DeckModel {
         fc.next_review,
         fc.created_at as fsrs_created_at,
         fc.updated_at as fsrs_updated_at,
-        d.title as deck_title
+        membership.deck_title
       FROM fsrs_cards fc
       JOIN cards c ON fc.card_id = c.id
-      JOIN decks d ON c.deck_id = d.id
+      JOIN LATERAL (
+        SELECT dc.deck_id, dc.card_order, d.title AS deck_title
+        FROM deck_cards dc
+        JOIN decks d ON d.id = dc.deck_id
+        WHERE dc.card_id = c.id AND dc.deck_id IN (SELECT id FROM accessible)
+        ORDER BY LOWER(d.title)
+        LIMIT 1
+      ) membership ON true
       WHERE fc.user_id = $1
         AND fc.next_review <= NOW()
-        AND d.id IN (SELECT id FROM accessible)
-      ORDER BY fc.next_review ASC, c.card_order ASC
+      ORDER BY fc.next_review ASC, membership.card_order ASC
       LIMIT $3
     `;
 
