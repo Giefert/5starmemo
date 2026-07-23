@@ -1215,14 +1215,14 @@ function LibraryBrowsePane({
     title: string,
     sectionDecks: StudentDeck[],
     emptyText?: string,
-  ) =>
-    sectionDecks.length > 0 ? (
-      <View key={title}>
-        <View style={styles.browseSectionHeader}>
+  ): React.ReactElement[] => {
+    if (sectionDecks.length > 0) {
+      return [
+        <View key={`${title}-header`} style={styles.browseSectionHeader}>
           <Text style={styles.browseSectionTitle}>{title}</Text>
           <Text style={styles.browseSectionCount}>{sectionDecks.length}</Text>
-        </View>
-        {sectionDecks.map((deck, i) => (
+        </View>,
+        ...sectionDecks.map((deck, i) => (
           <DeckRow
             key={deck.id}
             deck={deck}
@@ -1235,66 +1235,132 @@ function LibraryBrowsePane({
             onTap={onDeckPress}
             onToggleFavorite={toggleFavorite}
           />
-        ))}
-      </View>
-    ) : emptyText ? (
-      <View key={title}>
-        <View style={styles.browseSectionHeader}>
-          <Text style={styles.browseSectionTitle}>{title}</Text>
-        </View>
-        <Text style={styles.browsePlaceholder}>{emptyText}</Text>
-      </View>
-    ) : null;
+        )),
+      ];
+    }
 
-  const renderPageContent = (category: string | undefined) => {
+    if (emptyText) {
+      return [
+        <View key={`${title}-header`} style={styles.browseSectionHeader}>
+          <Text style={styles.browseSectionTitle}>{title}</Text>
+        </View>,
+        <Text key={`${title}-empty`} style={styles.browsePlaceholder}>
+          {emptyText}
+        </Text>,
+      ];
+    }
+
+    return [];
+  };
+
+  const renderPageContent = (
+    category: string | undefined,
+  ): { content: React.ReactNode; stickyHeaderIndices: number[] } => {
     if (error) {
-      return (
-        <View style={styles.stateBlock}>
-          <Text style={styles.stateEyebrow}>Something went wrong</Text>
-          <Text style={styles.stateLine}>{error}</Text>
-          <Pressable onPress={onRetry} hitSlop={8}>
-            <Text style={styles.retryLink}>Tap to retry</Text>
-          </Pressable>
-        </View>
-      );
+      return {
+        content: (
+          <View style={styles.stateBlock}>
+            <Text style={styles.stateEyebrow}>Something went wrong</Text>
+            <Text style={styles.stateLine}>{error}</Text>
+            <Pressable onPress={onRetry} hitSlop={8}>
+              <Text style={styles.retryLink}>Tap to retry</Text>
+            </Pressable>
+          </View>
+        ),
+        stickyHeaderIndices: [],
+      };
     }
 
     if (isSearchingDecks && filteredDecks.length === 0) {
-      return isSearchLoading ? renderSearchLoading() : renderSearchEmpty();
+      return {
+        content: isSearchLoading ? renderSearchLoading() : renderSearchEmpty(),
+        stickyHeaderIndices: [],
+      };
     }
 
     if (category === undefined) {
-      return (
-        <>
-          {renderSection(
-            'Favorites',
-            favoriteDecks,
-            isSearchingDecks ? undefined : 'Hold a deck to add it to favorites.',
-          )}
-          {presentCategories.map(c =>
-            renderSection(c.label, restDecks.filter(d => d.deckType === c.type)),
-          )}
-        </>
-      );
+      const content: React.ReactElement[] = [];
+      const stickyHeaderIndices: number[] = [];
+      const sections = [
+        {
+          title: 'Favorites',
+          decks: favoriteDecks,
+          emptyText: isSearchingDecks
+            ? undefined
+            : 'Hold a deck to add it to favorites.',
+        },
+        ...presentCategories.map(c => ({
+          title: c.label,
+          decks: restDecks.filter(d => d.deckType === c.type),
+          emptyText: undefined,
+        })),
+      ];
+
+      sections.forEach(section => {
+        const sectionContent = renderSection(
+          section.title,
+          section.decks,
+          section.emptyText,
+        );
+        if (sectionContent.length === 0) return;
+
+        stickyHeaderIndices.push(content.length);
+        content.push(...sectionContent);
+      });
+
+      return { content, stickyHeaderIndices };
     }
 
     if (category === 'Favorites') {
       if (favoriteDecks.length === 0) {
-        if (isSearchingDecks && isSearchLoading) return renderSearchLoading();
-        return (
-          <Text style={styles.browsePlaceholder}>
-            {isSearchingDecks
-              ? 'No favorite decks match that search.'
-              : 'Hold a deck to add it to favorites.'}
-          </Text>
-        );
+        if (isSearchingDecks && isSearchLoading) {
+          return { content: renderSearchLoading(), stickyHeaderIndices: [] };
+        }
+        return {
+          content: (
+            <Text style={styles.browsePlaceholder}>
+              {isSearchingDecks
+                ? 'No favorite decks match that search.'
+                : 'Hold a deck to add it to favorites.'}
+            </Text>
+          ),
+          stickyHeaderIndices: [],
+        };
       }
-      return favoriteDecks.map((deck, i) => (
+      return {
+        content: favoriteDecks.map((deck, i) => (
+          <DeckRow
+            key={deck.id}
+            deck={deck}
+            isFirstInGroup={i === 0}
+            isFavorite
+            mode="browse"
+            isSearching={isSearchingDecks}
+            searchQuery={searchQuery}
+            searchMatches={getSearchMatches(deck)}
+            onTap={onDeckPress}
+            onToggleFavorite={toggleFavorite}
+          />
+        )),
+        stickyHeaderIndices: [],
+      };
+    }
+
+    const cat = CATEGORY_ORDER.find(c => c.label === category);
+    const catDecks = cat ? filteredDecks.filter(d => d.deckType === cat.type) : [];
+    if (isSearchingDecks && catDecks.length === 0) {
+      return {
+        content: isSearchLoading ? renderSearchLoading() : renderSearchEmpty(),
+        stickyHeaderIndices: [],
+      };
+    }
+    return {
+      content: catDecks.map((deck, i) => (
         <DeckRow
           key={deck.id}
           deck={deck}
           isFirstInGroup={i === 0}
-          isFavorite
+          isFavorite={favSet.has(deck.id)}
           mode="browse"
           isSearching={isSearchingDecks}
           searchQuery={searchQuery}
@@ -1302,49 +1368,35 @@ function LibraryBrowsePane({
           onTap={onDeckPress}
           onToggleFavorite={toggleFavorite}
         />
-      ));
-    }
-
-    const cat = CATEGORY_ORDER.find(c => c.label === category);
-    const catDecks = cat ? filteredDecks.filter(d => d.deckType === cat.type) : [];
-    if (isSearchingDecks && catDecks.length === 0) {
-      return isSearchLoading ? renderSearchLoading() : renderSearchEmpty();
-    }
-    return catDecks.map((deck, i) => (
-      <DeckRow
-        key={deck.id}
-        deck={deck}
-        isFirstInGroup={i === 0}
-        isFavorite={favSet.has(deck.id)}
-        mode="browse"
-        isSearching={isSearchingDecks}
-        searchQuery={searchQuery}
-        searchMatches={getSearchMatches(deck)}
-        onTap={onDeckPress}
-        onToggleFavorite={toggleFavorite}
-      />
-    ));
+      )),
+      stickyHeaderIndices: [],
+    };
   };
 
-  const renderPage = (category: string | undefined, current: boolean) => (
-    <ScrollView
-      style={styles.browseBody}
-      contentContainerStyle={styles.browseBodyContent}
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-      refreshControl={
-        current ? (
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={onRefresh}
-            tintColor={COLORS.inkMute}
-          />
-        ) : undefined
-      }
-    >
-      {renderPageContent(category)}
-    </ScrollView>
-  );
+  const renderPage = (category: string | undefined, current: boolean) => {
+    const { content, stickyHeaderIndices } = renderPageContent(category);
+
+    return (
+      <ScrollView
+        style={styles.browseBody}
+        contentContainerStyle={styles.browseBodyContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        stickyHeaderIndices={stickyHeaderIndices}
+        refreshControl={
+          current ? (
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={onRefresh}
+              tintColor={COLORS.inkMute}
+            />
+          ) : undefined
+        }
+      >
+        {content}
+      </ScrollView>
+    );
+  };
 
   const renderSearchRow = () => (
     <View style={styles.searchRow}>

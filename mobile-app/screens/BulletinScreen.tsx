@@ -22,6 +22,7 @@ import { useAuth } from '../contexts/AuthContext';
 import apiService from '../services/api';
 import {
   BulletinPayload,
+  compareSeasonalItems,
   CurationKind,
   formatSeasonality,
   isMonthInSeason,
@@ -406,6 +407,9 @@ function SeasonTimeline({
   const monthViewportWidth = Math.max(screenWidth - 52 - TIMELINE_LABEL_WIDTH, 1);
   const monthWidth = monthViewportWidth / 3;
   const now = new Date();
+  const sortedItems = [...items].sort((a, b) => (
+    compareSeasonalItems(a, b, now.getMonth() + 1)
+  ));
   const months = Array.from({ length: 12 }, (_, offset) => {
     const date = new Date(now.getFullYear(), now.getMonth() + offset, 1);
     return {
@@ -431,7 +435,7 @@ function SeasonTimeline({
           <View style={[styles.timelineCorner, { height: TIMELINE_HEADER_HEIGHT }]}>
             <Text style={styles.timelineCornerText}>Item</Text>
           </View>
-          {items.map((item) => {
+          {sortedItems.map((item) => {
             const range = formatSeasonality(
               item.seasonStartMonth,
               item.seasonEndMonth,
@@ -489,7 +493,7 @@ function SeasonTimeline({
               ))}
             </View>
 
-            {items.map((item) => (
+            {sortedItems.map((item) => (
               <View
                 key={`${item.targetType}:${item.targetId}`}
                 style={[styles.timelineGridRow, { height: TIMELINE_ROW_HEIGHT }]}

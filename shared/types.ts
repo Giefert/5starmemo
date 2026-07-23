@@ -192,6 +192,39 @@ export function isMonthInSeason(
     : month >= startMonth! || month <= endMonth!;
 }
 
+// Orders Bulletin seasonality rows against a rolling, current-month-first
+// timeline. Active seasons come first (those ending soonest are most urgent),
+// followed by upcoming seasons in start order. Names provide a stable,
+// reader-friendly tie-breaker. Invalid ranges sort last as a defensive fallback.
+export function compareSeasonalItems(
+  a: RestaurantCurationItem,
+  b: RestaurantCurationItem,
+  currentMonth = new Date().getMonth() + 1
+): number {
+  const rank = (item: RestaurantCurationItem): [number, number] => {
+    const { seasonStartMonth: start, seasonEndMonth: end } = item;
+    if (
+      !formatSeasonality(start, end) ||
+      currentMonth < 1 ||
+      currentMonth > 12
+    ) {
+      return [2, 0];
+    }
+
+    if (isMonthInSeason(start, end, currentMonth)) {
+      return [0, (end! - currentMonth + 12) % 12];
+    }
+
+    return [1, (start! - currentMonth + 12) % 12];
+  };
+
+  const [aGroup, aDistance] = rank(a);
+  const [bGroup, bDistance] = rank(b);
+  return aGroup - bGroup
+    || aDistance - bDistance
+    || a.name.localeCompare(b.name);
+}
+
 // V2: Discriminated Union Architecture
 // Base fields that apply to ALL categories
 interface BaseRestaurantCardData {

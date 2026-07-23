@@ -583,22 +583,21 @@ export const HomeScreen: React.FC = () => {
   const getSearchMatches = (deck: StudentDeck) =>
     visibleSearchResult?.matchesByDeckId[deck.id] ?? [];
 
-  // A section is a Glossary-style header (large serif title + count) followed by
-  // its rows. Rendered only when the section has decks — unless an `emptyText`
+  // A section is a Glossary-style header followed by its rows. Rendered only
+  // when the section has decks — unless an `emptyText`
   // placeholder is given, in which case the header always shows with the
   // placeholder standing in for the rows (used by Favorites, which is always on).
   const renderSection = (
     title: string,
     sectionDecks: StudentDeck[],
     emptyText?: string,
-  ) =>
-    sectionDecks.length > 0 ? (
-      <View key={title}>
-        <View style={styles.sectionHeader}>
+  ): React.ReactElement[] => {
+    if (sectionDecks.length > 0) {
+      return [
+        <View key={`${title}-header`} style={styles.sectionHeader}>
           <Text style={styles.sectionGlyph}>{title}</Text>
-          <Text style={styles.sectionCount}>{sectionDecks.length}</Text>
-        </View>
-        {sectionDecks.map((deck, i) => (
+        </View>,
+        ...sectionDecks.map((deck, i) => (
           <DeckRow
             key={deck.id}
             deck={deck}
@@ -611,16 +610,23 @@ export const HomeScreen: React.FC = () => {
             onTap={handleDeckTap}
             onToggleFavorite={toggleFavorite}
           />
-        ))}
-      </View>
-    ) : emptyText ? (
-      <View key={title}>
-        <View style={styles.sectionHeader}>
+        )),
+      ];
+    }
+
+    if (emptyText) {
+      return [
+        <View key={`${title}-header`} style={styles.sectionHeader}>
           <Text style={styles.sectionGlyph}>{title}</Text>
-        </View>
-        <Text style={styles.sectionPlaceholder}>{emptyText}</Text>
-      </View>
-    ) : null;
+        </View>,
+        <Text key={`${title}-empty`} style={styles.sectionPlaceholder}>
+          {emptyText}
+        </Text>,
+      ];
+    }
+
+    return [];
+  };
 
   const renderSearchEmpty = () => (
     <View style={styles.stateBlock}>
@@ -678,7 +684,6 @@ export const HomeScreen: React.FC = () => {
           <View>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionGlyph}>Custom</Text>
-              <Text style={styles.sectionCount}>{customDecks.length}</Text>
             </View>
             {customDecks.map((deck, i) => (
               <CustomDeckRow
@@ -700,42 +705,97 @@ export const HomeScreen: React.FC = () => {
   // chapter — the full menu. A category page (incl. Favorites) is a flat list
   // of just that category's decks; the strip's amber underline names it, so it
   // gets no chapter header, and favorites show their star in place.
-  const renderPageContent = (category: string | undefined) => {
+  const renderPageContent = (
+    category: string | undefined,
+  ): { content: React.ReactNode; stickyHeaderIndices: number[] } => {
     if (isSearchingDecks && filteredDecks.length === 0) {
-      return isSearchLoading ? renderSearchLoading() : renderSearchEmpty();
+      return {
+        content: isSearchLoading ? renderSearchLoading() : renderSearchEmpty(),
+        stickyHeaderIndices: [],
+      };
     }
 
     if (category === undefined) {
-      return (
-        <>
-          {renderSection(
-            'Favorites',
-            favoriteDecks,
-            isSearchingDecks ? undefined : 'Hold a study deck to add it to favorites.',
-          )}
-          {presentCategories.map(c =>
-            renderSection(c.label, rest.filter(d => d.deckType === c.type)),
-          )}
-        </>
-      );
+      const content: React.ReactElement[] = [];
+      const stickyHeaderIndices: number[] = [];
+      const sections = [
+        {
+          title: 'Favorites',
+          decks: favoriteDecks,
+          emptyText: isSearchingDecks
+            ? undefined
+            : 'Hold a study deck to add it to favorites.',
+        },
+        ...presentCategories.map(c => ({
+          title: c.label,
+          decks: rest.filter(d => d.deckType === c.type),
+          emptyText: undefined,
+        })),
+      ];
+
+      sections.forEach(section => {
+        const sectionContent = renderSection(
+          section.title,
+          section.decks,
+          section.emptyText,
+        );
+        if (sectionContent.length === 0) return;
+
+        stickyHeaderIndices.push(content.length);
+        content.push(...sectionContent);
+      });
+
+      return { content, stickyHeaderIndices };
     }
     if (category === 'Favorites') {
       if (favoriteDecks.length === 0) {
-        if (isSearchingDecks && isSearchLoading) return renderSearchLoading();
-        return (
-          <Text style={styles.sectionPlaceholder}>
-            {isSearchingDecks
-              ? 'No favorite decks match that search.'
-              : 'Hold a study deck to add it to favorites.'}
-          </Text>
-        );
+        if (isSearchingDecks && isSearchLoading) {
+          return { content: renderSearchLoading(), stickyHeaderIndices: [] };
+        }
+        return {
+          content: (
+            <Text style={styles.sectionPlaceholder}>
+              {isSearchingDecks
+                ? 'No favorite decks match that search.'
+                : 'Hold a study deck to add it to favorites.'}
+            </Text>
+          ),
+          stickyHeaderIndices: [],
+        };
       }
-      return favoriteDecks.map((deck, i) => (
+      return {
+        content: favoriteDecks.map((deck, i) => (
+          <DeckRow
+            key={deck.id}
+            deck={deck}
+            isFirstInGroup={i === 0}
+            isFavorite
+            mode={mode}
+            isSearching={isSearchingDecks}
+            searchQuery={searchQuery}
+            searchMatches={getSearchMatches(deck)}
+            onTap={handleDeckTap}
+            onToggleFavorite={toggleFavorite}
+          />
+        )),
+        stickyHeaderIndices: [],
+      };
+    }
+    const cat = CATEGORY_ORDER.find(c => c.label === category);
+    const catDecks = cat ? filteredDecks.filter(d => d.deckType === cat.type) : [];
+    if (isSearchingDecks && catDecks.length === 0) {
+      return {
+        content: isSearchLoading ? renderSearchLoading() : renderSearchEmpty(),
+        stickyHeaderIndices: [],
+      };
+    }
+    return {
+      content: catDecks.map((deck, i) => (
         <DeckRow
           key={deck.id}
           deck={deck}
           isFirstInGroup={i === 0}
-          isFavorite
+          isFavorite={favSet.has(deck.id)}
           mode={mode}
           isSearching={isSearchingDecks}
           searchQuery={searchQuery}
@@ -743,50 +803,38 @@ export const HomeScreen: React.FC = () => {
           onTap={handleDeckTap}
           onToggleFavorite={toggleFavorite}
         />
-      ));
-    }
-    const cat = CATEGORY_ORDER.find(c => c.label === category);
-    const catDecks = cat ? filteredDecks.filter(d => d.deckType === cat.type) : [];
-    if (isSearchingDecks && catDecks.length === 0) {
-      return isSearchLoading ? renderSearchLoading() : renderSearchEmpty();
-    }
-    return catDecks.map((deck, i) => (
-      <DeckRow
-        key={deck.id}
-        deck={deck}
-        isFirstInGroup={i === 0}
-        isFavorite={favSet.has(deck.id)}
-        mode={mode}
-        isSearching={isSearchingDecks}
-        searchQuery={searchQuery}
-        searchMatches={getSearchMatches(deck)}
-        onTap={handleDeckTap}
-        onToggleFavorite={toggleFavorite}
-      />
-    ));
+      )),
+      stickyHeaderIndices: [],
+    };
   };
 
   // One swipe page. The centre page wires up pull-to-refresh; neighbour pages
-  // are transient and only there to slide in alongside the gesture.
-  const renderPage = (category: string | undefined, current: boolean) => (
-    <ScrollView
-      style={styles.body}
-      contentContainerStyle={styles.bodyContent}
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-      refreshControl={
-        current ? (
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={handleRefresh}
-            tintColor={COLORS.inkMute}
-          />
-        ) : undefined
-      }
-    >
-      {renderPageContent(category)}
-    </ScrollView>
-  );
+  // are transient and only there to slide in alongside the gesture. On the
+  // all-decks page, each section header sticks until the next category arrives.
+  const renderPage = (category: string | undefined, current: boolean) => {
+    const { content, stickyHeaderIndices } = renderPageContent(category);
+
+    return (
+      <ScrollView
+        style={styles.body}
+        contentContainerStyle={styles.bodyContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        stickyHeaderIndices={stickyHeaderIndices}
+        refreshControl={
+          current ? (
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              tintColor={COLORS.inkMute}
+            />
+          ) : undefined
+        }
+      >
+        {content}
+      </ScrollView>
+    );
+  };
 
   return (
     <KeyboardAvoidingView
@@ -1136,8 +1184,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
 
-  // Section header — mirrors the Library tab's Glossary letter headers
-  // (large serif word + monospace count badge on the baseline).
+  // Section header — mirrors the Library tab's Glossary letter headers.
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'baseline',
@@ -1154,12 +1201,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.4,
     color: COLORS.ink,
     marginRight: 10,
-  },
-  sectionCount: {
-    fontFamily: 'JetBrainsMono_400Regular',
-    fontSize: 10,
-    color: COLORS.inkFaint,
-    fontVariant: ['tabular-nums'],
   },
   sectionPlaceholder: {
     fontFamily: 'JetBrainsMono_400Regular',

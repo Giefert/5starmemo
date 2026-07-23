@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  compareSeasonalItems,
   CurationTargetType,
   Deck,
   formatSeasonality,
@@ -242,6 +243,9 @@ const TIMELINE_ROW_HEIGHT = 60;
 
 function SeasonTimeline({ items }: { items: RestaurantCurationItem[] }) {
   const now = new Date();
+  const sortedItems = [...items].sort((a, b) => (
+    compareSeasonalItems(a, b, now.getMonth() + 1)
+  ));
   const months = Array.from({ length: 12 }, (_, offset) => {
     const date = new Date(now.getFullYear(), now.getMonth() + offset, 1);
     return {
@@ -273,7 +277,7 @@ function SeasonTimeline({ items }: { items: RestaurantCurationItem[] }) {
           >
             Item
           </div>
-          {items.map((item) => {
+          {sortedItems.map((item) => {
             const range = formatSeasonality(item.seasonStartMonth, item.seasonEndMonth);
             const href = item.targetType === 'card'
               ? `/dashboard/cards#card-${item.targetId}`
@@ -320,7 +324,7 @@ function SeasonTimeline({ items }: { items: RestaurantCurationItem[] }) {
               ))}
             </div>
 
-            {items.map((item) => (
+            {sortedItems.map((item) => (
               <div
                 key={`${item.targetType}:${item.targetId}`}
                 className="flex border-b border-bg-hair"
