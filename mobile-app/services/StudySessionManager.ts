@@ -37,6 +37,8 @@ function shuffle<T>(items: T[]): T[] {
 
 export class StudySessionManager {
   private state: StudySessionState;
+  private generation = 0;
+  private pendingReview: symbol | null = null;
 
   constructor() {
     this.state = {
@@ -55,19 +57,39 @@ export class StudySessionManager {
    * Start a new study session
    */
   async startSession(target: StartTarget): Promise<StudySessionItem[]> {
+    const generation = ++this.generation;
+    this.pendingReview = null;
+
     try {
       if (target.kind === 'deck') {
         const mode = target.mode ?? 'recommended';
-        this.state.session = mode === 'full'
-          ? null
-          : await apiService.createStudySession({ deckId: target.deckId });
-        const studyData = await apiService.getDeckForStudy(target.deckId, mode);
-        this.state.cards = studyData.cards.map(cardData => ({ kind: 'card', cardData }));
+        if (mode === 'full') {
+          const studyData = await apiService.getDeckForStudy(target.deckId, mode);
+          if (generation !== this.generation) return [];
+          this.state.session = null;
+          this.state.cards = studyData.cards.map(cardData => ({ kind: 'card', cardData }));
+        } else {
+          const result = await apiService.startGradedStudySession({
+            deckId: target.deckId,
+          });
+          if (generation !== this.generation) return [];
+          if (result.study.kind !== 'deck') {
+            throw new Error('Unexpected study-session response');
+          }
+          this.state.session = result.session;
+          this.state.cards = result.study.cards.map(cardData => ({ kind: 'card', cardData }));
+        }
         this.state.unitStartIndices = [];
         this.state.deckTitle = target.deckTitle;
       } else if (target.kind === 'curation') {
-        const payload = await apiService.getCurationStudy(target.curationKind);
-        const shuffledUnits = shuffle(payload.units);
+        const result = await apiService.startGradedStudySession({
+          curationKind: target.curationKind,
+        });
+        if (generation !== this.generation) return [];
+        if (result.study.kind !== 'curation') {
+          throw new Error('Unexpected study-session response');
+        }
+        const shuffledUnits = shuffle(result.study.units);
         const cards: StudySessionItem[] = [];
         const starts: number[] = [];
         for (const unit of shuffledUnits) {
@@ -75,7 +97,7 @@ export class StudySessionManager {
           const unitCards = unit.type === 'deck' ? shuffle(unit.cards) : unit.cards;
           cards.push(...unitCards.map(cardData => ({ kind: 'card' as const, cardData })));
         }
-        this.state.session = await apiService.createStudySession({ curationKind: target.curationKind });
+        this.state.session = result.session;
         this.state.cards = cards;
         this.state.unitStartIndices = starts;
         this.state.deckTitle = target.title;
@@ -100,11 +122,11 @@ export class StudySessionManager {
   /**
    * Submit a rating for the current card
    */
-  async submitRating(rating: 1 | 2 | 3 | 4): Promise<void> {
+  async submitRating(rating: 1 | 2 | 3 | 4): Promise<boolean> {
     if (!this.state.session || this.state.isComplete) {
       throw new Error('No active study session');
     }
-
+    const generation = this.generation;
     const currentCard = this.getCurrentCard();
     if (!currentCard) {
       throw new Error('No current card to rate');
@@ -113,27 +135,61 @@ export class StudySessionManager {
       throw new Error('Current item cannot be rated');
     }
 
-    try {
-      const reviewInput: ReviewInput = {
-        cardId: currentCard.cardData.card.id,
-        rating
-      };
+    const reviewInput: ReviewInput = {
+      cardId: currentCard.cardData.card.id,
+      rating
+    };
+    const previousIndex = this.state.currentCardIndex;
+    const previousStudied = this.state.studiedCount;
+    const previousCorrect = this.state.correctCount;
+    if (this.pendingReview) {
+      throw new Error('A review is already being submitted');
+    }
+    const pendingReview = Symbol('pendingReview');
+    this.pendingReview = pendingReview;
 
-      await apiService.submitReview(reviewInput, this.state.session.id);
-      
-      // Update local state
+    try {
+      // Advance locally before the request so StudyScreen can paint the next
+      // card while this single write is in flight.
       this.state.studiedCount++;
-      if (rating >= 3) { // Good or Easy
-        this.state.correctCount++;
-      }
-      
-      // Move to next card or complete session
+      if (rating >= 3) this.state.correctCount++;
       this.state.currentCardIndex++;
-      if (this.state.currentCardIndex >= this.state.cards.length) {
-        await this.completeSession();
+      const completesSession = this.state.currentCardIndex >= this.state.cards.length;
+      const finalStats = completesSession
+        ? {
+            cardsStudied: this.state.studiedCount,
+            correctAnswers: this.state.correctCount,
+            averageRating: this.calculateAverageRating(),
+          }
+        : undefined;
+
+      try {
+        await apiService.submitReview(
+          reviewInput,
+          this.state.session.id,
+          finalStats,
+        );
+      } catch (error) {
+        // Exiting/resetting while the request is in flight starts a new
+        // generation. The persisted review may finish, but it must not roll
+        // back or otherwise mutate the replacement local session.
+        if (this.generation !== generation) return false;
+
+        // Restore the rated card before surfacing the error so a retry cannot
+        // silently skip a review.
+        this.state.currentCardIndex = previousIndex;
+        this.state.studiedCount = previousStudied;
+        this.state.correctCount = previousCorrect;
+        throw new Error(`Failed to submit rating: ${error}`);
       }
-    } catch (error) {
-      throw new Error(`Failed to submit rating: ${error}`);
+
+      if (this.generation !== generation) return false;
+      if (completesSession) this.state.isComplete = true;
+      return true;
+    } finally {
+      if (this.pendingReview === pendingReview) {
+        this.pendingReview = null;
+      }
     }
   }
 
@@ -161,19 +217,6 @@ export class StudySessionManager {
    * Complete the current study session
    */
   private async completeSession(): Promise<void> {
-    if (!this.state.session) {
-      this.state.isComplete = true;
-      return;
-    }
-
-    const averageRating = this.calculateAverageRating();
-    
-    await apiService.endStudySession(this.state.session.id, {
-      cardsStudied: this.state.studiedCount,
-      correctAnswers: this.state.correctCount,
-      averageRating
-    });
-
     this.state.isComplete = true;
   }
 
@@ -244,6 +287,8 @@ export class StudySessionManager {
    * Reset the session
    */
   reset(): void {
+    this.generation++;
+    this.pendingReview = null;
     this.state = {
       session: null,
       cards: [],

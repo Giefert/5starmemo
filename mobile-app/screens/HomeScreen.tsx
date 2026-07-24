@@ -12,6 +12,7 @@ import {
   StyleSheet,
   Pressable,
   ScrollView,
+  FlatList,
   TextInput,
   ActivityIndicator,
   Alert,
@@ -29,6 +30,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Svg, { Circle, Line } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { useAuth } from '../contexts/AuthContext';
+import { useDecks } from '../contexts/DecksContext';
 import { StudentDeck, DeckType, GlossaryTermSummary } from '../types/shared';
 import apiService from '../services/api';
 import { loadFavorites, saveFavorites } from '../utils/favorites';
@@ -92,8 +94,13 @@ export const HomeScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const navigation = useNavigation();
-  const [decks, setDecks] = useState<StudentDeck[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const {
+    decks,
+    isLoading: isSharedDecksLoading,
+    loadDecks,
+    invalidateDecks,
+  } = useDecks();
+  const [isLoadingDecks, setIsLoadingDecks] = useState(decks.length === 0);
   const [screenState, setScreenState] = useState<ScreenState>('home');
   const [mode, setMode] = useState<Mode>('recommended');
   const [selectedDeck, setSelectedDeck] = useState<StudentDeck | null>(null);
@@ -332,11 +339,10 @@ export const HomeScreen: React.FC = () => {
     });
   }, [screenState, navigation]);
 
-  const loadData = async () => {
+  const loadData = async (force = false) => {
     try {
-      if (!isRefreshing) setIsLoading(true);
-      const decksData = await apiService.getAvailableDecks();
-      setDecks(decksData);
+      if (!isRefreshing && decks.length === 0) setIsLoadingDecks(true);
+      await loadDecks(force);
       invalidateCardSearchCache();
     } catch (error) {
       // Handle authentication errors by logging out
@@ -351,21 +357,18 @@ export const HomeScreen: React.FC = () => {
         message,
         [
           { text: 'Retry', onPress: () => loadData() },
-          { text: 'Continue Offline', onPress: () => {
-            // Set empty data for offline mode
-            setDecks([]);
-          }}
+          { text: 'Continue Offline' },
         ]
       );
     } finally {
-      setIsLoading(false);
+      setIsLoadingDecks(false);
       setIsRefreshing(false);
     }
   };
 
   const handleRefresh = () => {
     setIsRefreshing(true);
-    loadData();
+    loadData(true);
   };
 
   const handleDeckTap = (deck: StudentDeck) => {
@@ -428,29 +431,31 @@ export const HomeScreen: React.FC = () => {
       setIsStartingCustomDeck(true);
       const cardIds = deck.items.flatMap(item => item.kind === 'card' ? [item.cardId] : []);
       const libraryItems = deck.items.flatMap(item => item.kind === 'reference' ? [item] : []);
-      const hydratedCards = await apiService.getStudyCardsByIds(cardIds);
+      const [hydratedCards, hydratedTerms] = await Promise.all([
+        apiService.getStudyCardsByIds(cardIds),
+        Promise.all(
+          libraryItems.map(async item => {
+            try {
+              const term = await apiService.getGlossaryTerm(item.termId);
+              const summary: GlossaryTermSummary = {
+                id: term.id,
+                term: term.term,
+                definition: term.definition,
+                section: term.section,
+                categoryId: term.categoryId,
+                categoryName: term.category?.name ?? item.categoryName,
+                categoryColor: term.category?.color ?? item.categoryColor,
+                linkedCardCount: term.linkedCardCount ?? term.linkedCards?.length ?? 0,
+              };
+              return [item.termId, summary] as const;
+            } catch {
+              if (!item.definition) return null;
+              return [item.termId, customLibraryItemToTermSummary(item)] as const;
+            }
+          }),
+        ),
+      ]);
       const cardsById = new Map(hydratedCards.map(cardData => [cardData.card.id, cardData]));
-      const hydratedTerms = await Promise.all(
-        libraryItems.map(async item => {
-          try {
-            const term = await apiService.getGlossaryTerm(item.termId);
-            const summary: GlossaryTermSummary = {
-              id: term.id,
-              term: term.term,
-              definition: term.definition,
-              section: term.section,
-              categoryId: term.categoryId,
-              categoryName: term.category?.name ?? item.categoryName,
-              categoryColor: term.category?.color ?? item.categoryColor,
-              linkedCardCount: term.linkedCardCount ?? term.linkedCards?.length ?? 0,
-            };
-            return [item.termId, summary] as const;
-          } catch {
-            if (!item.definition) return null;
-            return [item.termId, customLibraryItemToTermSummary(item)] as const;
-          }
-        }),
-      );
       const termsById = new Map(
         hydratedTerms.filter((entry): entry is NonNullable<typeof entry> => entry != null),
       );
@@ -506,7 +511,8 @@ export const HomeScreen: React.FC = () => {
     setStudyStats(stats);
     setScreenState('completed');
     if (stats.isGraded !== false) {
-      loadData();
+      invalidateDecks();
+      loadData(true);
     }
   };
 
@@ -515,8 +521,6 @@ export const HomeScreen: React.FC = () => {
     setSelectedDeck(null);
     setSelectedCustomStudy(null);
     setStudyStats(null);
-    // Refresh data when returning to home
-    loadData();
   };
 
   // Render different screens based on state
@@ -813,14 +817,25 @@ export const HomeScreen: React.FC = () => {
   // all-decks page, each section header sticks until the next category arrives.
   const renderPage = (category: string | undefined, current: boolean) => {
     const { content, stickyHeaderIndices } = renderPageContent(category);
+    const items = React.Children.toArray(content);
 
     return (
-      <ScrollView
+      <FlatList
         style={styles.body}
+        data={items}
+        keyExtractor={(item, index) => (
+          React.isValidElement(item) && item.key != null
+            ? String(item.key)
+            : `deck-row-${index}`
+        )}
+        renderItem={({ item }) => <>{item}</>}
         contentContainerStyle={styles.bodyContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         stickyHeaderIndices={stickyHeaderIndices}
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        windowSize={7}
         refreshControl={
           current ? (
             <RefreshControl
@@ -830,9 +845,7 @@ export const HomeScreen: React.FC = () => {
             />
           ) : undefined
         }
-      >
-        {content}
-      </ScrollView>
+      />
     );
   };
 
@@ -878,7 +891,7 @@ export const HomeScreen: React.FC = () => {
       </View>
 
       {/* Paper body */}
-      {isLoading && decks.length === 0 ? (
+      {(isLoadingDecks || isSharedDecksLoading) && decks.length === 0 ? (
         <View style={styles.body}>
           <View style={styles.stateBlock}>
             <ActivityIndicator color={COLORS.inkMute} />

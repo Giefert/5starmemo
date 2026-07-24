@@ -45,22 +45,43 @@ export class ProgressModel {
   }
 
   /**
+   * Remove a just-created session when its study queue fails to load. The
+   * review guard makes this safe even if a caller accidentally exposes the ID
+   * before attempting compensation.
+   */
+  static async discardEmptyStudySession(sessionId: string, userId: string): Promise<void> {
+    await pool.query(`
+      DELETE FROM study_sessions ss
+      WHERE ss.id = $1
+        AND ss.user_id = $2
+        AND NOT EXISTS (
+          SELECT 1 FROM card_reviews cr WHERE cr.session_id = ss.id
+        )
+    `, [sessionId, userId]);
+  }
+
+  /**
    * End a study session
    */
-  static async endStudySession(sessionId: string, stats: {
-    cardsStudied: number;
-    correctAnswers: number;
-    averageRating: number;
-  }): Promise<StudySession | null> {
+  static async endStudySession(
+    sessionId: string,
+    userId: string,
+    stats: {
+      cardsStudied: number;
+      correctAnswers: number;
+      averageRating: number;
+    },
+  ): Promise<StudySession | null> {
     const query = `
       UPDATE study_sessions
-      SET cards_studied = $2, correct_answers = $3, average_rating = $4
-      WHERE id = $1
+      SET cards_studied = $3, correct_answers = $4, average_rating = $5
+      WHERE id = $1 AND user_id = $2
       RETURNING id, user_id, deck_id, curation_kind, cards_studied, correct_answers, average_rating
     `;
 
     const result = await pool.query(query, [
       sessionId,
+      userId,
       stats.cardsStudied,
       stats.correctAnswers,
       stats.averageRating
@@ -84,7 +105,16 @@ export class ProgressModel {
    * Submit a card review and update FSRS data. Caller must verify the cardId
    * belongs to the student's restaurant before calling.
    */
-  static async submitReview(userId: string, review: ReviewInput, sessionId?: string): Promise<FSRSCard> {
+  static async submitReview(
+    userId: string,
+    review: ReviewInput,
+    sessionId?: string,
+    finalStats?: {
+      cardsStudied: number;
+      correctAnswers: number;
+      averageRating: number;
+    },
+  ): Promise<{ fsrsCard: FSRSCard; session: StudySession | null }> {
     const client = await pool.connect();
 
     try {
@@ -133,14 +163,48 @@ export class ProgressModel {
 
       // Record the review
       if (sessionId) {
-        await client.query(`
+        const insertResult = await client.query(`
           INSERT INTO card_reviews (session_id, card_id, fsrs_card_id, rating)
-          VALUES ($1, $2, $3, $4)
-        `, [sessionId, review.cardId, fsrsResult.rows[0].id, review.rating]);
+          SELECT ss.id, $2, $3, $4
+          FROM study_sessions ss
+          WHERE ss.id = $1 AND ss.user_id = $5
+          RETURNING id
+        `, [sessionId, review.cardId, fsrsResult.rows[0].id, review.rating, userId]);
+        if (!insertResult.rows[0]) {
+          const error = new Error('Study session not found');
+          error.name = 'StudySessionNotFoundError';
+          throw error;
+        }
+      }
+
+      let completedSession: StudySession | null = null;
+      if (sessionId && finalStats) {
+        const sessionResult = await client.query(`
+          UPDATE study_sessions
+          SET cards_studied = $3, correct_answers = $4, average_rating = $5
+          WHERE id = $1 AND user_id = $2
+          RETURNING id, user_id, deck_id, curation_kind,
+                    cards_studied, correct_answers, average_rating
+        `, [
+          sessionId,
+          userId,
+          finalStats.cardsStudied,
+          finalStats.correctAnswers,
+          finalStats.averageRating,
+        ]);
+        if (!sessionResult.rows[0]) {
+          const error = new Error('Study session not found');
+          error.name = 'StudySessionNotFoundError';
+          throw error;
+        }
+        completedSession = mapSessionRow(sessionResult.rows[0]);
       }
 
       await client.query('COMMIT');
-      return mapFSRSRow(fsrsResult.rows[0], userId);
+      return {
+        fsrsCard: mapFSRSRow(fsrsResult.rows[0], userId),
+        session: completedSession,
+      };
 
     } catch (error) {
       await client.query('ROLLBACK');

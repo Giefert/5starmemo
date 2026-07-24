@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
 import Svg, { Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
+import { Image } from 'expo-image';
 import { studySessionManager } from '../services/StudySessionManager';
 import { StudyCard, LinkedTerm } from '../components/StudyCard';
 import { LibraryStudyCard } from '../components/LibraryStudyCard';
@@ -71,6 +72,7 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
   const [currentCard, setCurrentCard] = useState<StudySessionItem | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
   const [isFlipped, setIsFlipped] = useState(false);
   const [linkedTerms, setLinkedTerms] = useState<LinkedTerm[]>([]);
   const [selectedTerm, setSelectedTerm] = useState<LinkedTerm | null>(null);
@@ -87,22 +89,53 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
   });
 
   useEffect(() => {
-    startStudySession();
+    let cancelled = false;
+
+    const start = async () => {
+      try {
+        setIsLoading(true);
+        setRevealedCards(new Set());
+        await studySessionManager.startSession(target);
+        if (!cancelled) updateCurrentState();
+      } catch (error) {
+        if (!cancelled) {
+          Alert.alert(
+            'Error',
+            `Failed to start study session: ${error}`,
+            [{ text: 'OK', onPress: onExit }]
+          );
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+
+    start();
 
     return () => {
+      cancelled = true;
       // Clean up session on unmount
       studySessionManager.reset();
     };
   }, [targetKey]);
 
   useEffect(() => {
-    if (currentCard?.kind === 'card') {
-      apiService.getTermsForCard(currentCard.cardData.card.id)
-        .then(setLinkedTerms)
-        .catch(() => setLinkedTerms([]));
-    } else {
-      setLinkedTerms([]);
-    }
+    let cancelled = false;
+    setLinkedTerms([]);
+
+    if (currentCard?.kind !== 'card') return;
+
+    apiService.getTermsForCard(currentCard.cardData.card.id)
+      .then(terms => {
+        if (!cancelled) setLinkedTerms(terms);
+      })
+      .catch(() => {
+        if (!cancelled) setLinkedTerms([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [currentCard]);
 
   useEffect(() => {
@@ -116,23 +149,6 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
     });
   }, [isFlipped, currentCard]);
 
-  const startStudySession = async () => {
-    try {
-      setIsLoading(true);
-      setRevealedCards(new Set());
-      await studySessionManager.startSession(target);
-      updateCurrentState();
-    } catch (error) {
-      Alert.alert(
-        'Error',
-        `Failed to start study session: ${error}`,
-        [{ text: 'OK', onPress: onExit }]
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const updateCurrentState = () => {
     const card = studySessionManager.getCurrentCard();
     const progressInfo = studySessionManager.getProgress();
@@ -140,6 +156,8 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
     setCurrentCard(card);
     setProgress(progressInfo);
     setIsFlipped(false);
+    setSelectedTerm(null);
+    prefetchUpcomingImages();
 
     // Check if session is complete
     if (studySessionManager.isSessionComplete()) {
@@ -152,22 +170,51 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
     }
   };
 
+  const prefetchUpcomingImages = () => {
+    const state = studySessionManager.getState();
+    const urls = state.cards
+      .slice(state.currentCardIndex, state.currentCardIndex + 3)
+      .flatMap(item => (
+        item.kind === 'card' && item.cardData.card.imageUrl
+          ? [item.cardData.card.imageUrl]
+          : []
+      ));
+    if (urls.length > 0) {
+      Image.prefetch(urls, { cachePolicy: 'memory-disk' }).catch(() => {
+        // The striped image placeholder remains if a prefetch fails.
+      });
+    }
+  };
+
   const handleRating = async (rating: 1 | 2 | 3 | 4) => {
-    if (isSubmitting) return;
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
 
     try {
       setIsSubmitting(true);
-      await studySessionManager.submitRating(rating);
-      updateCurrentState();
+      const before = studySessionManager.getProgress();
+      const completesSession = before.current >= before.total;
+      const submission = studySessionManager.submitRating(rating);
+
+      // The manager advances before its first await, so the next card can paint
+      // while this one review is persisted. Rating stays disabled until it
+      // settles, keeping only one write in flight.
+      if (!completesSession) updateCurrentState();
+
+      const isStillCurrent = await submission;
+      if (completesSession && isStillCurrent) updateCurrentState();
     } catch (error) {
+      updateCurrentState();
       Alert.alert('Error', `Failed to submit rating: ${error}`);
     } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   };
 
   const handleNext = async () => {
-    if (isSubmitting) return;
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
 
     try {
       setIsSubmitting(true);
@@ -176,6 +223,7 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
     } catch (error) {
       Alert.alert('Error', `Failed to advance: ${error}`);
     } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -368,13 +416,6 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
         term={selectedTerm}
         onDismiss={() => setSelectedTerm(null)}
       />
-
-      {/* Loading overlay */}
-      {isSubmitting && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color={COLORS.amber} />
-        </View>
-      )}
     </View>
   );
 };
@@ -523,15 +564,5 @@ const styles = StyleSheet.create({
     color: COLORS.amber,
     letterSpacing: 2,
     textTransform: 'uppercase',
-  },
-  loadingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(20, 18, 15, 0.55)',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
 });

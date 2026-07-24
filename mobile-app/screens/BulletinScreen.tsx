@@ -17,9 +17,10 @@ import {
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import Svg, { G, Path, Rect, Defs, Pattern, LinearGradient, Stop, Line } from 'react-native-svg';
+import Svg, { G, Path, Rect, Defs, LinearGradient, Stop, Line } from 'react-native-svg';
 import { useAuth } from '../contexts/AuthContext';
 import apiService from '../services/api';
+import { StripedImagePlaceholder } from '../components/StripedImagePlaceholder';
 import {
   BulletinPayload,
   compareSeasonalItems,
@@ -369,29 +370,6 @@ function AnnouncementZone({ announcements }: { announcements: string[] }) {
   );
 }
 
-// ── Striped placeholder ──────────────────────────────────────
-// The Carte "image goes here" device — a 45° repeating stripe between two
-// near-transparent ink tints. Used when an item has no photo.
-function StripePlaceholder({ size }: { size: number }) {
-  return (
-    <Svg width={size} height={size}>
-      <Defs>
-        <Pattern
-          id="carteStripe"
-          patternUnits="userSpaceOnUse"
-          width={12}
-          height={12}
-          patternTransform="rotate(45)"
-        >
-          <Rect width={12} height={12} fill="rgba(20,18,15,0.025)" />
-          <Rect width={6} height={12} fill="rgba(20,18,15,0.06)" />
-        </Pattern>
-      </Defs>
-      <Rect width={size} height={size} fill="url(#carteStripe)" />
-    </Svg>
-  );
-}
-
 const TIMELINE_LABEL_WIDTH = 118;
 const TIMELINE_HEADER_HEIGHT = 48;
 const TIMELINE_ROW_HEIGHT = 66;
@@ -562,11 +540,17 @@ function ItemRow({
       activeOpacity={0.7}
     >
       <View style={styles.thumb}>
+        <StripedImagePlaceholder style={StyleSheet.absoluteFillObject} />
         {item.imageUrl ? (
-          <Image source={{ uri: item.imageUrl }} style={styles.thumbImage} contentFit="cover" />
-        ) : (
-          <StripePlaceholder size={56} />
-        )}
+          <Image
+            source={{ uri: item.imageUrl }}
+            style={styles.thumbImage}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            priority="low"
+            transition={150}
+          />
+        ) : null}
       </View>
       <View style={styles.itemText}>
         <Text style={styles.itemName} numberOfLines={2}>

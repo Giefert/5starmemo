@@ -11,6 +11,7 @@ import {
   Text,
   StyleSheet,
   SectionList,
+  FlatList,
   TextInput,
   ActivityIndicator,
   RefreshControl,
@@ -31,6 +32,7 @@ import RenderHtml from 'react-native-render-html';
 import * as Haptics from 'expo-haptics';
 import apiService from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useDecks } from '../contexts/DecksContext';
 import {
   DeckType,
   GlossaryCategory,
@@ -105,16 +107,22 @@ export default function LibraryScreen() {
   const { width } = useWindowDimensions();
   const navigation = useNavigation();
   const { restaurant, logout } = useAuth();
+  const {
+    decks: browseDecks,
+    isLoading: isSharedBrowseLoading,
+    loadDecks,
+  } = useDecks();
 
-  // Data state — both sections are preloaded once and cached, so switching
-  // sub-tabs or typing a search never triggers a refetch that would briefly
-  // render stale data and visibly reshuffle the list.
+  // Glossary and encyclopedia are fetched independently on first use. Once a
+  // section has loaded it stays in memory, so later tab/search changes remain
+  // instant without making Browse pay for four hidden requests up front.
   const [cache, setCache] = useState<Record<GlossarySection, SectionData | null>>({
     glossary: null,
     encyclopedia: null,
   });
-  const [browseDecks, setBrowseDecks] = useState<StudentDeck[]>([]);
   const [selectedTerm, setSelectedTerm] = useState<GlossaryTerm | null>(null);
+  const [selectedTermPreview, setSelectedTermPreview] =
+    useState<GlossaryTermSummary | null>(null);
   const [selectedBrowseDeck, setSelectedBrowseDeck] = useState<StudentDeck | null>(null);
 
   // Section state
@@ -129,12 +137,16 @@ export default function LibraryScreen() {
 
   // UI state
   const [viewState, setViewState] = useState<ViewState>('list');
-  const [isLoading, setIsLoading] = useState(true);
+  const [loadingSections, setLoadingSections] = useState<
+    Record<GlossarySection, boolean>
+  >({ glossary: false, encyclopedia: false });
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isBrowseLoading, setIsBrowseLoading] = useState(true);
+  const [isBrowseLoading, setIsBrowseLoading] = useState(browseDecks.length === 0);
   const [isBrowseRefreshing, setIsBrowseRefreshing] = useState(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
-  const [error, setError] = useState('');
+  const [sectionErrors, setSectionErrors] = useState<
+    Record<GlossarySection, string>
+  >({ glossary: '', encyclopedia: '' });
   const [browseError, setBrowseError] = useState('');
   // Encyclopedia category swipe — `dragX` tracks the in-progress horizontal
   // drag; `isSwiping` mounts the neighbouring category pages so they slide
@@ -143,6 +155,10 @@ export default function LibraryScreen() {
   const dragX = useRef(new Animated.Value(0)).current;
 
   const listRef = useRef<SectionList<GlossaryTermSummary, TermSection>>(null);
+  const sectionRequestsRef = useRef<
+    Partial<Record<GlossarySection, Promise<void>>>
+  >({});
+  const detailRequestRef = useRef(0);
   const lastJumpTarget = useRef<number | null>(null);
   const railHeight = useRef(0);
 
@@ -172,12 +188,6 @@ export default function LibraryScreen() {
     invalidateCardSearchCache: invalidateBrowseCardSearchCache,
   } = useDeckSearch(browseDecks);
 
-  // Preload both sections once when the screen mounts.
-  useEffect(() => {
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // The masthead is dark behind the status bar — keep its text light.
   useFocusEffect(
     useCallback(() => {
@@ -191,36 +201,50 @@ export default function LibraryScreen() {
     });
   }, [navigation, selectedBrowseDeck]);
 
-  const loadData = useCallback(async () => {
-    try {
-      if (!isRefreshing) setIsLoading(true);
+  const loadSection = useCallback((
+    section: GlossarySection,
+    force = false,
+  ): Promise<void> => {
+    if (!force && cache[section]) return Promise.resolve();
+    const existing = sectionRequestsRef.current[section];
+    if (existing) return existing;
 
-      const [glossaryCats, glossaryTerms, encyclopediaCats, encyclopediaTerms] =
-        await Promise.all([
-          apiService.getGlossaryCategories('glossary'),
-          apiService.getGlossaryTerms({ section: 'glossary', limit: 100 }),
-          apiService.getGlossaryCategories('encyclopedia'),
-          apiService.getGlossaryTerms({ section: 'encyclopedia', limit: 100 }),
+    const request = (async () => {
+      try {
+        setLoadingSections(current => ({ ...current, [section]: true }));
+        const [categories, terms] = await Promise.all([
+          apiService.getGlossaryCategories(section),
+          apiService.getGlossaryTerms({ section, limit: 100 }),
         ]);
 
-      setCache({
-        glossary: { categories: glossaryCats, terms: glossaryTerms.terms },
-        encyclopedia: { categories: encyclopediaCats, terms: encyclopediaTerms.terms },
-      });
-      setError('');
-    } catch (err: any) {
-      setError(err.message || 'Failed to load glossary');
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }, [isRefreshing]);
+        setCache(current => ({
+          ...current,
+          [section]: { categories, terms: terms.terms },
+        }));
+        setSectionErrors(current => ({ ...current, [section]: '' }));
+      } catch (err: any) {
+        setSectionErrors(current => ({
+          ...current,
+          [section]: err.message || `Failed to load ${section}`,
+        }));
+      } finally {
+        setLoadingSections(current => ({ ...current, [section]: false }));
+        setIsRefreshing(false);
+      }
+    })();
+
+    sectionRequestsRef.current[section] = request;
+    return request.finally(() => {
+      if (sectionRequestsRef.current[section] === request) {
+        delete sectionRequestsRef.current[section];
+      }
+    });
+  }, [cache]);
 
   const loadBrowseDecks = useCallback(async (refreshing = false) => {
     try {
       if (!refreshing) setIsBrowseLoading(true);
-      const decksData = await apiService.getAvailableDecks();
-      setBrowseDecks(decksData);
+      await loadDecks(refreshing);
       invalidateBrowseCardSearchCache();
       setBrowseError('');
     } catch (err) {
@@ -235,11 +259,16 @@ export default function LibraryScreen() {
       setIsBrowseLoading(false);
       setIsBrowseRefreshing(false);
     }
-  }, [invalidateBrowseCardSearchCache, logout]);
+  }, [invalidateBrowseCardSearchCache, loadDecks, logout]);
 
   useEffect(() => {
     loadBrowseDecks();
   }, [loadBrowseDecks]);
+
+  useEffect(() => {
+    if (activeTab === 'browse') return;
+    loadSection(activeTab);
+  }, [activeTab, loadSection]);
 
   const handleSectionChange = (newSection: GlossarySection) => {
     if (newSection === activeSection) return;
@@ -252,13 +281,15 @@ export default function LibraryScreen() {
     if (newTab === activeTab) return;
     setActiveTab(newTab);
     if (newTab !== 'browse') {
+      setSectionErrors(current => ({ ...current, [newTab]: '' }));
+      void loadSection(newTab);
       handleSectionChange(newTab);
     }
   };
 
   const handleRefresh = () => {
     setIsRefreshing(true);
-    loadData();
+    loadSection(activeSection, true);
   };
 
   const handleBrowseRefresh = useCallback(() => {
@@ -267,26 +298,42 @@ export default function LibraryScreen() {
   }, [loadBrowseDecks]);
 
   const handleTermPress = async (termId: string) => {
+    const requestId = ++detailRequestRef.current;
+    const preview = cache[activeSection]?.terms.find(term => term.id === termId) ?? null;
+    setSelectedTermPreview(preview);
+    setSelectedTerm(null);
     setIsLoadingDetail(true);
     setViewState('detail');
     try {
       const term = await apiService.getGlossaryTerm(termId);
+      if (detailRequestRef.current !== requestId) return;
       setSelectedTerm(term);
     } catch (err: any) {
-      setError(err.message || 'Failed to load term details');
+      if (detailRequestRef.current !== requestId) return;
+      setSectionErrors(current => ({
+        ...current,
+        [activeSection]: err.message || 'Failed to load term details',
+      }));
       setViewState('list');
     } finally {
-      setIsLoadingDetail(false);
+      if (detailRequestRef.current === requestId) {
+        setIsLoadingDetail(false);
+      }
     }
   };
 
   const handleBackToList = () => {
+    detailRequestRef.current++;
+    setIsLoadingDetail(false);
     setViewState('list');
     setSelectedTerm(null);
+    setSelectedTermPreview(null);
   };
 
   // ── Derived data ────────────────────────────────────────────
   const sectionData = cache[activeSection];
+  const isLoading = loadingSections[activeSection] && !sectionData;
+  const error = sectionErrors[activeSection];
   const categories = sectionData?.categories ?? [];
 
   // Search runs client-side over the cached term list. The screen only ever
@@ -651,6 +698,11 @@ export default function LibraryScreen() {
     );
   }
 
+  const detailTerm = selectedTerm ?? selectedTermPreview;
+  const detailCategoryName =
+    selectedTerm?.category?.name ?? selectedTermPreview?.categoryName;
+  const detailLinkedCards = selectedTerm?.linkedCards ?? [];
+
   // ── Detail view ─────────────────────────────────────────────
   if (viewState === 'detail') {
     return (
@@ -673,25 +725,21 @@ export default function LibraryScreen() {
           </Pressable>
         </View>
 
-        {isLoadingDetail ? (
-          <View style={styles.stateBlock}>
-            <ActivityIndicator color={COLORS.inkMute} />
-          </View>
-        ) : selectedTerm ? (
+        {detailTerm ? (
           <ScrollView
             style={styles.detailBody}
             contentContainerStyle={{ padding: 26, paddingBottom: insets.bottom + 32 }}
             showsVerticalScrollIndicator={false}
           >
-            {selectedTerm.category && (
-              <Text style={styles.detailEyebrow}>{selectedTerm.category.name}</Text>
+            {detailCategoryName && (
+              <Text style={styles.detailEyebrow}>{detailCategoryName}</Text>
             )}
-            <Text style={styles.detailTerm}>{selectedTerm.term}</Text>
+            <Text style={styles.detailTerm}>{detailTerm.term}</Text>
             <View style={styles.detailRule} />
 
             <RenderHtml
               contentWidth={width - 52}
-              source={{ html: cleanHtml(selectedTerm.definition) }}
+              source={{ html: cleanHtml(detailTerm.definition) }}
               baseStyle={styles.detailDefinition}
               enableExperimentalMarginCollapsing={true}
               customHTMLElementModels={customHTMLElementModels}
@@ -719,12 +767,18 @@ export default function LibraryScreen() {
               }}
             />
 
-            {selectedTerm.linkedCards && selectedTerm.linkedCards.length > 0 && (
+            {isLoadingDetail && (
+              <View style={styles.detailHydrating}>
+                <ActivityIndicator size="small" color={COLORS.inkMute} />
+              </View>
+            )}
+
+            {detailLinkedCards.length > 0 && (
               <View style={styles.linkedSection}>
                 <Text style={styles.linkedEyebrow}>
-                  Related cards · {selectedTerm.linkedCards.length}
+                  Related cards · {detailLinkedCards.length}
                 </Text>
-                {selectedTerm.linkedCards.map(link => (
+                {detailLinkedCards.map(link => (
                   <View key={link.id} style={styles.linkedRow}>
                     <Text style={styles.linkedName}>
                       {link.card?.restaurantData?.itemName || 'Unknown Card'}
@@ -737,6 +791,10 @@ export default function LibraryScreen() {
               </View>
             )}
           </ScrollView>
+        ) : isLoadingDetail ? (
+          <View style={styles.stateBlock}>
+            <ActivityIndicator color={COLORS.inkMute} />
+          </View>
         ) : null}
       </View>
     );
@@ -752,7 +810,7 @@ export default function LibraryScreen() {
         <View style={styles.stateBlock}>
           <Text style={styles.stateEyebrow}>Something went wrong</Text>
           <Text style={styles.stateLine}>{error}</Text>
-          <Pressable onPress={loadData} hitSlop={8}>
+          <Pressable onPress={() => loadSection(activeSection, true)} hitSlop={8}>
             <Text style={styles.retryLink}>Tap to retry</Text>
           </Pressable>
         </View>
@@ -889,7 +947,7 @@ export default function LibraryScreen() {
         <LibraryBrowsePane
           decks={browseDecks}
           filteredDecks={filteredBrowseDecks}
-          isLoading={isBrowseLoading}
+          isLoading={isBrowseLoading || isSharedBrowseLoading}
           isRefreshing={isBrowseRefreshing}
           error={browseError}
           searchQuery={browseSearchQuery}
@@ -1375,14 +1433,25 @@ function LibraryBrowsePane({
 
   const renderPage = (category: string | undefined, current: boolean) => {
     const { content, stickyHeaderIndices } = renderPageContent(category);
+    const items = React.Children.toArray(content);
 
     return (
-      <ScrollView
+      <FlatList
         style={styles.browseBody}
+        data={items}
+        keyExtractor={(item, index) => (
+          React.isValidElement(item) && item.key != null
+            ? String(item.key)
+            : `browse-row-${index}`
+        )}
+        renderItem={({ item }) => <>{item}</>}
         contentContainerStyle={styles.browseBodyContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         stickyHeaderIndices={stickyHeaderIndices}
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        windowSize={7}
         refreshControl={
           current ? (
             <RefreshControl
@@ -1392,9 +1461,7 @@ function LibraryBrowsePane({
             />
           ) : undefined
         }
-      >
-        {content}
-      </ScrollView>
+      />
     );
   };
 
@@ -1919,6 +1986,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 25,
     color: COLORS.ink,
+  },
+  detailHydrating: {
+    paddingTop: 16,
+    alignItems: 'flex-start',
   },
   linkedSection: {
     marginTop: 28,

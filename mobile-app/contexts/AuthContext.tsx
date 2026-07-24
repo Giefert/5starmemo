@@ -31,45 +31,118 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const parseStoredUser = (value: string | null): User | null => {
+  if (!value) return null;
+
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (
+      isRecord(parsed) &&
+      typeof parsed.id === 'string' &&
+      typeof parsed.email === 'string' &&
+      typeof parsed.username === 'string' &&
+      (parsed.role === 'student' || parsed.role === 'management') &&
+      typeof parsed.restaurantId === 'string'
+    ) {
+      return parsed as unknown as User;
+    }
+  } catch {
+    // Invalid persisted JSON is handled like an incomplete session below.
+  }
+
+  return null;
+};
+
+const parseStoredRestaurant = (value: string | null): ActiveRestaurant | null => {
+  if (!value) return null;
+
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (
+      isRecord(parsed) &&
+      typeof parsed.id === 'string' &&
+      typeof parsed.name === 'string'
+    ) {
+      return { id: parsed.id, name: parsed.name };
+    }
+  } catch {
+    // Invalid persisted JSON is discarded below.
+  }
+
+  return null;
+};
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [restaurant, setRestaurantState] = useState<ActiveRestaurant | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    checkAuthStatus();
-  }, []);
+    let isMounted = true;
 
-  const checkAuthStatus = async () => {
-    try {
-      const token = await SecureStore.getItemAsync('authToken');
-      const userData = await SecureStore.getItemAsync('userData');
-
-      // If credentials exist but token might be expired, clear them
-      // The user will need to log in again
-      // This prevents the race condition where HomeScreen tries to load data with expired token
-      if (token && userData) {
-        // Validate token by making a lightweight API call
-        try {
-          await apiService.getStudyStats();
-          // Token is valid, set user
-          setUser(JSON.parse(userData));
-          const restaurantData = await SecureStore.getItemAsync('restaurantData');
-          if (restaurantData) setRestaurantState(JSON.parse(restaurantData));
-        } catch (error) {
-          // Token is invalid, clear stored credentials
-          console.log('Stored token is invalid, clearing credentials');
-          await SecureStore.deleteItemAsync('authToken');
-          await SecureStore.deleteItemAsync('userData');
-          await SecureStore.deleteItemAsync('restaurantData');
-        }
-      }
-    } catch (error) {
-      console.warn('Failed to check auth status:', error);
-    } finally {
+    const clearAuthState = () => {
+      if (!isMounted) return;
+      setUser(null);
+      setRestaurantState(null);
       setIsLoading(false);
-    }
-  };
+    };
+
+    const unregisterAuthExpiredHandler =
+      apiService.setAuthExpiredHandler(clearAuthState);
+
+    const hydrateAuth = async () => {
+      try {
+        const [tokenData, userData, restaurantData] = await Promise.all([
+          SecureStore.getItemAsync('authToken'),
+          SecureStore.getItemAsync('userData'),
+          SecureStore.getItemAsync('restaurantData'),
+        ]);
+        const token = tokenData?.trim() || null;
+        const storedUser = parseStoredUser(userData);
+        const storedRestaurant = parseStoredRestaurant(restaurantData);
+
+        if (token && storedUser) {
+          // restaurantData is display/cache state rather than a credential.
+          // Recover its ID from the authenticated user if that one record is
+          // missing or corrupt, so deck hydration is not disabled.
+          const activeRestaurant = storedRestaurant ?? {
+            id: storedUser.restaurantId,
+            name: '',
+          };
+          apiService.hydrateToken(token);
+          if (isMounted) {
+            setUser(storedUser);
+            setRestaurantState(activeRestaurant);
+          }
+
+          if (restaurantData && !storedRestaurant) {
+            await SecureStore.deleteItemAsync('restaurantData');
+          }
+        } else {
+          await apiService.logout();
+        }
+      } catch (error) {
+        console.warn('Failed to hydrate authentication:', error);
+        try {
+          await apiService.logout();
+        } catch (storageError) {
+          console.warn('Failed to clear stored credentials:', storageError);
+        }
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+
+    void hydrateAuth();
+
+    return () => {
+      isMounted = false;
+      unregisterAuthExpiredHandler();
+    };
+  }, []);
 
   const login = async (credentials: LoginInput) => {
     try {
@@ -81,6 +154,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (authResponse.restaurant) {
         await SecureStore.setItemAsync('restaurantData', JSON.stringify(authResponse.restaurant));
         setRestaurantState(authResponse.restaurant);
+      } else {
+        await SecureStore.deleteItemAsync('restaurantData');
+        setRestaurantState(null);
       }
     } catch (error) {
       throw error;
@@ -93,13 +169,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setIsLoading(true);
       await apiService.logout();
-      await SecureStore.deleteItemAsync('userData');
-      await SecureStore.deleteItemAsync('restaurantData');
-      setUser(null);
-      setRestaurantState(null);
     } catch (error) {
       console.warn('Logout error:', error);
     } finally {
+      setUser(null);
+      setRestaurantState(null);
       setIsLoading(false);
     }
   };

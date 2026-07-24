@@ -5,6 +5,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { DecksProvider } from './contexts/DecksContext';
 import { LoginScreen } from './screens/LoginScreen';
 import TabNavigator from './navigation/TabNavigator';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
@@ -76,8 +77,10 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AuthProvider>
-          <AppNavigator />
-          <StatusBar style="auto" />
+          <DecksProvider>
+            <AppNavigator />
+            <StatusBar style="auto" />
+          </DecksProvider>
         </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

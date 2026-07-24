@@ -15,12 +15,13 @@ import {
 import type { StyleProp, TextStyle } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path, Rect, Defs, Pattern, Circle, Line } from 'react-native-svg';
+import Svg, { Path, Circle, Line } from 'react-native-svg';
 import apiService from '../services/api';
 import { StudyCardData, StudyDeckSearchMatch, StudyDeckSearchMatchDetail } from '../types/shared';
 import { StudyCard, LinkedTerm } from '../components/StudyCard';
 import { SwipeableCard } from '../components/SwipeableCard';
 import { GlossaryTermModal } from '../components/GlossaryTermModal';
+import { StripedImagePlaceholder } from '../components/StripedImagePlaceholder';
 import { collectSearchFields } from '../utils/studySearch';
 
 const COLORS = {
@@ -144,7 +145,19 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({
   const loadCards = async () => {
     try {
       setIsLoading(true);
-      const data = await apiService.getDeckForStudy(deckId);
+      if (initialCardId) {
+        const [card] = await apiService.getStudyCardsByIds([initialCardId]);
+        if (card) {
+          setSelectedCard(card);
+          setIsFlipped(true);
+          setOpenedDirectly(true);
+          return;
+        }
+      }
+
+      // A stale bulletin may point at a card that was removed after its
+      // payload loaded. Fall back to the deck index only in that rare case.
+      const data = await apiService.getDeckForStudy(deckId, 'full');
       // Browse is an index of the deck, so list items alphabetically by the
       // same name the row renders. (The shared study endpoint orders by FSRS
       // urgency for study sessions; that ordering is wrong for browsing.)
@@ -156,14 +169,6 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({
         )
       );
       setCards(sorted);
-      if (initialCardId) {
-        const match = data.cards.find((c) => c.card.id === initialCardId);
-        if (match) {
-          setSelectedCard(match);
-          setIsFlipped(true);
-          setOpenedDirectly(true);
-        }
-      }
     } catch (error) {
       console.error('Failed to load cards for browsing:', error);
     } finally {
@@ -172,13 +177,22 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({
   };
 
   useEffect(() => {
-    if (selectedCard) {
-      apiService.getTermsForCard(selectedCard.card.id)
-        .then(setLinkedTerms)
-        .catch(() => setLinkedTerms([]));
-    } else {
-      setLinkedTerms([]);
-    }
+    let cancelled = false;
+    setLinkedTerms([]);
+
+    if (!selectedCard) return;
+
+    apiService.getTermsForCard(selectedCard.card.id)
+      .then(terms => {
+        if (!cancelled) setLinkedTerms(terms);
+      })
+      .catch(() => {
+        if (!cancelled) setLinkedTerms([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [selectedCard]);
 
   const handleSelectCard = (card: StudyCardData) => {
@@ -348,8 +362,8 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({
   }
 
   // Opening a card directly from the bulletin: hold on a neutral ink loading
-  // screen while the deck loads, so the list chrome never flashes before the
-  // card's detail view resolves.
+  // screen while that single card loads, so the list chrome never flashes
+  // before the detail view resolves.
   if (initialCardId && isLoading && !selectedCard) {
     return (
       <View style={[styles.studyContainer, styles.centerContainer]}>
@@ -445,29 +459,6 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({
   );
 };
 
-// ── Striped placeholder ──────────────────────────────────────
-// The Carte "image goes here" device — a 45° repeating stripe between two
-// near-transparent ink tints. Used when a card has no photo.
-function StripePlaceholder({ size }: { size: number }) {
-  return (
-    <Svg width={size} height={size}>
-      <Defs>
-        <Pattern
-          id="carteStripe"
-          patternUnits="userSpaceOnUse"
-          width={12}
-          height={12}
-          patternTransform="rotate(45)"
-        >
-          <Rect width={12} height={12} fill="rgba(20,18,15,0.025)" />
-          <Rect width={6} height={12} fill="rgba(20,18,15,0.06)" />
-        </Pattern>
-      </Defs>
-      <Rect width={size} height={size} fill="url(#carteStripe)" />
-    </Svg>
-  );
-}
-
 // ── Card row ─────────────────────────────────────────────────
 // Item row: square thumbnail, card name, chevron. The whole row taps
 // through to the card detail view.
@@ -495,11 +486,17 @@ function CardRow({
       activeOpacity={0.7}
     >
       <View style={styles.thumb}>
+        <StripedImagePlaceholder style={StyleSheet.absoluteFillObject} />
         {imageUrl ? (
-          <Image source={{ uri: imageUrl }} style={styles.thumbImage} contentFit="contain" />
-        ) : (
-          <StripePlaceholder size={56} />
-        )}
+          <Image
+            source={{ uri: imageUrl }}
+            style={styles.thumbImage}
+            contentFit="contain"
+            cachePolicy="memory-disk"
+            priority="low"
+            transition={150}
+          />
+        ) : null}
       </View>
       <View style={styles.itemText}>
         <HighlightedText

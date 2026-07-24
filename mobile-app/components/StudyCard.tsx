@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 import { Image } from 'expo-image';
+import { StripedImagePlaceholder } from './StripedImagePlaceholder';
 import {
   StudyCardData,
   isMakiCard,
@@ -307,11 +308,20 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
           </View>
           <View style={styles.imageArea}>
             {imageUrl ? (
-              <Image
-                source={{ uri: imageUrl }}
-                style={styles.cardImage}
-                contentFit="contain"
-              />
+              <>
+                <StripedImagePlaceholder
+                  tone="ink"
+                  style={StyleSheet.absoluteFillObject}
+                />
+                <Image
+                  source={{ uri: imageUrl }}
+                  style={styles.cardImage}
+                  contentFit="contain"
+                  cachePolicy="memory-disk"
+                  priority="high"
+                  transition={150}
+                />
+              </>
             ) : (
               <Text style={styles.emptyImageText}>No Image</Text>
             )}

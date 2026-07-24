@@ -18,6 +18,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useCalendars } from 'expo-localization';
 import Svg, { Path } from 'react-native-svg';
 import { useAuth } from '../contexts/AuthContext';
+import { useDecks } from '../contexts/DecksContext';
 import apiService from '../services/api';
 import {
   DailyReminderSettings,
@@ -26,7 +27,6 @@ import {
   loadDailyReminderSettings,
   saveDailyReminderSettings,
 } from '../services/reminders';
-import { StudentDeck } from '../types/shared';
 import PrivacyPolicyScreen from './PrivacyPolicyScreen';
 
 // Carte tokens — shared verbatim with HomeScreen / BulletinScreen / LibraryScreen
@@ -318,6 +318,7 @@ export default function SettingsScreen() {
   const deviceUses24HourClock =
     calendars[0]?.uses24hourClock ?? getFallbackUses24HourClock();
   const { logout, restaurant, user } = useAuth();
+  const { decks, loadDecks, invalidateDecks } = useDecks();
   const [isExporting, setIsExporting] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
@@ -330,7 +331,6 @@ export default function SettingsScreen() {
   const [reminderDraftEnabled, setReminderDraftEnabled] = useState(false);
   const [reminderDraftTime, setReminderDraftTime] = useState(DEFAULT_DAILY_REMINDER_TIME);
   const [showResetModal, setShowResetModal] = useState(false);
-  const [decks, setDecks] = useState<StudentDeck[]>([]);
   const [selectedDeckIds, setSelectedDeckIds] = useState<Set<string>>(new Set());
   const [isLoadingDecks, setIsLoadingDecks] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
@@ -438,10 +438,10 @@ export default function SettingsScreen() {
   const openResetModal = async () => {
     setShowResetModal(true);
     setSelectedDeckIds(new Set());
-    setIsLoadingDecks(true);
+    const needsInitialLoad = decks.length === 0;
+    setIsLoadingDecks(needsInitialLoad);
     try {
-      const available = await apiService.getAvailableDecks();
-      setDecks(available);
+      await loadDecks();
     } catch {
       Alert.alert('Error', 'Failed to load decks. Please try again.');
       setShowResetModal(false);
@@ -476,6 +476,10 @@ export default function SettingsScreen() {
     setIsResetting(true);
     try {
       await apiService.resetFsrs(deckIds);
+      invalidateDecks();
+      void loadDecks(true).catch(() => {
+        // The next consumer can retry; the reset itself already succeeded.
+      });
       setShowResetModal(false);
       Alert.alert('Progress Reset', `${label} reset successfully.`);
     } catch {

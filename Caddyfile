@@ -3,6 +3,8 @@ tusavor.com {
 }
 
 api.tusavor.com {
+	encode zstd gzip
+
 	handle /api/student/* {
 		reverse_proxy mobile-api:3002
 	}

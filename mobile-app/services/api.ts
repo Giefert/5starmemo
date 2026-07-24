@@ -9,7 +9,6 @@ import {
   StudyCardData,
   StudyCardSearchResult,
   StudyDeckSearchResult,
-  StudyStats,
   StudySession,
   ReviewInput,
   GlossaryCategory,
@@ -17,7 +16,7 @@ import {
   GlossaryTerm,
   BulletinPayload,
   CurationKind,
-  CurationStudyPayload,
+  CurationStudyUnit,
 } from '../types/shared';
 
 const getApiBaseUrl = () => {
@@ -32,9 +31,9 @@ const apiClient = axios.create({
 
 class ApiService {
   private token: string | null = null;
+  private authExpiredHandler: (() => void) | null = null;
 
   constructor() {
-    this.initializeToken();
     this.setupInterceptors();
   }
 
@@ -43,7 +42,12 @@ class ApiService {
       (response) => response,
       async (error) => {
         if (error.response?.status === 401 || error.response?.status === 403) {
-          await this.clearStoredCredentials();
+          try {
+            await this.clearStoredCredentials();
+          } catch (storageError) {
+            console.warn('Failed to clear expired credentials:', storageError);
+          }
+          this.authExpiredHandler?.();
           const authError = new Error('Authentication expired. Please log in again.');
           authError.name = 'AuthenticationError';
           throw authError;
@@ -55,22 +59,27 @@ class ApiService {
 
   private async clearStoredCredentials() {
     this.token = null;
-    await SecureStore.deleteItemAsync('authToken');
-    await SecureStore.deleteItemAsync('userData');
+    await Promise.all([
+      SecureStore.deleteItemAsync('authToken'),
+      SecureStore.deleteItemAsync('userData'),
+      SecureStore.deleteItemAsync('restaurantData'),
+    ]);
   }
 
-  private async initializeToken() {
-    try {
-      this.token = await SecureStore.getItemAsync('authToken');
-    } catch (error) {
-      console.warn('Failed to load auth token:', error);
-    }
+  hydrateToken(token: string | null) {
+    this.token = token;
   }
 
-  private async getAuthHeaders() {
-    if (!this.token) {
-      await this.initializeToken();
-    }
+  setAuthExpiredHandler(handler: () => void): () => void {
+    this.authExpiredHandler = handler;
+    return () => {
+      if (this.authExpiredHandler === handler) {
+        this.authExpiredHandler = null;
+      }
+    };
+  }
+
+  private getAuthHeaders() {
     return this.token ? { Authorization: `Bearer ${this.token}` } : {};
   }
 
@@ -115,20 +124,6 @@ class ApiService {
     if (response.data.success && response.data.data) return response.data.data;
 
     throw new Error(response.data.error || 'Failed to fetch bulletin');
-  }
-
-  async getCurationStudy(kind: CurationKind): Promise<CurationStudyPayload> {
-    const headers = await this.getAuthHeaders();
-    const response = await apiClient.get<ApiResponse<CurationStudyPayload>>(
-      `/bulletin/${kind}/study`,
-      { headers }
-    );
-
-    if (response.data.success && response.data.data) {
-      return response.data.data;
-    }
-
-    throw new Error(response.data.error || 'Failed to fetch curation study');
   }
 
   async getAvailableDecks(): Promise<StudentDeck[]> {
@@ -207,26 +202,38 @@ class ApiService {
     throw new Error(response.data.error || 'Failed to fetch deck');
   }
 
-  async getStudyStats(): Promise<StudyStats> {
-    const headers = await this.getAuthHeaders();
-    const response = await apiClient.get<ApiResponse<StudyStats>>(
-      `/progress/stats`,
-      { headers }
-    );
-    
-    if (response.data.success && response.data.data) {
-      return response.data.data;
-    }
-    
-    throw new Error(response.data.error || 'Failed to fetch study stats');
-  }
-
-  async createStudySession(
-    target: { deckId: string; curationKind?: undefined } | { deckId?: undefined; curationKind: CurationKind }
-  ): Promise<StudySession> {
-    const headers = await this.getAuthHeaders();
-    const response = await apiClient.post<ApiResponse<StudySession>>(
-      `/progress/sessions`,
+  async startGradedStudySession(
+    target: { deckId: string } | { curationKind: CurationKind }
+  ): Promise<
+    | {
+        session: StudySession;
+        study: { kind: 'deck'; deckId: string; cards: StudyCardData[] };
+      }
+    | {
+        session: StudySession;
+        study: {
+          kind: 'curation';
+          curationKind: CurationKind;
+          units: CurationStudyUnit[];
+        };
+      }
+  > {
+    const headers = this.getAuthHeaders();
+    const response = await apiClient.post<ApiResponse<
+      | {
+          session: StudySession;
+          study: { kind: 'deck'; deckId: string; cards: StudyCardData[] };
+        }
+      | {
+          session: StudySession;
+          study: {
+            kind: 'curation';
+            curationKind: CurationKind;
+            units: CurationStudyUnit[];
+          };
+        }
+    >>(
+      `/progress/sessions/start`,
       target,
       { headers }
     );
@@ -235,12 +242,22 @@ class ApiService {
       return response.data.data;
     }
 
-    throw new Error(response.data.error || 'Failed to create study session');
+    throw new Error(response.data.error || 'Failed to start study session');
   }
 
-  async submitReview(reviewData: ReviewInput, sessionId?: string): Promise<any> {
+  async submitReview(
+    reviewData: ReviewInput,
+    sessionId?: string,
+    finalStats?: {
+      cardsStudied: number;
+      correctAnswers: number;
+      averageRating: number;
+    },
+  ): Promise<any> {
     const headers = await this.getAuthHeaders();
-    const payload = sessionId ? { ...reviewData, sessionId } : reviewData;
+    const payload = sessionId
+      ? { ...reviewData, sessionId, ...(finalStats ? { finalStats } : {}) }
+      : reviewData;
     
     const response = await apiClient.post<ApiResponse<any>>(
       `/progress/review`,
@@ -253,25 +270,6 @@ class ApiService {
     }
     
     throw new Error(response.data.error || 'Failed to submit review');
-  }
-
-  async endStudySession(sessionId: string, stats: {
-    cardsStudied: number;
-    correctAnswers: number;
-    averageRating: number;
-  }): Promise<StudySession> {
-    const headers = await this.getAuthHeaders();
-    const response = await apiClient.put<ApiResponse<StudySession>>(
-      `/progress/sessions/${sessionId}/end`,
-      stats,
-      { headers }
-    );
-    
-    if (response.data.success && response.data.data) {
-      return response.data.data;
-    }
-    
-    throw new Error(response.data.error || 'Failed to end study session');
   }
 
   async resetFsrs(deckIds?: string[]): Promise<number> {
