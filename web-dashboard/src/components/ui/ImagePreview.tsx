@@ -68,6 +68,7 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
       className={cn(getContainerClasses(), className)}
       style={containerStyle}
     >
+      {/* eslint-disable-next-line @next/next/no-img-element -- Editor previews support browser-only blob URLs and unknown natural dimensions. */}
       <img
         src={src}
         alt={alt}

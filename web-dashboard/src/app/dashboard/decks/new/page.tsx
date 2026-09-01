@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { deckApi } from '@/lib/api';
+import { deckApi, getApiErrorMessage } from '@/lib/api';
 import { DeckType } from '../../../../../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,8 +33,8 @@ export default function NewDeckPage() {
       });
 
       router.push(`/dashboard/decks/${deck.id}`);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to create deck');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to create deck'));
     } finally {
       setIsLoading(false);
     }
@@ -88,7 +88,7 @@ export default function NewDeckPage() {
                 maxLength={1000}
               />
               <p className="mt-1 text-sm text-gray-500">
-                Help students understand what they'll learn with this deck
+                Help students understand what they&apos;ll learn with this deck
               </p>
             </div>
 

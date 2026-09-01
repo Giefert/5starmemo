@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, Deck, RestaurantCardData, RestaurantCategory } from '../../../../../shared/types';
-import { cardApi, deckApi } from '@/lib/api';
+import { cardApi, deckApi, getApiErrorMessage } from '@/lib/api';
 import { RestaurantCardForm } from '@/components/RestaurantCardForm';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,10 +22,6 @@ const CATEGORIES: Array<{ value: '' | RestaurantCategory; label: string }> = [
   { value: 'starters', label: 'Starters' },
   { value: 'sashimi', label: 'Sashimi' },
 ];
-
-type ApiError = { response?: { data?: { error?: string } } };
-const errorMessage = (error: unknown, fallback: string) =>
-  (error as ApiError).response?.data?.error || fallback;
 
 export default function CardsPage() {
   const [cards, setCards] = useState<Card[]>([]);
@@ -49,7 +45,7 @@ export default function CardsPage() {
       setCards(nextCards);
       setDecks(nextDecks);
     } catch (error: unknown) {
-      setError(errorMessage(error, 'Failed to load cards'));
+      setError(getApiErrorMessage(error, 'Failed to load cards'));
     } finally {
       setLoading(false);
     }
@@ -114,7 +110,7 @@ export default function CardsPage() {
       if (editing) {
         await cardApi.update(editing.id, {
           restaurantData: data.restaurantData,
-          imageUrl: data.imageUrl || undefined,
+          imageUrl: data.imageUrl,
         });
         const oldDeckIds = new Set(editing.deckIds ?? editing.decks?.map(deck => deck.id) ?? []);
         await Promise.all([
@@ -128,14 +124,14 @@ export default function CardsPage() {
       } else {
         await cardApi.create({
           restaurantData: data.restaurantData,
-          imageUrl: data.imageUrl || undefined,
+          imageUrl: data.imageUrl,
           deckIds: [...selectedDeckIds],
         });
       }
       cancelForm();
       await load();
     } catch (error: unknown) {
-      alert(errorMessage(error, 'Failed to save card'));
+      alert(getApiErrorMessage(error, 'Failed to save card'));
     }
   };
 
@@ -146,7 +142,7 @@ export default function CardsPage() {
       await cardApi.delete(card.id);
       setCards(current => current.filter(item => item.id !== card.id));
     } catch (error: unknown) {
-      alert(errorMessage(error, 'Failed to delete card'));
+      alert(getApiErrorMessage(error, 'Failed to delete card'));
     }
   };
 
@@ -157,7 +153,7 @@ export default function CardsPage() {
       await cardApi.merge(survivor.id, duplicates.map(card => card.id));
       await load();
     } catch (error: unknown) {
-      alert(errorMessage(error, 'Failed to merge cards'));
+      alert(getApiErrorMessage(error, 'Failed to merge cards'));
     }
   };
 

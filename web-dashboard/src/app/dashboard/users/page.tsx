@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { userApi } from '@/lib/api';
+import { getApiErrorMessage, userApi } from '@/lib/api';
 import { UserListItem } from '../../../../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Plus, Trash2, Edit, Users as UsersIcon } from 'lucide-react';
@@ -23,8 +23,8 @@ export default function UsersListPage() {
       const data = await userApi.getAll();
       setStudents(data);
       setError('');
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to load students');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to load students'));
     } finally {
       setIsLoading(false);
     }
@@ -45,8 +45,8 @@ export default function UsersListPage() {
     try {
       await userApi.delete(id);
       setStudents(students.filter(s => s.id !== id));
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to delete student');
+    } catch (err: unknown) {
+      alert(getApiErrorMessage(err, 'Failed to delete student'));
     }
   };
 

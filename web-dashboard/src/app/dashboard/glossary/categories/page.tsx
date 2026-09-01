@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { glossaryApi } from '@/lib/api';
+import { getApiErrorMessage, glossaryApi } from '@/lib/api';
 import { GlossaryCategory } from '../../../../../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,8 +37,8 @@ export default function CategoriesPage() {
       const data = await glossaryApi.getCategories();
       setCategories(data);
       setError('');
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to load categories');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to load categories'));
     } finally {
       setIsLoading(false);
     }
@@ -61,8 +61,8 @@ export default function CategoriesPage() {
       setNewName('');
       setNewDescription('');
       setNewColor('#6366f1');
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to create category');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to create category'));
     } finally {
       setIsCreating(false);
     }
@@ -94,8 +94,8 @@ export default function CategoriesPage() {
       });
       setCategories(categories.map(c => c.id === id ? { ...c, ...updated } : c));
       setEditingId(null);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to update category');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to update category'));
     } finally {
       setIsSaving(false);
     }
@@ -108,8 +108,8 @@ export default function CategoriesPage() {
     try {
       await glossaryApi.deleteCategory(id);
       setCategories(categories.filter(c => c.id !== id));
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to delete category');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to delete category'));
     }
   };
 

@@ -41,7 +41,25 @@ export interface CardSearchResult {
   name: string;
 }
 
+type CreateCardRequest = Omit<CreateCardInput, 'imageUrl'> & {
+  imageUrl?: string | null;
+};
+
+type UpdateCardRequest = Omit<UpdateCardInput, 'imageUrl'> & {
+  imageUrl?: string | null;
+};
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_WEB_API_URL || 'http://localhost:3001';
+
+export function getApiErrorMessage(error: unknown, fallback: string): string {
+  if (axios.isAxiosError<{ error?: unknown }>(error)) {
+    const message = error.response?.data?.error;
+    if (typeof message === 'string' && message.length > 0) {
+      return message;
+    }
+  }
+  return fallback;
+}
 
 // Create axios instance
 const api = axios.create({
@@ -120,13 +138,13 @@ export const deckApi = {
     await api.delete(`/decks/${id}`);
   },
 
-  addCard: async (deckId: string, cardData: any): Promise<any> => {
-    const response = await api.post<ApiResponse<any>>(`/decks/${deckId}/cards`, cardData);
+  addCard: async (deckId: string, cardData: CreateCardRequest): Promise<Card> => {
+    const response = await api.post<ApiResponse<Card>>(`/decks/${deckId}/cards`, cardData);
     return response.data.data!;
   },
 
-  updateCard: async (cardId: string, cardData: any): Promise<any> => {
-    const response = await api.put<ApiResponse<any>>(`/decks/cards/${cardId}`, cardData);
+  updateCard: async (cardId: string, cardData: UpdateCardRequest): Promise<Card> => {
+    const response = await api.put<ApiResponse<Card>>(`/decks/cards/${cardId}`, cardData);
     return response.data.data!;
   },
 
@@ -163,7 +181,7 @@ export const glossaryApi = {
   },
 
   // Terms
-  getTerms: async (categoryId?: string, section?: string): Promise<GlossaryTerm[]> => {
+  getTerms: async (categoryId?: string, section?: GlossarySection): Promise<GlossaryTerm[]> => {
     const params: Record<string, string> = {};
     if (categoryId) params.categoryId = categoryId;
     if (section) params.section = section;
@@ -298,12 +316,12 @@ export const cardApi = {
     return response.data.data!;
   },
 
-  create: async (data: CreateCardInput): Promise<Card> => {
+  create: async (data: CreateCardRequest): Promise<Card> => {
     const response = await api.post<ApiResponse<Card>>('/cards', data);
     return response.data.data!;
   },
 
-  update: async (id: string, data: UpdateCardInput): Promise<Card> => {
+  update: async (id: string, data: UpdateCardRequest): Promise<Card> => {
     const response = await api.put<ApiResponse<Card>>(`/cards/${id}`, data);
     return response.data.data!;
   },

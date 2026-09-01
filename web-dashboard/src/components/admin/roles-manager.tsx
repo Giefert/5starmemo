@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { roleApi, deckApi } from '@/lib/api';
+import { roleApi, deckApi, getApiErrorMessage } from '@/lib/api';
 import { StudentRoleSummary, Deck } from '../../../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -56,7 +56,7 @@ export function RolesManager({ onChange }: { onChange?: () => void }) {
         setRoles(r);
         setAllDecks(d);
       })
-      .catch(err => setError(err.response?.data?.error || 'Failed to load roles'))
+      .catch((err: unknown) => setError(getApiErrorMessage(err, 'Failed to load roles')))
       .finally(() => setIsLoading(false));
   }, []);
 
@@ -76,8 +76,8 @@ export function RolesManager({ onChange }: { onChange?: () => void }) {
       setShowCreate(false);
       await refreshRoles();
       openEditor(role.id); // jump straight into assigning decks to the new role
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to create role');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to create role'));
     } finally {
       setCreating(false);
     }
@@ -96,8 +96,8 @@ export function RolesManager({ onChange }: { onChange?: () => void }) {
       setEditName(detail.name);
       setEditDescription(detail.description || '');
       setEditDeckIds(new Set(detail.decks.map(d => d.id)));
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to load role');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to load role'));
       setEditingId(null);
     } finally {
       setEditLoading(false);
@@ -122,8 +122,8 @@ export function RolesManager({ onChange }: { onChange?: () => void }) {
       await roleApi.setDecks(editingId, Array.from(editDeckIds));
       setEditingId(null);
       await refreshRoles();
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to save role');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to save role'));
     } finally {
       setSaving(false);
     }
@@ -135,8 +135,8 @@ export function RolesManager({ onChange }: { onChange?: () => void }) {
       await roleApi.delete(id);
       if (editingId === id) setEditingId(null);
       await refreshRoles();
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to delete role');
+    } catch (err: unknown) {
+      alert(getApiErrorMessage(err, 'Failed to delete role'));
     }
   };
 

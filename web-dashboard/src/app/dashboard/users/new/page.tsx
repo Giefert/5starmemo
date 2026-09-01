@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { authApi, roleApi, deckApi } from '@/lib/api';
+import { authApi, roleApi, deckApi, getApiErrorMessage } from '@/lib/api';
 import { StudentRoleSummary, Deck } from '../../../../../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,7 +28,7 @@ export default function NewStudentPage() {
         setRoles(r);
         setDecks(d);
       })
-      .catch(err => setError(err.response?.data?.error || 'Failed to load options'))
+      .catch((err: unknown) => setError(getApiErrorMessage(err, 'Failed to load options')))
       .finally(() => setIsLoading(false));
   }, []);
 
@@ -57,8 +57,8 @@ export default function NewStudentPage() {
         deckIds: Array.from(selectedDeckIds),
       });
       router.push(`/dashboard/users/${user.id}`);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to create student');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to create student'));
     } finally {
       setSubmitting(false);
     }

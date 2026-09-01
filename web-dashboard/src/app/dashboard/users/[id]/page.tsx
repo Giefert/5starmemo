@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { userApi, roleApi, deckApi } from '@/lib/api';
+import { userApi, roleApi, deckApi, getApiErrorMessage } from '@/lib/api';
 import { UserDetail, StudentRoleSummary, Deck } from '../../../../../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,7 +48,7 @@ export default function StudentDetailPage() {
         setSelectedRoleIds(new Set(d.roles.map(x => x.id)));
         setSelectedDeckIds(new Set(d.directDecks.map(x => x.id)));
       })
-      .catch(err => setError(err.response?.data?.error || 'Failed to load student'))
+      .catch((err: unknown) => setError(getApiErrorMessage(err, 'Failed to load student')))
       .finally(() => setIsLoading(false));
   }, [id]);
 
@@ -63,8 +63,8 @@ export default function StudentDetailPage() {
     setSavingIdentity(true);
     try {
       await userApi.update(id, { email, username });
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to update student');
+    } catch (err: unknown) {
+      alert(getApiErrorMessage(err, 'Failed to update student'));
     } finally {
       setSavingIdentity(false);
     }
@@ -77,8 +77,8 @@ export default function StudentDetailPage() {
       // Refresh detail so the "Also via roles" view reflects the new state.
       const refreshed = await userApi.getById(id);
       setDetail(refreshed);
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to update roles');
+    } catch (err: unknown) {
+      alert(getApiErrorMessage(err, 'Failed to update roles'));
     } finally {
       setSavingRoles(false);
     }
@@ -90,8 +90,8 @@ export default function StudentDetailPage() {
       await userApi.setDecks(id, Array.from(selectedDeckIds));
       const refreshed = await userApi.getById(id);
       setDetail(refreshed);
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to update deck access');
+    } catch (err: unknown) {
+      alert(getApiErrorMessage(err, 'Failed to update deck access'));
     } finally {
       setSavingDecks(false);
     }
@@ -108,8 +108,8 @@ export default function StudentDetailPage() {
       await userApi.resetPassword(id, newPassword);
       setPasswordMessage('Password reset. Share the new password with the student.');
       setNewPassword('');
-    } catch (err: any) {
-      setPasswordMessage(err.response?.data?.error || 'Failed to reset password');
+    } catch (err: unknown) {
+      setPasswordMessage(getApiErrorMessage(err, 'Failed to reset password'));
     } finally {
       setResettingPassword(false);
     }
@@ -121,8 +121,8 @@ export default function StudentDetailPage() {
     try {
       await userApi.delete(id);
       router.push('/dashboard/users');
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to delete student');
+    } catch (err: unknown) {
+      alert(getApiErrorMessage(err, 'Failed to delete student'));
     }
   };
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { getApiErrorMessage } from '@/lib/api';
 
 export function AnnouncementBlock({
   announcements,
@@ -45,8 +46,8 @@ export function AnnouncementBlock({
         .map((s) => s.trim())
         .filter((s) => s.length > 0);
       await onSave(next);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to save announcements');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to save announcements'));
     } finally {
       setSaving(false);
     }

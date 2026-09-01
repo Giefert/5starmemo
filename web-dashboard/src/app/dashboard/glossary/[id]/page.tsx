@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useCallback, useEffect, useRef, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { glossaryApi } from '@/lib/api';
+import { getApiErrorMessage, glossaryApi } from '@/lib/api';
 import {
   GlossaryTerm,
   GlossaryCategory,
@@ -17,8 +17,12 @@ import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { ArrowLeft, Plus, X, Check, Search, Link as LinkIcon, Unlink } from 'lucide-react';
 
 export default function TermEditorPage({ params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = use(params);
-  const isNew = resolvedParams.id === 'new';
+  const { id } = use(params);
+  return <TermEditorPageContent key={id} termId={id} />;
+}
+
+function TermEditorPageContent({ termId }: { termId: string }) {
+  const isNew = termId === 'new';
   const router = useRouter();
 
   // Form state
@@ -43,55 +47,98 @@ export default function TermEditorPage({ params }: { params: Promise<{ id: strin
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const suggestionsRequestId = useRef(0);
 
   useEffect(() => {
-    loadCategories();
-    if (!isNew) {
-      loadTerm();
-    }
-  }, [resolvedParams.id]);
+    let isCurrent = true;
 
-  // Auto-fetch suggestions when term is loaded
+    const loadCategories = async () => {
+      try {
+        const data = await glossaryApi.getCategories();
+        if (isCurrent) setCategories(data);
+      } catch (err) {
+        if (isCurrent) console.error('Failed to load categories:', err);
+      }
+    };
+
+    void loadCategories();
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
+
   useEffect(() => {
-    if (!isNew && existingTerm) {
-      loadSuggestions();
-    }
-  }, [existingTerm]);
+    let isCurrent = true;
 
-  const loadCategories = async () => {
-    try {
-      const data = await glossaryApi.getCategories();
-      setCategories(data);
-    } catch (err) {
-      console.error('Failed to load categories:', err);
-    }
-  };
+    setError('');
+    setSuccessMessage('');
+    setExistingTerm(null);
+    setTerm('');
+    setDefinition('');
+    setSection('glossary');
+    setCategoryId(undefined);
+    setLinkedCards([]);
+    setSuggestions([]);
+    setCustomSearch('');
+    setSearchResults([]);
 
-  const loadTerm = async () => {
-    try {
-      const data = await glossaryApi.getTermById(resolvedParams.id);
-      setExistingTerm(data);
-      setTerm(data.term);
-      setDefinition(data.definition);
-      setSection(data.section || 'glossary');
-      setCategoryId(data.categoryId);
-      setLinkedCards(data.linkedCards || []);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to load term');
-    } finally {
+    if (isNew) {
       setIsLoading(false);
+      return () => {
+        isCurrent = false;
+      };
     }
-  };
 
-  const loadSuggestions = async () => {
-    if (!existingTerm) return;
+    setIsLoading(true);
+    const loadTerm = async () => {
+      try {
+        const data = await glossaryApi.getTermById(termId);
+        if (!isCurrent) return;
+
+        setExistingTerm(data);
+        setTerm(data.term);
+        setDefinition(data.definition);
+        setSection(data.section || 'glossary');
+        setCategoryId(data.categoryId);
+        setLinkedCards(data.linkedCards || []);
+      } catch (err: unknown) {
+        if (isCurrent) setError(getApiErrorMessage(err, 'Failed to load term'));
+      } finally {
+        if (isCurrent) setIsLoading(false);
+      }
+    };
+
+    void loadTerm();
+    return () => {
+      isCurrent = false;
+    };
+  }, [isNew, termId]);
+
+  const loadSuggestions = useCallback(async () => {
+    const existingTermId = existingTerm?.id;
+    if (!existingTermId) return;
+    const requestId = ++suggestionsRequestId.current;
     try {
-      const result = await glossaryApi.getSuggestions(existingTerm.id, 20);
-      setSuggestions(result.suggestions);
+      const result = await glossaryApi.getSuggestions(existingTermId, 20);
+      if (requestId === suggestionsRequestId.current) {
+        setSuggestions(result.suggestions);
+      }
     } catch (err) {
-      console.error('Failed to load suggestions:', err);
+      if (requestId === suggestionsRequestId.current) {
+        console.error('Failed to load suggestions:', err);
+      }
     }
-  };
+  }, [existingTerm?.id]);
+
+  // Auto-fetch suggestions when a term is loaded. A newer refresh invalidates
+  // any older request still in flight.
+  useEffect(() => {
+    if (isNew || existingTerm?.id !== termId) return;
+    void loadSuggestions();
+    return () => {
+      suggestionsRequestId.current += 1;
+    };
+  }, [isNew, existingTerm?.id, loadSuggestions, termId]);
 
   const handleCustomSearch = async () => {
     if (!customSearch.trim()) return;
@@ -111,6 +158,7 @@ export default function TermEditorPage({ params }: { params: Promise<{ id: strin
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!term.trim() || !definition.trim()) return;
+    if (!isNew && existingTerm?.id !== termId) return;
 
     setIsSaving(true);
     setError('');
@@ -120,12 +168,12 @@ export default function TermEditorPage({ params }: { params: Promise<{ id: strin
         const created = await glossaryApi.createTerm({ term, definition, section, categoryId });
         router.push(`/dashboard/glossary/${created.id}`);
       } else {
-        await glossaryApi.updateTerm(resolvedParams.id, { term, definition, section, categoryId });
+        await glossaryApi.updateTerm(termId, { term, definition, section, categoryId });
         setSuccessMessage('Term saved!');
         setTimeout(() => setSuccessMessage(''), 3000);
       }
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to save term');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to save term'));
     } finally {
       setIsSaving(false);
     }
@@ -159,7 +207,7 @@ export default function TermEditorPage({ params }: { params: Promise<{ id: strin
       await glossaryApi.unlinkCard(existingTerm.id, cardId);
       setLinkedCards(linkedCards.filter(lc => lc.cardId !== cardId));
       // Refresh suggestions to show the unlinked card again
-      loadSuggestions();
+      void loadSuggestions();
     } catch (err) {
       console.error('Failed to unlink card:', err);
     }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { glossaryApi } from '@/lib/api';
+import { getApiErrorMessage, glossaryApi } from '@/lib/api';
 import { GlossaryTerm, GlossaryCategory, GlossarySection } from '../../../../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,33 +18,40 @@ export default function GlossaryPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    loadData();
-  }, [selectedCategory, selectedSection]);
+    let isCurrent = true;
 
-  const loadData = async () => {
-    try {
+    const loadData = async () => {
       setIsLoading(true);
-      const [termsData, categoriesData] = await Promise.all([
-        glossaryApi.getTerms(selectedCategory, selectedSection),
-        glossaryApi.getCategories()
-      ]);
-      setTerms(termsData);
-      setCategories(categoriesData);
-      setError('');
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to load glossary');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      try {
+        const [termsData, categoriesData] = await Promise.all([
+          glossaryApi.getTerms(selectedCategory, selectedSection),
+          glossaryApi.getCategories()
+        ]);
+        if (!isCurrent) return;
+
+        setTerms(termsData);
+        setCategories(categoriesData);
+        setError('');
+      } catch (err: unknown) {
+        if (isCurrent) setError(getApiErrorMessage(err, 'Failed to load glossary'));
+      } finally {
+        if (isCurrent) setIsLoading(false);
+      }
+    };
+
+    void loadData();
+    return () => {
+      isCurrent = false;
+    };
+  }, [selectedCategory, selectedSection]);
 
   const handleDeleteTerm = async (id: string) => {
     if (!confirm('Are you sure you want to delete this term?')) return;
     try {
       await glossaryApi.deleteTerm(id);
-      setTerms(terms.filter(t => t.id !== id));
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to delete term');
+      setTerms(current => current.filter(t => t.id !== id));
+    } catch (err: unknown) {
+      alert(getApiErrorMessage(err, 'Failed to delete term'));
     }
   };
 

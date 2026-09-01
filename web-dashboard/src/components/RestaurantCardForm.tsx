@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Trash2 } from 'lucide-react';
@@ -304,8 +304,28 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
 
   // Image fields
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFilePreviewUrl, setSelectedFilePreviewUrl] = useState('');
+  const selectedFilePreviewUrlRef = useRef('');
   const [imageUrl, setImageUrl] = useState(initialData?.imageUrl || ''); // For existing images
   const [isUploading, setIsUploading] = useState(false);
+
+  const updateSelectedFile = (file: File | null) => {
+    if (selectedFilePreviewUrlRef.current) {
+      URL.revokeObjectURL(selectedFilePreviewUrlRef.current);
+    }
+
+    const previewUrl = file ? URL.createObjectURL(file) : '';
+    selectedFilePreviewUrlRef.current = previewUrl;
+    setSelectedFilePreviewUrl(previewUrl);
+    setSelectedFile(file);
+  };
+
+  useEffect(() => () => {
+    if (selectedFilePreviewUrlRef.current) {
+      URL.revokeObjectURL(selectedFilePreviewUrlRef.current);
+      selectedFilePreviewUrlRef.current = '';
+    }
+  }, []);
 
   // Debug logging for image state
   console.log('🖼️ RestaurantCardForm image state:', {
@@ -1177,7 +1197,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
               type="button"
               onClick={() => {
                 setImageUrl('');
-                setSelectedFile(null);
+                updateSelectedFile(null);
               }}
               className="ml-2 text-red-600 hover:text-red-800 text-xs underline"
             >
@@ -1191,7 +1211,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
           accept="image/*"
           onChange={(e) => {
             const file = e.target.files?.[0] || null;
-            setSelectedFile(file);
+            updateSelectedFile(file);
             // Don't automatically clear imageUrl when no file selected
             // Let user explicitly choose to remove existing image
           }}
@@ -1204,7 +1224,7 @@ export const RestaurantCardForm: React.FC<RestaurantCardFormProps> = ({
               {selectedFile ? `New file: ${selectedFile.name}` : imageUrl ? `Existing: ${imageUrl}` : 'No image'}
             </div>
             <ImagePreview
-              src={selectedFile ? URL.createObjectURL(selectedFile) : getImageUrl(imageUrl)}
+              src={selectedFile ? selectedFilePreviewUrl : getImageUrl(imageUrl)}
               alt="Card preview"
               mode="preview"
               className="max-w-xs"

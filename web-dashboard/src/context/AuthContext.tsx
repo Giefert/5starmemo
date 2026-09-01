@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User } from '../../../shared/types';
-import { authApi } from '@/lib/api';
+import { authApi, getApiErrorMessage } from '@/lib/api';
 
 interface AuthContextType {
   user: User | null;
@@ -43,8 +43,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('user', JSON.stringify(response.user));
       
       setUser(response.user);
-    } catch (error: any) {
-      throw new Error(error.response?.data?.error || 'Login failed');
+    } catch (error: unknown) {
+      throw new Error(getApiErrorMessage(error, 'Login failed'));
     }
   };
 

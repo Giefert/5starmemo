@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { curationApi, deckApi, restaurantApi } from '@/lib/api';
+import { curationApi, deckApi, getApiErrorMessage, restaurantApi } from '@/lib/api';
 import {
   CurationKind,
   CurationTargetType,
@@ -20,19 +20,6 @@ const EMPTY_CURATIONS: Record<CurationKind, RestaurantCurationItem[]> = {
   in_season: [],
   recently_modified: [],
 };
-
-type ApiError = {
-  response?: {
-    data?: {
-      error?: string;
-    };
-  };
-};
-
-function errorMessage(error: unknown, fallback: string) {
-  const maybeApiError = error as ApiError;
-  return maybeApiError.response?.data?.error || fallback;
-}
 
 export default function DashboardPage() {
   const [decks, setDecks] = useState<Deck[]>([]);
@@ -70,7 +57,7 @@ export default function DashboardPage() {
         setHiddenInSeason(hidden);
       })
       .catch((err: unknown) => {
-        if (!cancelled) setError(errorMessage(err, 'Failed to load dashboard'));
+        if (!cancelled) setError(getApiErrorMessage(err, 'Failed to load dashboard'));
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);
@@ -86,7 +73,7 @@ export default function DashboardPage() {
       await deckApi.delete(deckId);
       setDecks((prev) => prev.filter((d) => d.id !== deckId));
     } catch (err: unknown) {
-      alert(errorMessage(err, 'Failed to delete deck'));
+      alert(getApiErrorMessage(err, 'Failed to delete deck'));
     }
   };
 

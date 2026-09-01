@@ -1,16 +1,14 @@
 'use client';
 
 import { useState, useEffect, use } from 'react';
-import { useRouter } from 'next/navigation';
-import { cardApi, deckApi, deckAccessApi, roleApi, userApi } from '@/lib/api';
-import { Deck, DeckType, Card, RestaurantCardData, DeckAccess, StudentRoleSummary, UserListItem, formatSeasonality, isMonthInSeason } from '../../../../../../shared/types';
+import { cardApi, deckApi, deckAccessApi, getApiErrorMessage, roleApi, userApi } from '@/lib/api';
+import { Deck, DeckType, Card, RestaurantCardData, RestaurantCardDataV1, StudentRoleSummary, UserListItem, formatSeasonality, isMonthInSeason } from '../../../../../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft, Plus, Edit, Trash2 } from 'lucide-react';
 import { RestaurantCardForm } from '@/components/RestaurantCardForm';
 import Link from 'next/link';
 import { getImageUrl } from '@/lib/utils';
-import { ImagePreview } from '@/components/ui/ImagePreview';
 
 // Helper to render text with *highlighted* terms (yellow background)
 function HighlightedText({ text }: { text: string }) {
@@ -27,12 +25,12 @@ function HighlightedText({ text }: { text: string }) {
   );
 }
 
-type ApiError = { response?: { data?: { error?: string } } };
-const errorMessage = (error: unknown, fallback: string) =>
-  (error as ApiError).response?.data?.error || fallback;
-
 export default function EditDeckPage({ params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = use(params);
+  const { id } = use(params);
+  return <EditDeckPageContent key={id} deckId={id} />;
+}
+
+function EditDeckPageContent({ deckId }: { deckId: string }) {
   const [deck, setDeck] = useState<Deck | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -58,27 +56,82 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
   const [pickerCards, setPickerCards] = useState<Card[]>([]);
   const [pickerLoading, setPickerLoading] = useState(false);
   
-  const router = useRouter();
-
   useEffect(() => {
-    fetchDeck();
-  }, [resolvedParams.id]);
+    let isCurrent = true;
+
+    setIsLoading(true);
+    setError('');
+    setDeck(null);
+    setTitle('');
+    setDescription('');
+    setDeckType('other');
+    setSelectedRoleIds(new Set());
+    setSelectedUserIds(new Set());
+    setAccessMessage('');
+    setSuccessMessage('');
+    setShowCardForm(false);
+    setEditingCard(null);
+    setShowCardPicker(false);
+    setPickerQuery('');
+    setPickerCards([]);
+    setPickerLoading(false);
+
+    const fetchDeck = async () => {
+      try {
+        const [data, access, roles, students] = await Promise.all([
+          deckApi.getById(deckId),
+          deckAccessApi.get(deckId),
+          roleApi.getAll(),
+          userApi.getAll(),
+        ]);
+        if (!isCurrent) return;
+
+        setDeck(data);
+        setTitle(data.title);
+        setDescription(data.description || '');
+        setDeckType(data.deckType);
+        setSelectedRoleIds(new Set(access.roles.map(r => r.id)));
+        setSelectedUserIds(new Set(access.users.map(u => u.id)));
+        setAllRoles(roles);
+        setAllStudents(students);
+      } catch (error: unknown) {
+        if (isCurrent) {
+          setError(getApiErrorMessage(error, 'Failed to fetch deck'));
+        }
+      } finally {
+        if (isCurrent) setIsLoading(false);
+      }
+    };
+
+    void fetchDeck();
+    return () => {
+      isCurrent = false;
+    };
+  }, [deckId]);
 
   useEffect(() => {
     if (!showCardPicker) return;
+    let isCurrent = true;
     const timeout = setTimeout(async () => {
       setPickerLoading(true);
       try {
         const cards = await cardApi.getAll({ q: pickerQuery.trim() || undefined });
         const currentIds = new Set(deck?.cards?.map(card => card.id) ?? []);
-        setPickerCards(cards.filter(card => !currentIds.has(card.id)));
+        if (isCurrent) {
+          setPickerCards(cards.filter(card => !currentIds.has(card.id)));
+        }
       } catch (error: unknown) {
-        setError(errorMessage(error, 'Failed to load card library'));
+        if (isCurrent) {
+          setError(getApiErrorMessage(error, 'Failed to load card library'));
+        }
       } finally {
-        setPickerLoading(false);
+        if (isCurrent) setPickerLoading(false);
       }
     }, 200);
-    return () => clearTimeout(timeout);
+    return () => {
+      isCurrent = false;
+      clearTimeout(timeout);
+    };
   }, [showCardPicker, pickerQuery, deck?.cards]);
 
   // Honour `#card-<uuid>` on entry so dashboard links land on the right card.
@@ -96,29 +149,6 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
     });
   }, [deck]);
 
-  const fetchDeck = async () => {
-    try {
-      const [data, access, roles, students] = await Promise.all([
-        deckApi.getById(resolvedParams.id),
-        deckAccessApi.get(resolvedParams.id),
-        roleApi.getAll(),
-        userApi.getAll(),
-      ]);
-      setDeck(data);
-      setTitle(data.title);
-      setDescription(data.description || '');
-      setDeckType(data.deckType);
-      setSelectedRoleIds(new Set(access.roles.map(r => r.id)));
-      setSelectedUserIds(new Set(access.users.map(u => u.id)));
-      setAllRoles(roles);
-      setAllStudents(students);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to fetch deck');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const toggleSet = (set: Set<string>, target: string, setter: (s: Set<string>) => void) => {
     const next = new Set(set);
     if (next.has(target)) next.delete(target);
@@ -130,14 +160,14 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
     setSavingAccess(true);
     setAccessMessage('');
     try {
-      await deckAccessApi.set(resolvedParams.id, {
+      await deckAccessApi.set(deckId, {
         roleIds: Array.from(selectedRoleIds),
         userIds: Array.from(selectedUserIds),
       });
       setAccessMessage('Access updated.');
       setTimeout(() => setAccessMessage(''), 3000);
-    } catch (err: any) {
-      setAccessMessage(err.response?.data?.error || 'Failed to update access');
+    } catch (error: unknown) {
+      setAccessMessage(getApiErrorMessage(error, 'Failed to update access'));
     } finally {
       setSavingAccess(false);
     }
@@ -150,7 +180,7 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
     setSuccessMessage('');
 
     try {
-      const updatedDeck = await deckApi.update(resolvedParams.id, {
+      const updatedDeck = await deckApi.update(deckId, {
         title,
         description: description || undefined,
         deckType
@@ -162,8 +192,8 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
       setTimeout(() => {
         setSuccessMessage('');
       }, 3000);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to update deck');
+    } catch (error: unknown) {
+      setError(getApiErrorMessage(error, 'Failed to update deck'));
     } finally {
       setIsSaving(false);
     }
@@ -186,7 +216,7 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
         setShowCardForm(false);
         scrollToElement(`card-${cardId}`);
       } else {
-        const newCard = await deckApi.addCard(resolvedParams.id, {
+        const newCard = await deckApi.addCard(deckId, {
           restaurantData: data.restaurantData,
           imageUrl: data.imageUrl
         });
@@ -200,8 +230,8 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
         setShowCardForm(false);
         scrollToElement(`card-${newCard.id}`);
       }
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to save card');
+    } catch (error: unknown) {
+      alert(getApiErrorMessage(error, 'Failed to save card'));
     }
   };
 
@@ -209,20 +239,20 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
     if (!confirm('Remove this card from this deck? The canonical card and its study progress will remain available elsewhere.')) return;
     
     try {
-      await deckApi.removeCard(resolvedParams.id, cardId);
+      await deckApi.removeCard(deckId, cardId);
       setDeck(prev => prev ? {
         ...prev,
         cards: prev.cards?.filter(card => card.id !== cardId),
         cardCount: Math.max(0, (prev.cardCount || 0) - 1)
       } : null);
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to delete card');
+    } catch (error: unknown) {
+      alert(getApiErrorMessage(error, 'Failed to delete card'));
     }
   };
 
   const handleAddExistingCard = async (card: Card) => {
     try {
-      await deckApi.addExistingCard(resolvedParams.id, card.id);
+      await deckApi.addExistingCard(deckId, card.id);
       setDeck(prev => prev ? {
         ...prev,
         cards: [...(prev.cards || []), card]
@@ -231,7 +261,7 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
       } : null);
       setPickerCards(prev => prev.filter(item => item.id !== card.id));
     } catch (error: unknown) {
-      alert(errorMessage(error, 'Failed to add card to deck'));
+      alert(getApiErrorMessage(error, 'Failed to add card to deck'));
     }
   };
 
@@ -553,13 +583,15 @@ export default function EditDeckPage({ params }: { params: Promise<{ id: string 
                     </div>
 
                     {card.restaurantData && (() => {
-                      // Type assertion for display - backend already filtered invalid fields
-                      const data = card.restaurantData as any;
+                      // Management display uses the flat all-fields view of the
+                      // backend-validated category-specific card data.
+                      const data: RestaurantCardDataV1 = card.restaurantData;
                       return (
                         <div className={card.imageUrl ? "flex gap-4" : "space-y-3"}>
                           {/* Card Image */}
                           {card.imageUrl && (
                             <div className="flex-shrink-0 w-32 h-40 rounded-md border border-gray-300 overflow-hidden">
+                              {/* eslint-disable-next-line @next/next/no-img-element -- Card images are preprocessed WebP files delivered directly from immutable R2 edge cache. */}
                               <img
                                 src={getImageUrl(card.imageUrl)}
                                 alt={card.restaurantData?.itemName || 'Card image'}
