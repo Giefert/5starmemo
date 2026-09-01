@@ -4,7 +4,7 @@ This is the repository's curated continuity record. It captures accepted
 project state and active coordination, not a transcript. Reconcile it whenever
 work or steering materially changes.
 
-Last reconciled: 2026-09-01 by Codex root at `e32954b` (`main`; working tree
+Last reconciled: 2026-09-01 by Codex root at `6ce6a73` (`main`; working tree
 intentionally dirty)
 
 Current work-log coordinator: Codex root for W4, the accepted-checkpoint and
@@ -12,22 +12,21 @@ maintenance integration turn.
 
 ## Resume here
 
-- The user accepted W1 and W3 on 2026-09-01 and authorized committing
-  `AGENTS.md`, `WORKLOG.md`, and `README.md` together. That checkpoint is the
-  first action in W4.
+- W1 and W3 are durable in `df4810f`: `AGENTS.md`, `WORKLOG.md`, and the
+  corrected `README.md` now survive a clean checkout.
 - The user accepted the complete W2 mobile workspace as one checkpoint and
-  authorized committing it separately after review and validation.
+  authorized committing it separately. Its commit is paused on one newly found
+  product contradiction: fresh users are shown reminders enabled at noon even
+  though no notification has been scheduled. Await the user's choice between
+  default-Off and automatic scheduling before editing or committing W2.
 - Read tracked [CLAUDE.md](CLAUDE.md) for repository constraints and
   [DESIGN.md](DESIGN.md) for the Carte design system. Use current tracked code
   and commits for implemented behavior. Local `*-HANDOFF.md` files are ignored
   by Git and are historical evidence only, not durable project truth.
-- [README.md](README.md) has been accepted with the workflow files and is
-  awaiting its authorized commit.
+- [README.md](README.md) is current and committed in `df4810f`.
 - Never record credentials or other secrets here.
-- `AGENTS.md` and `WORKLOG.md` remain untracked until the authorized W4
-  checkpoint is created.
-- W4 is active. Root owns all writes and commits; its delegated lanes are
-  read-only audits.
+- W4 is active but waiting for the reminder decision. Root owns all writes and
+  commits; its read-only audits are complete.
 
 ## Where we were
 
@@ -47,7 +46,13 @@ maintenance integration turn.
 - `1e92251` through `e32954b`: added the Study Library and reminders,
   seasonality, a canonical restaurant card library decoupled from decks,
   improved Library ordering, and mobile/API loading performance. `e32954b` is
-  the latest committed baseline.
+  the last product-code checkpoint before W4.
+- `df4810f`: established the accepted continuity workflow and replaced the
+  obsolete root README with a current project overview.
+- `5c2e259`: replaced unsafe volatile production wording, removed the dead
+  dashboard-mockup references, and replaced the dashboard's starter README.
+- `6ce6a73`: self-hosted the dashboard's Fraunces, Inter, and Newsreader files
+  with their OFL licenses and repaired both host API `start` commands.
 
 ### Durable decisions
 
@@ -64,35 +69,31 @@ maintenance integration turn.
 
 ### Known failures or uncertainty
 
-- The committed [README.md](README.md) at `e32954b` is stale. Its accepted
-  workspace replacement corrects the product, architecture, auth, workflow,
-  validation, and license claims and is awaiting its authorized checkpoint.
 - `*-HANDOFF.md` files are ignored by [.gitignore](.gitignore), absent from a
   clean checkout, and largely superseded by later commits. Do not revive their
   old questions or locked decisions as backlog without reconciling current
   code and user steering.
 - A commit does not prove that a build is deployed, in TestFlight, approved by
   an app store, or serving real users. Reconfirm those external facts.
-- Time-sensitive production assumptions in [CLAUDE.md](CLAUDE.md), including
-  whether the service still has no real clients, must be reconfirmed before
-  risky production activity.
+- [CLAUDE.md](CLAUDE.md) now describes the chosen production-connected workflow
+  without asserting that production is safe or unused. External state must
+  still be reconfirmed before risky production activity.
 - Ignored `.claude/settings.local.json` grants broad automatic permissions. On
   2026-09-01 the user explicitly chose to retain that configuration; do not
   narrow it without new steering.
-- A clean linked worktree at `.claude/worktrees/nostalgic-proskuriakova` uses a
-  fully merged branch with no unique commits and is 83 commits behind `main`.
-  It lacks the current instruction files. Confirm that no live session owns it
-  before retiring the worktree and branch; age alone does not release it.
-- [DESIGN.md](DESIGN.md) points to a missing `Tusavor Dashboard.html`, while
-  [web-dashboard/README.md](web-dashboard/README.md) remains unrelated
-  create-next-app boilerplate. The schema baseline header also says migration
-  016 even though its recorded folded list includes 017 and 018.
-- Dashboard lint currently reports 38 baseline errors. The dashboard build
-  also fetches Google fonts at build time and cannot complete offline. Both API
-  package `start` scripts point at a different output path from their Docker
-  images. These are developer-workflow reliability issues, not W3 changes.
-- The intent, completeness, validation status, and desired integration point of
-  W2 have not yet been confirmed.
+- The stale `nostalgic-proskuriakova` linked worktree and its already-merged
+  local branch were removed after confirming zero unique commits, no tracked or
+  ordinary untracked changes, no process/session owner, and only an obsolete
+  ignored permissions file whose rules were all duplicated in the retained
+  primary settings.
+- The schema baseline header says migration 016 even though its recorded folded
+  list includes 017 and 018; this documentation cleanup was not part of W4.
+- Dashboard lint currently reports 48 findings: 38 errors and 10 warnings. The
+  user wants the errors repaired but requested a separate review before any
+  lint-related edit.
+- W2's reminder default is internally inconsistent as described above. Static
+  checks otherwise pass; the hidden-but-mounted Library card catalog also needs
+  later device verification for keyboard dismissal when switching tabs.
 
 ## Where we are
 
@@ -101,7 +102,7 @@ maintenance integration turn.
 #### W1 — Continuity-workflow bootstrap
 
 - Owner: Codex root for the completed implementation; no active agent.
-- Status: accepted by the user on 2026-09-01; commit authorized in W4.
+- Status: accepted and committed in `df4810f`.
 - Outcome: added `AGENTS.md` and initialized `WORKLOG.md`; integrated three
   read-only audits covering history, concurrency/steering failure modes, and
   the W2 ownership boundary.
@@ -115,8 +116,8 @@ maintenance integration turn.
 #### W2 — Mobile-app workspace changes
 
 - Owner: Codex root for the authorized W4 integration.
-- Status: accepted as a complete checkpoint by the user on 2026-09-01; review,
-  validation, and a separate commit are authorized.
+- Status: accepted as a complete checkpoint by the user on 2026-09-01, but its
+  separate commit is paused for the reminder behavior decision.
 - Boundary: one umbrella lane because its substreams overlap in shared files.
   It includes the card-browser replacement, Library card-catalog/navigation/
   state work, card image treatment, and reminder defaults. Home and Library
@@ -130,7 +131,7 @@ maintenance integration turn.
 
 - Owner: Codex root for the completed workspace implementation; no active
   agent.
-- Status: accepted by the user on 2026-09-01; commit authorized in W4.
+- Status: accepted and committed with W1 in `df4810f`.
 - Outcome: replaced the old roadmap and local-database quick start with a
   current, security-safe overview based on tracked code at `e32954b`. The new
   README covers the four-part architecture, shipped surfaces, tenancy and role
@@ -143,12 +144,13 @@ maintenance integration turn.
   Google fonts. Three read-only audits were reviewed and integrated; no support
   lane changed files.
 - Resume evidence: the `README.md` diff and this record. Review W1 and W3
-  together because the README refers to the still-untracked workflow files.
+  together at `df4810f`.
 
 #### W4 — Accepted checkpoints and maintenance integration
 
 - Owner: Codex root; sole writer and integrator.
-- Status: active by explicit user request on 2026-09-01.
+- Status: active; waiting for the user's reminder-default choice before W2 can
+  be integrated.
 - Authorized scope:
   - commit accepted W1/W3 together and accepted W2 separately;
   - retain broad Claude permissions and current Node versions;
@@ -163,17 +165,17 @@ maintenance integration turn.
 - Deferred sequence explicitly requested by the user: after W4, discuss the
   dashboard lint corrections before editing them; after lint is resolved,
   revisit deployment/GitHub access; then revisit release and platform status.
-- Read-only support lanes:
-  - `workflow_audit` verifies stale-worktree ownership, ignored paths, and safe
-    removal prerequisites.
-  - `repo_history` audits the proposed documentation, font, and API-command
-    changes against tracked code without editing.
-  - `active_changes` reviews the accepted W2 diff, boundary, and proportional
-    validation without editing.
+- Completed outcomes: created `df4810f`, `5c2e259`, and `6ce6a73`; removed the
+  stale worktree and branch; all read-only audits were reviewed and integrated.
+- Validation: both API builds and emitted-entry `node --check` checks passed;
+  all 30 mobile API tests passed; the dashboard build completed without network
+  font access; targeted layout lint passed; local browser review confirmed the
+  login UI renders correctly and font requests use only `/_next/static/media`
+  with no Google font requests.
 
-W1-W3 use `main` in `/Users/one/Documents/git/5starmemo`. The separate legacy
-worktree noted above is not assigned to any current lane. W2 is workspace-local
-and cannot be recovered from Git.
+All current lanes use `main` in `/Users/one/Documents/git/5starmemo`; no linked
+worktree remains. W2 is workspace-local and cannot be recovered from Git until
+its authorized checkpoint is created.
 
 ### W2 protected path boundary
 
@@ -195,29 +197,26 @@ before any later work:
 
 ### Current milestone
 
-Make the continuity workflow and current project overview durable so a fresh
-agent can recover the project narrative, preserve parallel ownership, interpret
-steering correctly, and pick the next useful action without chat history.
+Finish W4 without committing a misleading reminder state, then present and
+resolve the dashboard lint plan before revisiting access and release decisions.
 
-Acceptance bar:
+W4 acceptance bar:
 
 - root instructions require the work log to be read and synchronized;
 - the log clearly distinguishes accepted history, active state, and future work;
 - pre-existing uncommitted work remains visible and protected;
 - delegated work has explicit ownership, boundaries, and integration status;
 - the workflow remains compact enough to maintain in normal work;
-- once the workflow is accepted and committed, a clean checkout of that
-  checkpoint retains the durable context needed to resume;
-- workspace-local work such as W2 is labeled honestly as nonrecoverable from
-  Git rather than presented as a durable checkpoint.
-- the root README accurately summarizes implemented behavior and points to the
-  durable guidance without becoming a second roadmap or work log.
+- the accepted workflow and project overview remain durable in Git;
+- W2 is committed separately only after its reminder behavior is coherent;
+- accepted documentation/runtime cleanup remains separated by concern;
+- the next lint discussion presents concrete findings before any edit.
 
 ### Ordered next work
 
-1. Complete W4 in the authorized order and keep its commits separated by
-   concern.
-2. Present the dashboard lint findings and choices to the user before changing
+1. Obtain the reminder behavior decision, make only the corresponding W2 fix,
+   rerun mobile validation, and create the authorized W2 checkpoint.
+2. Close W4 and present the dashboard lint findings and choices before changing
    lint-related code.
 3. After the lint step is resolved, revisit deployment and GitHub access.
 4. After the access step is resolved, revisit release and platform status.
