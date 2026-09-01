@@ -4,12 +4,10 @@ This is the repository's curated continuity record. It captures accepted
 project state and active coordination, not a transcript. Reconcile it whenever
 work or steering materially changes.
 
-Last reconciled: 2026-09-01 by Codex root at `d4ff02e` (`main`; W6 access
-remediation explicitly deferred by the user; W7 release/platform discussion
-next)
+Last reconciled: 2026-09-01 by Codex root at `2d14ad6` (`main`; W7 Option A
+repository/EAS audit complete; App Store Connect sign-in required)
 
-Current work-log coordinator: Codex root for the W6 deferral and W7
-release/platform decision handoff.
+Current work-log coordinator: Codex root for the W7 iOS-first status audit.
 
 ## Resume here
 
@@ -24,7 +22,9 @@ release/platform decision handoff.
   [DESIGN.md](DESIGN.md) for the Carte design system. Use current tracked code
   and commits for implemented behavior. Local `*-HANDOFF.md` files are ignored
   by Git and are historical evidence only, not durable project truth.
-- [README.md](README.md) is current and committed in `df4810f`.
+- [README.md](README.md)'s project overview is committed in `df4810f`, but its
+  validation paragraph still describes the dashboard lint/font failures that
+  W5 and W4 later resolved; refresh that paragraph separately.
 - Never record credentials or other secrets here.
 - W4 is complete. The user approved W5 Option A: repair all dashboard lint
   errors and meaningful warnings, retain two narrowly documented raw-image
@@ -36,9 +36,11 @@ release/platform decision handoff.
   2026-09-01 the user explicitly deferred containment and all other access
   changes until later. Do not resume live access work or make access changes
   without new steering.
-- The next requested discussion is W7 release/platform scope. No store access,
-  build upload, submission, deployment, or release-state claim is authorized
-  or established yet.
+- The user selected W7 Option A: focus on iOS first, verify TestFlight/App Store
+  Connect state read-only, and keep Android parked. The repository and EAS-side
+  audit is complete; both available browser sessions require a fresh Apple
+  sign-in before App Store Connect can be inspected. No build upload,
+  submission, deployment, publication, or release-setting change is authorized.
 
 ## Where we were
 
@@ -114,6 +116,16 @@ release/platform decision handoff.
   here. No mutation occurred, and the user explicitly deferred revocation,
   server-side removal, and broader access hardening. Treat this as an unresolved
   pre-launch gate and revisit sooner if suspicious access is observed.
+- W7 found a second credential risk: the tracked learner login screen embeds a
+  demo credential and exposes an autofill button while every build profile
+  targets production. Never reproduce the values. Treat them as potentially
+  live and compromised until removed and, if valid, rotated. No login attempt,
+  source change, or credential mutation is authorized by the read-only audit.
+- W7 also found that personal on-device favorites and custom decks are scoped
+  only by restaurant, survive account deletion, and are omitted from export;
+  the tracking-purpose string contradicts the no-tracking implementation; and
+  absolute privacy-policy claims about identifiers, export, and immediate
+  deletion are not reconciled with access logging and external backup retention.
 
 ## Where we are
 
@@ -280,21 +292,51 @@ worktree remains. W2 is recoverable from `b173d88` and W5 from `e8b6836`.
 
 #### W7 — Release and platform-status decision
 
-- Owner: Codex root for the decision discussion; no implementation lane is
-  active.
-- Status: next requested conversation after the W6 deferral.
-- Boundary: decide whether to focus on iOS/TestFlight first, inspect both iOS
-  and Android release readiness, or defer release work. Repository history does
-  not prove current TestFlight, App Store Connect, or Google Play state.
-- No account inspection, build upload, store submission, deployment, or release
-  action is authorized merely by opening this discussion.
+- Owner: Codex root for integration and the remaining read-only App Store
+  Connect inspection.
+- Status: Option A selected. Repository and EAS-side review is complete;
+  App Store Connect/TestFlight inspection is waiting for the user to sign in.
+  Android is parked.
+- Boundary: verify the tracked iOS configuration and current TestFlight/App
+  Store Connect state, then explain the smallest next release steps. Repository
+  history alone does not prove current external release state.
+- All three support lanes completed read-only without editing. Root also used
+  the existing Expo account read-only and verified that the newest successful
+  iOS store-distribution build is version 1.0.0 build 15 from `1e92251`, created
+  2026-07-16 with Expo SDK 54. Current mobile source at `b173d88` contains major
+  later product and reminder changes, so build 15 is not a current release
+  candidate. A successful EAS build does not prove Apple upload or TestFlight
+  availability.
+- Current source passes mobile TypeScript and a fresh iOS JavaScript/assets
+  export. The public privacy-policy URL responds successfully. These checks do
+  not create a native archive, inspect signing/privacy manifests, install on a
+  device, or exercise TestFlight.
+- Pre-submission blockers from the static review:
+  - remove the embedded demo credential/button and rotate the account password
+    if it is live; provide isolated reviewer access only through App Store
+    Review Information;
+  - scope favorites/custom decks by user as well as restaurant and reconcile
+    account deletion/export with that local state;
+  - remove the unused tracking-purpose string unless real tracking is
+    intentionally introduced and disclosed;
+  - reconcile access-log and backup behavior with the privacy policy and App
+    Privacy answers instead of retaining unsupported absolute claims.
+- Native/release gates: verify the production archive's notification
+  entitlement and aggregated privacy manifest; choose whether to keep iPad
+  support and, if kept, complete iPad QA/screenshots; provide a real support
+  page; and confirm Apple metadata, age rating, privacy answers, review access,
+  agreements, and build/submission state in App Store Connect.
+- No build upload, store submission, deployment, publication, production-data
+  action, reviewer-account use, credential rotation, or release-setting change
+  has occurred or is authorized.
 
 ## Where we are going
 
 ### Current milestone
 
-Choose the release/platform scope while W6 access remediation remains
-explicitly deferred.
+Finish the App Store Connect/TestFlight status check after user sign-in, then
+decide the separately authorized remediation needed before a current iOS beta.
+W6 access remediation remains deferred and Android remains parked.
 
 W7 acceptance bar:
 
@@ -306,12 +348,18 @@ W7 acceptance bar:
 
 ### Ordered next work
 
-1. Discuss W7 and choose between an iOS-first status review, a two-platform
-   status review, or deferring all release work.
-2. If the user chooses a status review, verify only the selected external state
-   read-only before recommending release steps.
-3. Keep W6 containment and access hardening deferred until the user reopens it;
-   it must still be resolved before a real-user launch.
+1. The user signs in to App Store Connect in the retained Chrome tab and tells
+   Codex when it is ready; root then inspects current build, TestFlight,
+   metadata, and submission state read-only.
+2. Review and explicitly authorize the smallest W7 code/policy remediation;
+   credential rotation remains a separate external mutation.
+3. After remediation, complete clean-device iPhone testing and either iPad QA
+   or an explicit decision to drop tablet support.
+4. Only with separate approval, create and inspect a current signed production
+   build, then upload it to internal TestFlight. Upload, tester distribution,
+   beta review, and App Store submission are distinct approval points.
+5. Keep Android parked and W6 access hardening deferred until reopened; W6 must
+   still be resolved before a real-user launch.
 
 ### Candidate product backlog
 
