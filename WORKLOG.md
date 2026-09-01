@@ -4,8 +4,8 @@ This is the repository's curated continuity record. It captures accepted
 project state and active coordination, not a transcript. Reconcile it whenever
 work or steering materially changes.
 
-Last reconciled: 2026-09-01 by Codex root after W5 checkpoint `e8b6836`
-(`main`; access decision is next)
+Last reconciled: 2026-09-01 by Codex root at `6566859` (`main`; W6 live audit
+paused for an urgent credential-revocation decision)
 
 Current work-log coordinator: Codex root for the W5 closure and W6 access
 decision handoff.
@@ -31,6 +31,11 @@ decision handoff.
 - W5 is durable in `e8b6836`. The next required discussion is deployment and
   GitHub access; no live credential, server, repository, push, or deployment
   change is authorized yet.
+- W6 Option C read-only verification confirmed that the tracked access gates
+  are not satisfied. It also caused an inline server-side GitHub credential to
+  appear in audit output. Never reproduce the value; treat it as exposed and
+  obtain explicit authorization to revoke it and remove it from the server
+  checkout configuration before any further live audit.
 
 ## Where we were
 
@@ -101,6 +106,10 @@ decision handoff.
 - W2's automatic-On lifecycle is implemented and statically validated. Native
   notification permission prompts and delivery still require a clean-device
   check; no production-connected account or device state was changed during W4.
+- W6 has an urgent unresolved credential incident: a GitHub credential embedded
+  in the server checkout URL was exposed to the audit output. No value is
+  retained here. No mutation has occurred; revocation and server-side removal
+  are awaiting the user's explicit authorization.
 
 ## Where we are
 
@@ -239,12 +248,26 @@ worktree remains. W2 is recoverable from `b173d88` and W5 from `e8b6836`.
 #### W6 — Deployment and GitHub access decision
 
 - Owner: Codex root; read-only until the user authorizes a specific mutation.
-- Status: awaiting the promised user discussion after W5.
+- Status: the user chose Option C, but the read-only audit is paused because it
+  exposed an inline server-side GitHub credential. Await urgent authorization
+  to revoke/remove it; all other hardening remains deferred.
 - Boundary: reconcile the tracked pre-launch SSH/deploy-user and broad GitHub
   credential TODOs in [CLAUDE.md](CLAUDE.md) with freshly verified external
   state before changing access. Do not display or copy credential values.
 - No server, GitHub, credential, push, deployment, or production-data action is
   currently authorized.
+- The three read-only support lanes completed without editing: they reconciled
+  tracked history, the Docker Compose deployment boundary, local Git/SSH
+  selection metadata, and what requires live evidence. No support lane remains.
+- Root completed limited live read-only GitHub/server checks, then stopped when
+  the inline credential appeared. Do not resume live inspection before the
+  revocation decision.
+- Sanitized audit outcome: the local Git credential still has broad repository
+  authority and `main` has no server-side protection; the production login path
+  is a general privileged account with an unrestricted key rather than a
+  dedicated deploy identity. The server checkout also stored the now-exposed
+  inline GitHub credential. No credential, rule, key, account, or server setting
+  was changed.
 
 ## Where we are going
 
@@ -263,9 +286,10 @@ W6 acceptance bar:
 
 ### Ordered next work
 
-1. Revisit deployment and GitHub access, beginning with a read-only/current-
-   state decision before any credential or server mutation.
-2. After access is resolved, revisit release and platform status.
+1. Obtain authorization to revoke the exposed GitHub credential and remove it
+   from the server checkout URL; do not continue the live audit first.
+2. Keep all other access hardening deferred under Option C.
+3. After access is resolved, revisit release and platform status.
 
 ### Candidate product backlog
 
