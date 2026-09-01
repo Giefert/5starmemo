@@ -10,13 +10,13 @@ BFF architecture: web-api (management), mobile-api (student), web-dashboard (Nex
 - Production requirements (security, store compliance, deployment config) are not bloat — implement them simply and directly.
 - Prefer fixing root causes over adding defensive wrappers around broken code.
 
-## Workflow: develop against prod, not local
-Prod (`api.tusavor.com` / VPS at 149.56.134.158) is the working environment. No clients are on it yet, so it's safe to iterate on. Local docker-compose still exists but is **not** kept in sync — its DB has stale/empty data and shouldn't be used to validate features.
+## Workflow: production-connected; treat it as live
+The configured workflow uses the production-connected services at `api.tusavor.com`. Local docker-compose still exists but is **not** kept in sync, so its stale or empty data is not feature-validation evidence. Production is a live system regardless of perceived client activity: confirm authorization and impact before any deployment, query, or write.
 
-- Test changes by deploying to the VPS (`git pull && docker compose ... up -d --build`) and exercising them through the live URLs / TestFlight build.
-- Debug with prod data: SSH in and query the prod DB or read container logs. Don't suggest "let me seed your local DB" or "run docker compose up locally" — that path is abandoned.
-- The mobile app always hits prod, including local Expo runs (`mobile-app/services/api.ts` no longer has a `__DEV__` → localhost branch). Iterating on UI tweaks in the iOS sim "just works" — `npx expo start --ios` from `mobile-app/` pulls real data from `api.tusavor.com`. Use a test login, not a real student's, since actions write to the live DB.
-- Mention this only if relevant; don't add a "deploy to prod" step to every task — assume the user will deploy when they're ready.
+- Validate authorized changes through the deployed URLs or TestFlight build when appropriate. Deployment is always explicit; never infer permission to deploy from a request to implement or test code.
+- Prefer read-only or minimal production inspection. Use an authorized test account rather than a real student's account, and obtain explicit approval before changing production data or infrastructure.
+- The mobile app points at production even during local Expo runs (`mobile-app/services/api.ts` has no development localhost branch), so simulator actions can write live data.
+- Do not propose seeding the abandoned local database as feature validation. Mention deployment only when it is relevant and leave the timing to the user.
 
 ## Deployment access TODO
 

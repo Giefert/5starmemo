@@ -1,36 +1,38 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Tusavor management dashboard
 
-## Getting Started
+This Next.js 15 application is Tusavor's management and content-curation
+surface. It talks to `web-api`; it is not the student application and must not
+expose individual learner progress.
 
-First, run the development server:
+Read the repository [README](../README.md), [production and cost guidance](../CLAUDE.md),
+and [Carte design system](../DESIGN.md) before changing a user-facing workflow.
+
+## Commands
 
 ```bash
+npm ci
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run lint
+npm run build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Run lint separately because the Next.js production build does not enforce it.
+The root README records the repository-wide validation expectations.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Configuration and data safety
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The dashboard uses these environment-variable names:
 
-## Learn More
+- `NEXT_PUBLIC_WEB_API_URL`
+- `R2_PUBLIC_URL`
 
-To learn more about Next.js, take a look at the following resources:
+Do not record their deployed values or credentials in this file. When the
+dashboard is configured for the production API, management actions can change
+live data. Use only an authorized management test account and keep deployments
+explicit.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Fonts
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Fraunces, Inter, and Newsreader are stored under `src/app/fonts/` so dashboard
+builds do not depend on Google Fonts being reachable. The corresponding SIL
+Open Font License files are stored beside the font files.

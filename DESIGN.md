@@ -1,6 +1,6 @@
 # Tusavor — Design Principles
 
-The canonical design direction for Tusavor is **"Mise en Place · Carte"** — a dark editorial masthead over a warm paper body. See `Tusavor Dashboard.html` for the reference implementation. Every future admin surface should inherit the tokens, rhythm, and restraints below.
+The canonical design direction for Tusavor is **"Mise en Place · Carte"** — a dark editorial masthead over a warm paper body. The tracked dashboard is the reference implementation: [`web-dashboard/src/app/globals.css`](web-dashboard/src/app/globals.css) defines the tokens, while [`web-dashboard/src/app/dashboard/page.tsx`](web-dashboard/src/app/dashboard/page.tsx) and [`web-dashboard/src/components/admin/`](web-dashboard/src/components/admin/) show page composition and reusable patterns. Every future admin surface should inherit the tokens, rhythm, and restraints below.
 
 ---
 
@@ -79,7 +79,7 @@ If you're tempted to add one because the screen "feels empty," solve it with lay
 
 ## 4 · Tokens (authoritative)
 
-Copy these into every new admin surface. The full token object lives at the top of `Tusavor Dashboard.html`:
+Copy these into every new admin surface. The authoritative web tokens live in [`web-dashboard/src/app/globals.css`](web-dashboard/src/app/globals.css); the table below is the portable cross-surface reference:
 
 ```js
 const T = {
@@ -121,7 +121,7 @@ On screens where a full masthead is overkill (a deck editor, a modal-ish setting
 
 ## 6 · Component patterns established
 
-- **Stat rail** (`StatRow` in the reference) — label left, serif figure right, tone in `red` / `amber` / default. 4 rows max.
+- **Stat rail** ([`web-dashboard/src/components/admin/stat-panel.tsx`](web-dashboard/src/components/admin/stat-panel.tsx)) — label left, serif figure right, tone in `red` / `amber` / default. 4 rows max.
 - **Deck card** — category eyebrow, serif name, metadata line, optional red warn, action row. Actions are uppercase small-caps in-line, primary (`EDIT`) in ink, destructive (`DELETE`) in `inkFaint` pushed to the right.
 - **Featured flag** — amber dot + "Featured" small-caps at top-right of the card, absolute positioned. No badge chrome.
 - **Section header** — `h2` in serif + a small-caps count/descriptor beside it + filter tabs on the right.
