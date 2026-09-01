@@ -4,11 +4,12 @@ This is the repository's curated continuity record. It captures accepted
 project state and active coordination, not a transcript. Reconcile it whenever
 work or steering materially changes.
 
-Last reconciled: 2026-09-01 by Codex root at `6566859` (`main`; W6 live audit
-paused for an urgent credential-revocation decision)
+Last reconciled: 2026-09-01 by Codex root at `d4ff02e` (`main`; W6 access
+remediation explicitly deferred by the user; W7 release/platform discussion
+next)
 
-Current work-log coordinator: Codex root for the W5 closure and W6 access
-decision handoff.
+Current work-log coordinator: Codex root for the W6 deferral and W7
+release/platform decision handoff.
 
 ## Resume here
 
@@ -28,14 +29,16 @@ decision handoff.
 - W4 is complete. The user approved W5 Option A: repair all dashboard lint
   errors and meaningful warnings, retain two narrowly documented raw-image
   exceptions, and repair the related preview object-URL leak.
-- W5 is durable in `e8b6836`. The next required discussion is deployment and
-  GitHub access; no live credential, server, repository, push, or deployment
-  change is authorized yet.
+- W5 is durable in `e8b6836`.
 - W6 Option C read-only verification confirmed that the tracked access gates
   are not satisfied. It also caused an inline server-side GitHub credential to
-  appear in audit output. Never reproduce the value; treat it as exposed and
-  obtain explicit authorization to revoke it and remove it from the server
-  checkout configuration before any further live audit.
+  appear in audit output. Never reproduce the value; treat it as exposed. On
+  2026-09-01 the user explicitly deferred containment and all other access
+  changes until later. Do not resume live access work or make access changes
+  without new steering.
+- The next requested discussion is W7 release/platform scope. No store access,
+  build upload, submission, deployment, or release-state claim is authorized
+  or established yet.
 
 ## Where we were
 
@@ -106,10 +109,11 @@ decision handoff.
 - W2's automatic-On lifecycle is implemented and statically validated. Native
   notification permission prompts and delivery still require a clean-device
   check; no production-connected account or device state was changed during W4.
-- W6 has an urgent unresolved credential incident: a GitHub credential embedded
-  in the server checkout URL was exposed to the audit output. No value is
-  retained here. No mutation has occurred; revocation and server-side removal
-  are awaiting the user's explicit authorization.
+- W6 has an unresolved credential incident: a GitHub credential embedded in the
+  server checkout URL was exposed to the audit output. No value is retained
+  here. No mutation occurred, and the user explicitly deferred revocation,
+  server-side removal, and broader access hardening. Treat this as an unresolved
+  pre-launch gate and revisit sooner if suspicious access is observed.
 
 ## Where we are
 
@@ -247,15 +251,17 @@ worktree remains. W2 is recoverable from `b173d88` and W5 from `e8b6836`.
 
 #### W6 — Deployment and GitHub access decision
 
-- Owner: Codex root; read-only until the user authorizes a specific mutation.
-- Status: the user chose Option C, but the read-only audit is paused because it
-  exposed an inline server-side GitHub credential. Await urgent authorization
-  to revoke/remove it; all other hardening remains deferred.
+- Owner: no active lane; Codex root recorded the accepted deferral.
+- Status: the user chose Option C. The read-only audit is complete, and on
+  2026-09-01 the user explicitly deferred credential containment and all other
+  access hardening until later. The risk remains unresolved, not accepted as
+  safe.
 - Boundary: reconcile the tracked pre-launch SSH/deploy-user and broad GitHub
   credential TODOs in [CLAUDE.md](CLAUDE.md) with freshly verified external
   state before changing access. Do not display or copy credential values.
 - No server, GitHub, credential, push, deployment, or production-data action is
-  currently authorized.
+  currently authorized. Do not resume live inspection merely to gather more
+  evidence; wait for the user to reopen this lane.
 - The three read-only support lanes completed without editing: they reconciled
   tracked history, the Docker Compose deployment boundary, local Git/SSH
   selection metadata, and what requires live evidence. No support lane remains.
@@ -268,28 +274,44 @@ worktree remains. W2 is recoverable from `b173d88` and W5 from `e8b6836`.
   dedicated deploy identity. The server checkout also stored the now-exposed
   inline GitHub credential. No credential, rule, key, account, or server setting
   was changed.
+- Disposition: preserve these findings as pre-launch gates. The user set no
+  remediation date; revisit only on new steering, before a real-user launch, or
+  sooner if suspicious access is observed.
+
+#### W7 — Release and platform-status decision
+
+- Owner: Codex root for the decision discussion; no implementation lane is
+  active.
+- Status: next requested conversation after the W6 deferral.
+- Boundary: decide whether to focus on iOS/TestFlight first, inspect both iOS
+  and Android release readiness, or defer release work. Repository history does
+  not prove current TestFlight, App Store Connect, or Google Play state.
+- No account inspection, build upload, store submission, deployment, or release
+  action is authorized merely by opening this discussion.
 
 ## Where we are going
 
 ### Current milestone
 
-Revisit access and release decisions in the user's required order now that the
-dashboard lint baseline is resolved.
+Choose the release/platform scope while W6 access remediation remains
+explicitly deferred.
 
-W6 acceptance bar:
+W7 acceptance bar:
 
-- explain deployment-key/user and GitHub-credential choices in plain language;
-- verify current external state read-only before relying on the tracked TODO;
-- do not expose credential values or mutate live access without explicit scope;
-- preserve explicit deployment approval regardless of the access design;
-- record the accepted access decision before release-status review.
+- explain the release choices and tradeoffs in plain language;
+- do not claim current store state without fresh external verification;
+- inspect only the platform scope the user chooses;
+- do not upload, submit, deploy, or publish without separate explicit approval;
+- retain W6 as an unresolved pre-launch gate regardless of release planning.
 
 ### Ordered next work
 
-1. Obtain authorization to revoke the exposed GitHub credential and remove it
-   from the server checkout URL; do not continue the live audit first.
-2. Keep all other access hardening deferred under Option C.
-3. After access is resolved, revisit release and platform status.
+1. Discuss W7 and choose between an iOS-first status review, a two-platform
+   status review, or deferring all release work.
+2. If the user chooses a status review, verify only the selected external state
+   read-only before recommending release steps.
+3. Keep W6 containment and access hardening deferred until the user reopens it;
+   it must still be resolved before a real-user launch.
 
 ### Candidate product backlog
 
