@@ -1,244 +1,168 @@
-# 5StarMemo - Backend-for-Frontend Architecture
+# Tusavor
 
-A spaced repetition learning platform rebuilt with a Backend-for-Frontend (BFF) architecture, separating management and student interfaces for optimal user experience.
+Tusavor (historically `5starmemo` in the repository and build identifiers) is
+a restaurant-staff learning system. Managers curate decks, cards, reference
+material, and announcements in a web dashboard; staff study that material in
+an Expo mobile app with FSRS-6 scheduling.
 
-## Architecture Overview
+The product deliberately separates content management from studying. The
+dashboard is a curator's surface, not an employee-monitoring tool: individual
+study progress remains private and is never shown to managers.
 
+## What is implemented
+
+### Management surface
+
+- Restaurant-scoped authentication and user administration
+- Deck and card creation, editing, explicit access grants, and seasonality
+- A canonical card library whose cards can belong to multiple decks
+- Glossary and encyclopedia categories and terms
+- Restaurant announcements and Bulletin curation
+- Management-only image upload to Cloudflare R2
+
+### Student surface
+
+- Recommended FSRS-6 study and full-deck study, plus on-device custom decks
+- Deck, card, glossary, and encyclopedia browsing and search
+- On-device favorites and reminders, plus seasonality-aware ordering
+- A curated Bulletin and restaurant reference library
+- Account data export and deletion
+
+## Architecture
+
+Tusavor uses a backend-for-frontend split. Each client has an API tailored to
+its responsibilities, while both APIs share one PostgreSQL database.
+
+```text
+Web dashboard ──> Web API ─────┐
+                               ├──> PostgreSQL
+Mobile app ─────> Mobile API ──┘
+
+Web API ──> Cloudflare R2 (managed card images)
 ```
-┌─────────────────┐    ┌─────────────────┐
-│   Mobile App    │    │  Web Dashboard  │
-│   (Students)    │    │  (Management)   │
-└─────────┬───────┘    └─────────┬───────┘
-          │                      │
-          │                      │
-┌─────────▼───────┐    ┌─────────▼───────┐
-│   Mobile API    │    │    Web API      │
-│ (Consumption)   │    │  (Creation)     │
-└─────────┬───────┘    └─────────┬───────┘
-          │                      │
-          └──────────┬───────────┘
-                     │
-            ┌────────▼────────┐
-            │  Shared Database │
-            │   (PostgreSQL)  │
-            └─────────────────┘
-```
 
-## Project Structure
+Caddy sends `/api/student/*` traffic to the mobile API and other API traffic
+to the web API.
 
-```
-5starmemo/
-├── web-api/          # Management API (Express.js + TypeScript)
-├── mobile-api/       # Student consumption API (Coming soon)
-├── web-dashboard/    # React management interface (Next.js)
-├── mobile-app/       # React Native student app (Coming soon)
-├── shared/           # Shared types and utilities
-├── database/         # Database schema and migrations
-└── README.md
-```
+| Path | Responsibility | Main technology |
+| --- | --- | --- |
+| `web-dashboard/` | Management and content-curation UI | Next.js 15, React 19, TypeScript |
+| `web-api/` | Management, creation, onboarding, and image API | Express, TypeScript |
+| `mobile-app/` | Student application | Expo 54, React Native, TypeScript |
+| `mobile-api/` | Student content, study progress, and FSRS scheduling API | Express, TypeScript, `ts-fsrs` |
+| `shared/` | Types and utilities shared across packages | TypeScript |
+| `database/` | Fresh-database baseline and ordered migrations | PostgreSQL |
+| `docker-compose.prod.yml`, `Caddyfile` | Production service topology and routing | Docker Compose, Caddy |
 
-## Current Implementation Status
+The web API normally listens on port 3001, the mobile API on 3002, and the
+dashboard on 3000. Their deployed state must be verified separately; code in
+the repository does not prove that a particular commit is live or released.
 
-✅ **Completed:**
-- Web API with Express.js and TypeScript
-- PostgreSQL database schema
-- Authentication system for management users
-- Core CRUD endpoints for deck management
-- Web Dashboard with Next.js and Tailwind CSS
-- Management login interface
-- Deck creation and editing forms
-- Card management within decks
+## Product and security boundaries
 
-🚧 **Coming Next:**
-- Mobile API for student consumption
-- React Native mobile app
-- FSRS algorithm implementation
-- Image support for cards
-- Analytics and progress tracking
+- Tenant-owned reads and writes are scoped to a restaurant. Bearer JWTs carry
+  the user's role and `restaurantId`; tokens without a restaurant identifier
+  are rejected. Protected management routes require the `management` role,
+  while student content and progress routes require the `student` role.
+- Students see decks granted to them directly or through an assigned role;
+  the old public/private deck model is no longer used.
+- There is no public signup. A new restaurant and its first administrator are
+  created with [`web-api/src/scripts/create-restaurant.ts`](web-api/src/scripts/create-restaurant.ts)
+  in an authorized
+  deployment context. Authenticated managers can then create users through
+  the dashboard or `POST /api/auth/users`.
+- Learner progress is private. Do not add per-learner progress, engagement, or
+  completion analytics to management surfaces.
+- Images have one write path: the management-gated web API endpoint. It
+  validates size and type, re-encodes images, and stores them in R2. Do not add
+  a mobile upload route or a public storage write path.
+- New recurring costs and paid services require approval. See
+  [`CLAUDE.md`](CLAUDE.md) for the current cost and infrastructure constraints.
 
-## Quick Start
+## Working in this repository
 
-### Prerequisites
+Before making a material change, read these files in order:
 
-- Node.js 18+ 
-- PostgreSQL 12+
-- npm or yarn
+1. [`AGENTS.md`](AGENTS.md) — collaboration, ownership, and continuity rules
+2. [`WORKLOG.md`](WORKLOG.md) — accepted history, active work, and ordered next
+   steps
+3. [`CLAUDE.md`](CLAUDE.md) — product, production, security, and cost
+   constraints
+4. [`DESIGN.md`](DESIGN.md) and the relevant tracked subsystem documentation —
+   visual and workflow direction
 
-### 1. Database Setup
+Treat pre-existing uncommitted changes as user-owned. Local `*-HANDOFF.md`
+files and `design_handoff_*` directories are ignored historical material, not
+durable or automatically current instructions; reconcile them with tracked
+code, commits, and current user direction before relying on them.
+
+### Environment model
+
+The supported workflow currently exercises the production-connected
+environment described in `CLAUDE.md`. The root local Docker configuration is
+retained but is not kept in sync and must not be used as acceptance evidence.
+The mobile app also defaults to the production student API, including during
+local Expo runs, so test actions can write live data. Use only an authorized
+test account and verify current external state before any risky operation.
+
+Never put credentials, tokens, private keys, customer data, or token-bearing
+URLs in documentation, work logs, fixtures, or delegated reports.
+
+## Dependencies and checks
+
+This repository is a collection of packages rather than a single npm
+workspace. Install each package from its lockfile:
 
 ```bash
-# Create PostgreSQL database
-createdb 5starmemo
-
-# Run the schema
-psql 5starmemo < database/schema.sql
+npm --prefix web-api ci
+npm --prefix mobile-api ci
+npm --prefix web-dashboard ci
+npm --prefix mobile-app ci
 ```
 
-### 2. Web API Setup
+Run checks for every package affected by a change:
 
 ```bash
-cd web-api
-
-# Install dependencies
-npm install
-
-# Copy environment variables
-cp .env.example .env
-
-# Edit .env with your database credentials
-# DB_HOST=localhost
-# DB_PORT=5432
-# DB_NAME=5starmemo
-# DB_USER=postgres
-# DB_PASSWORD=your_password
-# JWT_SECRET=your-super-secret-jwt-key
-
-# Start development server
-npm run dev
+npm --prefix web-api run build
+npm --prefix mobile-api run build
+npm --prefix mobile-api test
+npm --prefix web-dashboard run lint
+npm --prefix web-dashboard run build
+(cd mobile-app && npm exec -- tsc --noEmit)
 ```
 
-The Web API will be available at `http://localhost:3001`
+There is no root all-packages test command. Automated tests currently cover
+the mobile API's scheduler, progress, and seasonality behavior. The web API's
+`test` script is still a placeholder. Dashboard lint is configured but has
+known repository-wide baseline violations, and dashboard builds need network
+access to fetch the configured Google fonts. Mobile user-facing changes also
+need representative device or simulator review.
 
-### 3. Web Dashboard Setup
+## Database changes
 
-```bash
-cd web-dashboard
+`database/schema.sql` bootstraps a fresh database. Numbered SQL files in
+`database/migrations/` carry later changes, and the web API applies unapplied
+migrations transactionally before it begins serving requests. Add schema
+changes as a new ordered migration; keep the bootstrap baseline and its
+recorded migration list coherent when the baseline is regenerated.
 
-# Install dependencies
-npm install
+## Deployment and release state
 
-# Create .env.local for Next.js
-echo "NEXT_PUBLIC_API_URL=http://localhost:3001" > .env.local
+The tracked production topology uses Docker Compose, Caddy, PostgreSQL, the
+two APIs, and the web dashboard. Mobile build profiles live in
+`mobile-app/eas.json`. Deployment, TestFlight, App Store, Google Play, and
+real-user status are time-sensitive external facts: confirm them with the
+operator and current environment instead of inferring them from this README,
+an old handoff, or Git history.
 
-# Start development server
-npm run dev
-```
+## Design
 
-The Web Dashboard will be available at `http://localhost:3000`
-
-### 4. Create Your First Management User
-
-You'll need to create a management user to access the dashboard. You can do this via API call:
-
-```bash
-curl -X POST http://localhost:3001/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "admin@example.com",
-    "username": "admin",
-    "password": "securepassword123",
-    "role": "management"
-  }'
-```
-
-Then login at `http://localhost:3000/login` with your credentials.
-
-## API Documentation
-
-### Authentication Endpoints
-
-- `POST /api/auth/register` - Register new management user
-- `POST /api/auth/login` - Login management user
-
-### Deck Management Endpoints
-
-All deck endpoints require authentication with `Authorization: Bearer <token>` header.
-
-- `GET /api/decks` - Get all decks for authenticated user
-- `GET /api/decks/:id` - Get specific deck with cards
-- `POST /api/decks` - Create new deck
-- `PUT /api/decks/:id` - Update deck
-- `DELETE /api/decks/:id` - Delete deck
-
-### Card Management Endpoints
-
-- `POST /api/decks/:id/cards` - Add card to deck
-- `PUT /api/decks/cards/:cardId` - Update card
-- `DELETE /api/decks/cards/:cardId` - Delete card
-
-## Features
-
-### Web Dashboard (Management Interface)
-
-- **Authentication**: Secure login for management users
-- **Deck Management**: Create, edit, and delete flashcard decks
-- **Card Management**: Add, edit, and delete cards within decks
-- **Visibility Control**: Make decks public or private
-- **Dashboard Overview**: View deck statistics and recent activity
-
-### Web API Features
-
-- **Role-based Authentication**: JWT-based auth with management/student roles
-- **Data Validation**: Comprehensive input validation with express-validator
-- **Security**: Helmet, CORS, and rate limiting
-- **Database**: PostgreSQL with connection pooling
-- **Error Handling**: Consistent error responses and logging
-
-## Technology Stack
-
-### Backend (Web API)
-- **Runtime**: Node.js with TypeScript
-- **Framework**: Express.js
-- **Database**: PostgreSQL with pg driver
-- **Authentication**: JWT with bcryptjs
-- **Validation**: express-validator
-- **Security**: Helmet, CORS, express-rate-limit
-
-### Frontend (Web Dashboard)
-- **Framework**: Next.js 15 with TypeScript
-- **Styling**: Tailwind CSS
-- **HTTP Client**: Axios
-- **UI Components**: Custom components with Radix UI primitives
-- **Icons**: Lucide React
-
-### Database
-- **Primary Database**: PostgreSQL
-- **Schema**: Optimized for both creation and consumption workflows
-- **Features**: UUID primary keys, timestamps, indexes for performance
-
-## Development
-
-### Running Tests
-
-```bash
-# Web API tests (when implemented)
-cd web-api
-npm test
-
-# Web Dashboard tests (when implemented)  
-cd web-dashboard
-npm test
-```
-
-### Building for Production
-
-```bash
-# Build Web API
-cd web-api
-npm run build
-
-# Build Web Dashboard
-cd web-dashboard
-npm run build
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
-
-## Next Steps
-
-1. **Mobile API**: Implement student-focused consumption API
-2. **Mobile App**: Create React Native app for students
-3. **FSRS Integration**: Implement spaced repetition algorithm
-4. **Image Support**: Add image upload and display for cards
-5. **Analytics**: Add learning analytics and progress tracking
-6. **Bulk Operations**: Import/export cards from CSV or other formats
+[`DESIGN.md`](DESIGN.md) defines Tusavor's **Mise en Place · Carte** direction:
+a dark editorial masthead, a warm paper content surface, restrained semantic
+color, and no learner analytics. Existing product code is the practical
+reference when an older standalone mockup or handoff disagrees with the
+implemented system.
 
 ## License
 
-MIT License - see LICENSE file for details
+No repository-level license file is currently present.
