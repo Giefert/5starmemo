@@ -4,11 +4,11 @@ This is the repository's curated continuity record. It captures accepted
 project state and active coordination, not a transcript. Reconcile it whenever
 work or steering materially changes.
 
-Last reconciled: 2026-09-01 by Codex root after product checkpoint `b173d88`
-(`main`; W5 paused for the user's scope decision)
+Last reconciled: 2026-09-01 by Codex root after W5 checkpoint `e8b6836`
+(`main`; access decision is next)
 
-Current work-log coordinator: Codex root for W5, the dashboard lint review and
-remediation turn.
+Current work-log coordinator: Codex root for the W5 closure and W6 access
+decision handoff.
 
 ## Resume here
 
@@ -25,8 +25,12 @@ remediation turn.
   by Git and are historical evidence only, not durable project truth.
 - [README.md](README.md) is current and committed in `df4810f`.
 - Never record credentials or other secrets here.
-- W4 is complete. W5 is the next user-requested step: explain the 38 dashboard
-  lint errors and 10 warnings before making any lint-related edit.
+- W4 is complete. The user approved W5 Option A: repair all dashboard lint
+  errors and meaningful warnings, retain two narrowly documented raw-image
+  exceptions, and repair the related preview object-URL leak.
+- W5 is durable in `e8b6836`. The next required discussion is deployment and
+  GitHub access; no live credential, server, repository, push, or deployment
+  change is authorized yet.
 
 ## Where we were
 
@@ -56,6 +60,9 @@ remediation turn.
 - `b173d88`: integrated the accepted mobile Library/card-browser/image changes
   and a serialized automatic-On reminder lifecycle that fails closed when
   native notification capability is unavailable.
+- `e8b6836`: removed the dashboard lint baseline, repaired stale route/load
+  races, and made preview object-URL ownership explicit while retaining two
+  narrowly justified raw-image exceptions.
 
 ### Durable decisions
 
@@ -91,9 +98,6 @@ remediation turn.
   primary settings.
 - The schema baseline header says migration 016 even though its recorded folded
   list includes 017 and 018; this documentation cleanup was not part of W4.
-- Dashboard lint currently reports 48 findings: 38 errors and 10 warnings. The
-  user wants the errors repaired but requested this separate review before any
-  lint-related edit; W5 must preserve that pause until they approve the scope.
 - W2's automatic-On lifecycle is implemented and statically validated. Native
   notification permission prompts and delivery still require a clean-device
   check; no production-connected account or device state was changed during W4.
@@ -188,9 +192,8 @@ remediation turn.
 #### W5 — Dashboard lint remediation
 
 - Owner: Codex root; sole writer. Read-only support lanes may audit but not edit.
-- Status: active review; awaiting the user's scope decision before any lint
-  correction.
-- Current findings: 38 errors (36 unsafe `any` types, one unescaped apostrophe,
+- Status: accepted and committed in `e8b6836`.
+- Entry findings: 38 errors (36 unsafe `any` types, one unescaped apostrophe,
   one empty interface) and 10 warnings (four unused declarations, four React
   effect dependency findings, and two raw-image findings).
 - Boundary: `web-dashboard` only. Preserve behavior, R2 cost safeguards, and
@@ -208,42 +211,61 @@ remediation turn.
     without adding VPS image-proxy work, and the editor preview also accepts
     browser-only `blob:` URLs. Use narrow documented suppressions rather than a
     global rule change or a mechanical `next/image` conversion;
-  - the preview creates object URLs during render without revoking them. If the
-    user approves the complete clean pass, repair that small memory leak with
-    the image-warning work.
+  - the preview created object URLs during render without revoking them; Option
+    A moved creation to file selection and added replacement/unmount cleanup.
 - All three support audits completed without editing files; no active support
-  lane remains.
+  lane remained at the decision checkpoint.
+- Implementation outcome:
+  - `active_changes` completed the API/error-boundary typing and safe mechanical
+    cleanup in its assigned files;
+  - `workflow_audit` completed the deck-editor loader, types, unused cleanup,
+    and narrow direct-R2 image exception;
+  - `repo_history` was interrupted before editing after making no filesystem
+    progress; root took over and completed the glossary loaders, input type,
+    blob-capable image exception, and object-URL lifecycle without overlapping
+    another writer.
+- Final outcome: real request/response and error-boundary types replace every
+  dashboard `any`; dynamic deck and glossary editors isolate state by route;
+  warned loaders reject stale results; object URLs are reused and revoked; and
+  the only image-rule suppressions are the two approved one-element exceptions.
+- Validation: full dashboard lint is clean, dashboard TypeScript passes, the
+  production build completes, and whitespace checks pass. Three independent
+  final read-only reviews accepted the integrated diff after their route-race
+  findings were repaired; no active support lane remains.
 
 All current lanes use `main` in `/Users/one/Documents/git/5starmemo`; no linked
-worktree remains. W2 is recoverable from `b173d88`; only this W5 coordination
-update is currently uncommitted.
+worktree remains. W2 is recoverable from `b173d88` and W5 from `e8b6836`.
+
+#### W6 — Deployment and GitHub access decision
+
+- Owner: Codex root; read-only until the user authorizes a specific mutation.
+- Status: awaiting the promised user discussion after W5.
+- Boundary: reconcile the tracked pre-launch SSH/deploy-user and broad GitHub
+  credential TODOs in [CLAUDE.md](CLAUDE.md) with freshly verified external
+  state before changing access. Do not display or copy credential values.
+- No server, GitHub, credential, push, deployment, or production-data action is
+  currently authorized.
 
 ## Where we are going
 
 ### Current milestone
 
-Resolve the dashboard lint baseline without changing behavior unexpectedly,
-then revisit access and release decisions in the user's required order.
+Revisit access and release decisions in the user's required order now that the
+dashboard lint baseline is resolved.
 
-W5 acceptance bar:
+W6 acceptance bar:
 
-- root instructions require the work log to be read and synchronized;
-- the log clearly distinguishes accepted history, active state, and future work;
-- present concrete lint categories and tradeoffs before editing;
-- obtain the user's scope choice;
-- replace unsafe types with real types rather than disabling the rule globally;
-- treat effect warnings as behavior-sensitive rather than mechanical;
-- preserve R2 cost safeguards when resolving raw-image warnings;
-- finish with a clean dashboard lint run and successful dashboard build.
+- explain deployment-key/user and GitHub-credential choices in plain language;
+- verify current external state read-only before relying on the tracked TODO;
+- do not expose credential values or mutate live access without explicit scope;
+- preserve explicit deployment approval regardless of the access design;
+- record the accepted access decision before release-status review.
 
 ### Ordered next work
 
-1. Present the dashboard lint findings and choices; do not edit until the user
-   approves the remediation scope.
-2. Implement the approved lint corrections, validate, and create a separate
-   dashboard checkpoint.
-3. After lint is resolved, revisit deployment and GitHub access.
-4. After access is resolved, revisit release and platform status.
+1. Revisit deployment and GitHub access, beginning with a read-only/current-
+   state decision before any credential or server mutation.
+2. After access is resolved, revisit release and platform status.
 
 ### Candidate product backlog
 
