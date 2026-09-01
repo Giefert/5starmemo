@@ -47,7 +47,7 @@ import { useDeckSearch } from '../hooks/useDeckSearch';
 import { StudySessionItem } from '../services/StudySessionManager';
 import { StudyScreen } from './StudyScreen';
 import { StudyCompletedScreen } from './StudyCompletedScreen';
-import { BrowseScreen } from './BrowseScreen';
+import { DeckCardBrowserScreen } from './DeckCardBrowserScreen';
 import { CustomDeckBuilder } from '../components/CustomDeckBuilder';
 import { DeckRow, Mode } from '../components/DeckRow';
 import { CustomDeckRow } from '../components/CustomDeckRow';
@@ -565,7 +565,7 @@ export const HomeScreen: React.FC = () => {
 
   if (screenState === 'browse' && selectedDeck) {
     return (
-      <BrowseScreen
+      <DeckCardBrowserScreen
         deckId={selectedDeck.id}
         deckTitle={selectedDeck.title}
         onExit={handleBackToHome}

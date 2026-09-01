@@ -22,6 +22,7 @@ import {
   Easing,
   StatusBar,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   useWindowDimensions,
 } from 'react-native';
@@ -46,11 +47,11 @@ import { stripHtml, cleanHtml, customHTMLElementModels } from '../utils/html';
 import { loadFavorites, saveFavorites } from '../utils/favorites';
 import { useDeckSearch } from '../hooks/useDeckSearch';
 import { DeckRow } from '../components/DeckRow';
-import { BrowseScreen } from './BrowseScreen';
+import { DeckCardBrowserScreen } from './DeckCardBrowserScreen';
 import { describeLoadError } from '../utils/loadErrorMessages';
 
 type ViewState = 'list' | 'detail';
-type LibraryTab = 'browse' | GlossarySection;
+type LibraryTab = 'cardCatalog' | GlossarySection;
 
 // Carte tokens — shared verbatim with BulletinScreen / HomeScreen so the
 // Library tab reads as a sibling of Study and Bulletin.
@@ -71,9 +72,9 @@ const COLORS = {
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 const LIBRARY_TABS: Array<{ key: LibraryTab; label: string }> = [
-  { key: 'browse', label: 'Browse' },
-  { key: 'glossary', label: 'Glossary' },
   { key: 'encyclopedia', label: 'Encyclopedia' },
+  { key: 'glossary', label: 'Glossary' },
+  { key: 'cardCatalog', label: 'Cards' },
 ];
 const CATEGORY_ORDER: { type: DeckType; label: string }[] = [
   { type: 'food', label: 'Food' },
@@ -108,14 +109,14 @@ export default function LibraryScreen() {
   const navigation = useNavigation();
   const { restaurant, logout } = useAuth();
   const {
-    decks: browseDecks,
-    isLoading: isSharedBrowseLoading,
+    decks: libraryCardCatalogDecks,
+    isLoading: isSharedCardCatalogLoading,
     loadDecks,
   } = useDecks();
 
   // Glossary and encyclopedia are fetched independently on first use. Once a
   // section has loaded it stays in memory, so later tab/search changes remain
-  // instant without making Browse pay for four hidden requests up front.
+  // instant without making the card catalog pay for hidden requests up front.
   const [cache, setCache] = useState<Record<GlossarySection, SectionData | null>>({
     glossary: null,
     encyclopedia: null,
@@ -123,10 +124,13 @@ export default function LibraryScreen() {
   const [selectedTerm, setSelectedTerm] = useState<GlossaryTerm | null>(null);
   const [selectedTermPreview, setSelectedTermPreview] =
     useState<GlossaryTermSummary | null>(null);
-  const [selectedBrowseDeck, setSelectedBrowseDeck] = useState<StudentDeck | null>(null);
+  const [selectedCardCatalogDeck, setSelectedCardCatalogDeck] = useState<StudentDeck | null>(null);
+  // Keep favorites at the Library-screen level so their secure-store hydration
+  // is independent of the card catalog pane's rendering lifecycle.
+  const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
 
   // Section state
-  const [activeTab, setActiveTab] = useState<LibraryTab>('browse');
+  const [activeTab, setActiveTab] = useState<LibraryTab>('cardCatalog');
   const [activeSection, setActiveSection] = useState<GlossarySection>('glossary');
 
   // Filter state
@@ -141,13 +145,13 @@ export default function LibraryScreen() {
     Record<GlossarySection, boolean>
   >({ glossary: false, encyclopedia: false });
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isBrowseLoading, setIsBrowseLoading] = useState(browseDecks.length === 0);
-  const [isBrowseRefreshing, setIsBrowseRefreshing] = useState(false);
+  const [isCardCatalogLoading, setIsCardCatalogLoading] = useState(libraryCardCatalogDecks.length === 0);
+  const [isCardCatalogRefreshing, setIsCardCatalogRefreshing] = useState(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [sectionErrors, setSectionErrors] = useState<
     Record<GlossarySection, string>
   >({ glossary: '', encyclopedia: '' });
-  const [browseError, setBrowseError] = useState('');
+  const [cardCatalogError, setCardCatalogError] = useState('');
   // Encyclopedia category swipe — `dragX` tracks the in-progress horizontal
   // drag; `isSwiping` mounts the neighbouring category pages so they slide
   // in alongside the gesture instead of popping into place on release.
@@ -179,14 +183,14 @@ export default function LibraryScreen() {
   const subtabLayouts = useRef<Record<string, { x: number; width: number }>>({});
 
   const {
-    searchQuery: browseSearchQuery,
-    setSearchQuery: setBrowseSearchQuery,
-    isSearchLoading: isBrowseSearchLoading,
-    isSearchingDecks: isSearchingBrowseDecks,
-    visibleSearchResult: browseVisibleSearchResult,
-    filteredDecks: filteredBrowseDecks,
-    invalidateCardSearchCache: invalidateBrowseCardSearchCache,
-  } = useDeckSearch(browseDecks);
+    searchQuery: cardCatalogSearchQuery,
+    setSearchQuery: setCardCatalogSearchQuery,
+    isSearchLoading: isCardCatalogSearchLoading,
+    isSearchingDecks: isSearchingCardCatalogDecks,
+    visibleSearchResult: cardCatalogVisibleSearchResult,
+    filteredDecks: filteredCardCatalogDecks,
+    invalidateCardSearchCache: invalidateCardCatalogSearchCache,
+  } = useDeckSearch(libraryCardCatalogDecks);
 
   // The masthead is dark behind the status bar — keep its text light.
   useFocusEffect(
@@ -196,10 +200,26 @@ export default function LibraryScreen() {
   );
 
   useEffect(() => {
-    navigation.setOptions({
-      tabBarStyle: selectedBrowseDeck ? { display: 'none' } : undefined,
+    if (!restaurant?.id) {
+      setFavoriteIds([]);
+      return;
+    }
+
+    let cancelled = false;
+    loadFavorites(restaurant.id).then(ids => {
+      if (!cancelled) setFavoriteIds(ids);
     });
-  }, [navigation, selectedBrowseDeck]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [restaurant?.id]);
+
+  useEffect(() => {
+    navigation.setOptions({
+      tabBarStyle: selectedCardCatalogDeck ? { display: 'none' } : undefined,
+    });
+  }, [navigation, selectedCardCatalogDeck]);
 
   const loadSection = useCallback((
     section: GlossarySection,
@@ -241,12 +261,12 @@ export default function LibraryScreen() {
     });
   }, [cache]);
 
-  const loadBrowseDecks = useCallback(async (refreshing = false) => {
+  const loadCardCatalogDecks = useCallback(async (refreshing = false) => {
     try {
-      if (!refreshing) setIsBrowseLoading(true);
+      if (!refreshing) setIsCardCatalogLoading(true);
       await loadDecks(refreshing);
-      invalidateBrowseCardSearchCache();
-      setBrowseError('');
+      invalidateCardCatalogSearchCache();
+      setCardCatalogError('');
     } catch (err) {
       if (err instanceof Error && err.name === 'AuthenticationError') {
         logout();
@@ -254,19 +274,19 @@ export default function LibraryScreen() {
       }
 
       const { message } = describeLoadError(err);
-      setBrowseError(message);
+      setCardCatalogError(message);
     } finally {
-      setIsBrowseLoading(false);
-      setIsBrowseRefreshing(false);
+      setIsCardCatalogLoading(false);
+      setIsCardCatalogRefreshing(false);
     }
-  }, [invalidateBrowseCardSearchCache, loadDecks, logout]);
+  }, [invalidateCardCatalogSearchCache, loadDecks, logout]);
 
   useEffect(() => {
-    loadBrowseDecks();
-  }, [loadBrowseDecks]);
+    loadCardCatalogDecks();
+  }, [loadCardCatalogDecks]);
 
   useEffect(() => {
-    if (activeTab === 'browse') return;
+    if (activeTab === 'cardCatalog') return;
     loadSection(activeTab);
   }, [activeTab, loadSection]);
 
@@ -279,8 +299,9 @@ export default function LibraryScreen() {
 
   const handleLibraryTabChange = (newTab: LibraryTab) => {
     if (newTab === activeTab) return;
+    Keyboard.dismiss();
     setActiveTab(newTab);
-    if (newTab !== 'browse') {
+    if (newTab !== 'cardCatalog') {
       setSectionErrors(current => ({ ...current, [newTab]: '' }));
       void loadSection(newTab);
       handleSectionChange(newTab);
@@ -292,10 +313,21 @@ export default function LibraryScreen() {
     loadSection(activeSection, true);
   };
 
-  const handleBrowseRefresh = useCallback(() => {
-    setIsBrowseRefreshing(true);
-    loadBrowseDecks(true);
-  }, [loadBrowseDecks]);
+  const handleCardCatalogRefresh = useCallback(() => {
+    setIsCardCatalogRefreshing(true);
+    loadCardCatalogDecks(true);
+  }, [loadCardCatalogDecks]);
+
+  const handleToggleCardCatalogFavorite = useCallback((deck: StudentDeck) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setFavoriteIds(current => {
+      const next = current.includes(deck.id)
+        ? current.filter(id => id !== deck.id)
+        : [...current, deck.id];
+      if (restaurant?.id) saveFavorites(restaurant.id, next);
+      return next;
+    });
+  }, [restaurant?.id]);
 
   const handleTermPress = async (termId: string) => {
     const requestId = ++detailRequestRef.current;
@@ -684,16 +716,17 @@ export default function LibraryScreen() {
     );
   };
 
-  if (selectedBrowseDeck) {
+  if (selectedCardCatalogDeck) {
     return (
-      <BrowseScreen
-        deckId={selectedBrowseDeck.id}
-        deckTitle={selectedBrowseDeck.title}
-        onExit={() => setSelectedBrowseDeck(null)}
+      <DeckCardBrowserScreen
+        deckId={selectedCardCatalogDeck.id}
+        deckTitle={selectedCardCatalogDeck.title}
+        onExit={() => setSelectedCardCatalogDeck(null)}
         backLabel="Library"
-        searchQuery={browseSearchQuery}
-        searchMatches={browseVisibleSearchResult?.matchesByDeckId[selectedBrowseDeck.id] ?? []}
-        onSearchQueryChange={setBrowseSearchQuery}
+        cardListBackLabel="Cards"
+        searchQuery={cardCatalogSearchQuery}
+        searchMatches={cardCatalogVisibleSearchResult?.matchesByDeckId[selectedCardCatalogDeck.id] ?? []}
+        onSearchQueryChange={setCardCatalogSearchQuery}
       />
     );
   }
@@ -943,23 +976,35 @@ export default function LibraryScreen() {
         </View>
       </View>
 
-      {activeTab === 'browse' ? (
-        <LibraryBrowsePane
-          decks={browseDecks}
-          filteredDecks={filteredBrowseDecks}
-          isLoading={isBrowseLoading || isSharedBrowseLoading}
-          isRefreshing={isBrowseRefreshing}
-          error={browseError}
-          searchQuery={browseSearchQuery}
-          isSearchLoading={isBrowseSearchLoading}
-          isSearchingDecks={isSearchingBrowseDecks}
-          visibleSearchResult={browseVisibleSearchResult}
-          onSearchQueryChange={setBrowseSearchQuery}
-          onRefresh={handleBrowseRefresh}
-          onRetry={() => loadBrowseDecks()}
-          onDeckPress={setSelectedBrowseDeck}
+      {/* Keep the card catalog mounted while another Library section is visible. This
+          preserves its virtualized rows, scroll position, and category state
+          instead of rebuilding them when the user returns. */}
+      <View
+        style={[styles.tabPane, activeTab !== 'cardCatalog' && styles.hiddenTabPane]}
+        pointerEvents={activeTab === 'cardCatalog' ? 'auto' : 'none'}
+        accessibilityElementsHidden={activeTab !== 'cardCatalog'}
+        importantForAccessibility={activeTab === 'cardCatalog' ? 'auto' : 'no-hide-descendants'}
+      >
+        <LibraryCardCatalogPane
+          decks={libraryCardCatalogDecks}
+          filteredDecks={filteredCardCatalogDecks}
+          favoriteIds={favoriteIds}
+          isLoading={isCardCatalogLoading || isSharedCardCatalogLoading}
+          isRefreshing={isCardCatalogRefreshing}
+          error={cardCatalogError}
+          searchQuery={cardCatalogSearchQuery}
+          isSearchLoading={isCardCatalogSearchLoading}
+          isSearchingDecks={isSearchingCardCatalogDecks}
+          visibleSearchResult={cardCatalogVisibleSearchResult}
+          onSearchQueryChange={setCardCatalogSearchQuery}
+          onRefresh={handleCardCatalogRefresh}
+          onRetry={() => loadCardCatalogDecks()}
+          onDeckPress={setSelectedCardCatalogDeck}
+          onToggleFavorite={handleToggleCardCatalogFavorite}
         />
-      ) : (
+      </View>
+
+      {activeTab !== 'cardCatalog' && (
         <>
           {/* Index filter strip — both sections. Tapping a category narrows the
               list; the amber underline slides beneath the active tab and resizes
@@ -1091,9 +1136,10 @@ export default function LibraryScreen() {
   );
 }
 
-interface LibraryBrowsePaneProps {
+interface LibraryCardCatalogPaneProps {
   decks: StudentDeck[];
   filteredDecks: StudentDeck[];
+  favoriteIds: string[];
   isLoading: boolean;
   isRefreshing: boolean;
   error: string;
@@ -1105,11 +1151,13 @@ interface LibraryBrowsePaneProps {
   onRefresh: () => void;
   onRetry: () => void;
   onDeckPress: (deck: StudentDeck) => void;
+  onToggleFavorite: (deck: StudentDeck) => void;
 }
 
-function LibraryBrowsePane({
+function LibraryCardCatalogPane({
   decks,
   filteredDecks,
+  favoriteIds,
   isLoading,
   isRefreshing,
   error,
@@ -1121,24 +1169,15 @@ function LibraryBrowsePane({
   onRefresh,
   onRetry,
   onDeckPress,
-}: LibraryBrowsePaneProps) {
+  onToggleFavorite,
+}: LibraryCardCatalogPaneProps) {
   const { width } = useWindowDimensions();
-  const { restaurant } = useAuth();
-  const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
   const [isSwiping, setIsSwiping] = useState(false);
   const dragX = useRef(new Animated.Value(0)).current;
   const barX = useRef(new Animated.Value(0)).current;
   const barW = useRef(new Animated.Value(0)).current;
   const tabLayouts = useRef<Record<string, { x: number; width: number }>>({});
-
-  useEffect(() => {
-    if (!restaurant?.id) {
-      setFavoriteIds([]);
-      return;
-    }
-    loadFavorites(restaurant.id).then(setFavoriteIds);
-  }, [restaurant?.id]);
 
   const presentCategories = useMemo(
     () => CATEGORY_ORDER.filter(c => decks.some(d => d.deckType === c.type)),
@@ -1245,17 +1284,6 @@ function LibraryBrowsePane({
   const getSearchMatches = (deck: StudentDeck) =>
     visibleSearchResult?.matchesByDeckId[deck.id] ?? [];
 
-  const toggleFavorite = useCallback((deck: StudentDeck) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setFavoriteIds(prev => {
-      const next = prev.includes(deck.id)
-        ? prev.filter(id => id !== deck.id)
-        : [...prev, deck.id];
-      if (restaurant?.id) saveFavorites(restaurant.id, next);
-      return next;
-    });
-  }, [restaurant?.id]);
-
   const renderSearchEmpty = () => (
     <View style={styles.stateBlock}>
       <Text style={styles.emptyTitle}>No deck matches.</Text>
@@ -1276,9 +1304,9 @@ function LibraryBrowsePane({
   ): React.ReactElement[] => {
     if (sectionDecks.length > 0) {
       return [
-        <View key={`${title}-header`} style={styles.browseSectionHeader}>
-          <Text style={styles.browseSectionTitle}>{title}</Text>
-          <Text style={styles.browseSectionCount}>{sectionDecks.length}</Text>
+        <View key={`${title}-header`} style={styles.cardCatalogSectionHeader}>
+          <Text style={styles.cardCatalogSectionTitle}>{title}</Text>
+          <Text style={styles.cardCatalogSectionCount}>{sectionDecks.length}</Text>
         </View>,
         ...sectionDecks.map((deck, i) => (
           <DeckRow
@@ -1291,7 +1319,7 @@ function LibraryBrowsePane({
             searchQuery={searchQuery}
             searchMatches={getSearchMatches(deck)}
             onTap={onDeckPress}
-            onToggleFavorite={toggleFavorite}
+            onToggleFavorite={onToggleFavorite}
           />
         )),
       ];
@@ -1299,10 +1327,10 @@ function LibraryBrowsePane({
 
     if (emptyText) {
       return [
-        <View key={`${title}-header`} style={styles.browseSectionHeader}>
-          <Text style={styles.browseSectionTitle}>{title}</Text>
+        <View key={`${title}-header`} style={styles.cardCatalogSectionHeader}>
+          <Text style={styles.cardCatalogSectionTitle}>{title}</Text>
         </View>,
-        <Text key={`${title}-empty`} style={styles.browsePlaceholder}>
+        <Text key={`${title}-empty`} style={styles.cardCatalogPlaceholder}>
           {emptyText}
         </Text>,
       ];
@@ -1376,7 +1404,7 @@ function LibraryBrowsePane({
         }
         return {
           content: (
-            <Text style={styles.browsePlaceholder}>
+            <Text style={styles.cardCatalogPlaceholder}>
               {isSearchingDecks
                 ? 'No favorite decks match that search.'
                 : 'Hold a deck to add it to favorites.'}
@@ -1397,7 +1425,7 @@ function LibraryBrowsePane({
             searchQuery={searchQuery}
             searchMatches={getSearchMatches(deck)}
             onTap={onDeckPress}
-            onToggleFavorite={toggleFavorite}
+            onToggleFavorite={onToggleFavorite}
           />
         )),
         stickyHeaderIndices: [],
@@ -1424,7 +1452,7 @@ function LibraryBrowsePane({
           searchQuery={searchQuery}
           searchMatches={getSearchMatches(deck)}
           onTap={onDeckPress}
-          onToggleFavorite={toggleFavorite}
+          onToggleFavorite={onToggleFavorite}
         />
       )),
       stickyHeaderIndices: [],
@@ -1437,15 +1465,15 @@ function LibraryBrowsePane({
 
     return (
       <FlatList
-        style={styles.browseBody}
+        style={styles.cardCatalogBody}
         data={items}
         keyExtractor={(item, index) => (
           React.isValidElement(item) && item.key != null
             ? String(item.key)
-            : `browse-row-${index}`
+            : `card-catalog-row-${index}`
         )}
         renderItem={({ item }) => <>{item}</>}
-        contentContainerStyle={styles.browseBodyContent}
+        contentContainerStyle={styles.cardCatalogBodyContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         stickyHeaderIndices={stickyHeaderIndices}
@@ -1492,7 +1520,7 @@ function LibraryBrowsePane({
   if (isLoading && decks.length === 0) {
     return (
       <>
-        <View style={styles.browseBody}>
+        <View style={styles.cardCatalogBody}>
           <View style={styles.stateBlock}>
             <ActivityIndicator color={COLORS.inkMute} />
           </View>
@@ -1506,8 +1534,8 @@ function LibraryBrowsePane({
     return (
       <>
         <ScrollView
-          style={styles.browseBody}
-          contentContainerStyle={styles.browseBodyContent}
+          style={styles.cardCatalogBody}
+          contentContainerStyle={styles.cardCatalogBodyContent}
           keyboardShouldPersistTaps="handled"
           refreshControl={
             <RefreshControl
@@ -1575,7 +1603,7 @@ function LibraryBrowsePane({
       <View style={styles.listArea} {...swipePan.panHandlers}>
         {isSwiping && (
           <Animated.View
-            key="browse-swipe-prev"
+            key="card-catalog-swipe-prev"
             pointerEvents="none"
             style={[styles.swipePage, { left: -width, transform: [{ translateX: dragX }] }]}
           >
@@ -1584,7 +1612,7 @@ function LibraryBrowsePane({
         )}
 
         <Animated.View
-          key="browse-swipe-cur"
+          key="card-catalog-swipe-cur"
           style={[styles.swipePage, { transform: [{ translateX: dragX }] }]}
         >
           {renderPage(selectedCategory, true)}
@@ -1592,7 +1620,7 @@ function LibraryBrowsePane({
 
         {isSwiping && (
           <Animated.View
-            key="browse-swipe-next"
+            key="card-catalog-swipe-next"
             pointerEvents="none"
             style={[styles.swipePage, { left: width, transform: [{ translateX: dragX }] }]}
           >
@@ -1610,6 +1638,12 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: COLORS.paper,
+  },
+  tabPane: {
+    flex: 1,
+  },
+  hiddenTabPane: {
+    display: 'none',
   },
 
   // ── Dark masthead ──────────────────────────────────────────
@@ -1744,11 +1778,11 @@ const styles = StyleSheet.create({
   },
 
   // ── List area ──────────────────────────────────────────────
-  browseBody: {
+  cardCatalogBody: {
     flex: 1,
     backgroundColor: COLORS.paper,
   },
-  browseBodyContent: {
+  cardCatalogBodyContent: {
     paddingBottom: 32,
   },
   listArea: {
@@ -1766,7 +1800,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
 
-  browseSectionHeader: {
+  cardCatalogSectionHeader: {
     flexDirection: 'row',
     alignItems: 'baseline',
     paddingHorizontal: 26,
@@ -1776,20 +1810,20 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.paperHairLt,
   },
-  browseSectionTitle: {
+  cardCatalogSectionTitle: {
     fontFamily: 'Fraunces_600SemiBold',
     fontSize: 28,
     letterSpacing: -0.4,
     color: COLORS.ink,
     marginRight: 10,
   },
-  browseSectionCount: {
+  cardCatalogSectionCount: {
     fontFamily: 'JetBrainsMono_400Regular',
     fontSize: 10,
     color: COLORS.inkFaint,
     fontVariant: ['tabular-nums'],
   },
-  browsePlaceholder: {
+  cardCatalogPlaceholder: {
     fontFamily: 'JetBrainsMono_400Regular',
     fontSize: 12,
     lineHeight: 19,

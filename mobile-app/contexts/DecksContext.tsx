@@ -121,7 +121,7 @@ export function DecksProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Warm the shared deck payload after the first screen's initial interaction.
-  // Home, Library Browse, and Settings then reuse the same in-flight request and
+  // Home, the Library card catalog, and Settings then reuse the same in-flight request and
   // state rather than each presenting a first-visit loading screen.
   useEffect(() => {
     if (!identity) return;

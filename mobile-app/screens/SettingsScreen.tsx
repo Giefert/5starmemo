@@ -6,6 +6,7 @@ import {
   Alert,
   Share,
   ActivityIndicator,
+  AppState,
   Modal,
   Pressable,
   ScrollView,
@@ -23,8 +24,9 @@ import apiService from '../services/api';
 import {
   DailyReminderSettings,
   DEFAULT_DAILY_REMINDER_TIME,
+  deleteDailyReminderSettings,
   formatDailyReminderTime,
-  loadDailyReminderSettings,
+  initializeDailyReminderSettings,
   saveDailyReminderSettings,
 } from '../services/reminders';
 import PrivacyPolicyScreen from './PrivacyPolicyScreen';
@@ -326,7 +328,8 @@ export default function SettingsScreen() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [reminderSettings, setReminderSettings] = useState<DailyReminderSettings | null>(null);
-  const [isLoadingReminder, setIsLoadingReminder] = useState(false);
+  const [isLoadingReminder, setIsLoadingReminder] = useState(true);
+  const [isReminderUnavailable, setIsReminderUnavailable] = useState(false);
   const [isSavingReminder, setIsSavingReminder] = useState(false);
   const [reminderDraftEnabled, setReminderDraftEnabled] = useState(false);
   const [reminderDraftTime, setReminderDraftTime] = useState(DEFAULT_DAILY_REMINDER_TIME);
@@ -349,21 +352,34 @@ export default function SettingsScreen() {
     const loadReminder = async () => {
       if (!user?.id || !restaurant?.id) {
         setReminderSettings(null);
+        setIsLoadingReminder(false);
         return;
       }
 
       setIsLoadingReminder(true);
-      const settings = await loadDailyReminderSettings(user.id, restaurant.id);
-      if (isMounted) {
-        setReminderSettings(settings);
-        setIsLoadingReminder(false);
+      setIsReminderUnavailable(false);
+      try {
+        const settings = await initializeDailyReminderSettings(user.id, restaurant.id);
+        if (isMounted) setReminderSettings(settings);
+      } catch (error) {
+        console.warn('Failed to load daily reminder:', error);
+        if (isMounted) {
+          setReminderSettings(null);
+          setIsReminderUnavailable(true);
+        }
+      } finally {
+        if (isMounted) setIsLoadingReminder(false);
       }
     };
 
-    loadReminder();
+    void loadReminder();
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void loadReminder();
+    });
 
     return () => {
       isMounted = false;
+      subscription.remove();
     };
   }, [user?.id, restaurant?.id]);
 
@@ -387,8 +403,12 @@ export default function SettingsScreen() {
         hour: reminderDraftTime.hour,
         minute: reminderDraftTime.minute,
       });
+      setReminderSettings(result.settings);
+      setIsReminderUnavailable(false);
 
       if (!result.permissionGranted) {
+        setReminderDraftEnabled(false);
+        setShowReminderModal(false);
         Alert.alert(
           'Notifications Off',
           'Allow notifications for Tusavor in your device settings to use a daily reminder.',
@@ -396,9 +416,10 @@ export default function SettingsScreen() {
         return;
       }
 
-      setReminderSettings(result.settings);
       setShowReminderModal(false);
     } catch {
+      setReminderSettings(null);
+      setIsReminderUnavailable(true);
       Alert.alert('Error', 'Failed to update the daily reminder. Please try again.');
     } finally {
       setIsSavingReminder(false);
@@ -428,6 +449,13 @@ export default function SettingsScreen() {
     setIsDeleting(true);
     try {
       await apiService.deleteAccount();
+      if (user?.id && restaurant?.id) {
+        try {
+          await deleteDailyReminderSettings(user.id, restaurant.id);
+        } catch (error) {
+          console.warn('Failed to clear deleted account reminder:', error);
+        }
+      }
       await logout();
     } catch {
       Alert.alert('Error', 'Failed to delete account. Please try again.');
@@ -518,13 +546,15 @@ export default function SettingsScreen() {
 
   const reminderDetail = isLoadingReminder
     ? 'Loading...'
-    : reminderSettings?.enabled
-      ? `On at ${formatDailyReminderTime(
-          reminderSettings.hour,
-          reminderSettings.minute,
-          deviceUses24HourClock,
-        )}`
-      : 'Off';
+    : isReminderUnavailable
+      ? 'Unavailable'
+      : reminderSettings?.enabled
+        ? `On at ${formatDailyReminderTime(
+            reminderSettings.hour,
+            reminderSettings.minute,
+            deviceUses24HourClock,
+          )}`
+        : 'Off';
 
   if (showPrivacy) {
     return <PrivacyPolicyScreen onBack={() => setShowPrivacy(false)} />;

@@ -30,7 +30,7 @@ import {
   MONTH_NAMES,
   RestaurantCurationItem,
 } from '../types/shared';
-import { BrowseScreen } from './BrowseScreen';
+import { DeckCardBrowserScreen } from './DeckCardBrowserScreen';
 
 // The accordion's expand/collapse rides on LayoutAnimation; Android needs it
 // turned on explicitly (iOS has it on by default).
@@ -153,7 +153,7 @@ export default function BulletinScreen() {
 
   if (screenState === 'browse' && selectedDeck) {
     return (
-      <BrowseScreen
+      <DeckCardBrowserScreen
         deckId={selectedDeck.id}
         deckTitle={selectedDeck.title}
         initialCardId={selectedDeck.cardId}

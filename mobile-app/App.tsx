@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
 import { NavigationContainer } from '@react-navigation/native';
@@ -8,13 +8,17 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { DecksProvider } from './contexts/DecksContext';
 import { LoginScreen } from './screens/LoginScreen';
 import TabNavigator from './navigation/TabNavigator';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, AppState, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFonts } from 'expo-font';
 import { Fraunces_500Medium, Fraunces_600SemiBold } from '@expo-google-fonts/fraunces';
 import { Newsreader_500Medium_Italic } from '@expo-google-fonts/newsreader';
 import { Inter_400Regular, Inter_500Medium, Inter_700Bold } from '@expo-google-fonts/inter';
 import { JetBrainsMono_400Regular } from '@expo-google-fonts/jetbrains-mono';
+import {
+  clearDailyReminderSchedule,
+  initializeDailyReminderSettings,
+} from './services/reminders';
 
 const Stack = createStackNavigator();
 
@@ -33,6 +37,32 @@ function LoadingScreen() {
       <ActivityIndicator size="large" color="#007AFF" />
     </View>
   );
+}
+
+function DailyReminderManager() {
+  const { user, restaurant, isLoading } = useAuth();
+
+  useEffect(() => {
+    if (isLoading) return;
+
+    const prepareDailyReminder = () => {
+      const reminderTask =
+        user?.id && restaurant?.id
+          ? initializeDailyReminderSettings(user.id, restaurant.id)
+          : clearDailyReminderSchedule();
+      void reminderTask.catch((error) => {
+        console.warn('Failed to prepare daily reminder:', error);
+      });
+    };
+
+    prepareDailyReminder();
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') prepareDailyReminder();
+    });
+    return () => subscription.remove();
+  }, [isLoading, user?.id, restaurant?.id]);
+
+  return null;
 }
 
 function AppNavigator() {
@@ -77,6 +107,7 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AuthProvider>
+          <DailyReminderManager />
           <DecksProvider>
             <AppNavigator />
             <StatusBar style="auto" />

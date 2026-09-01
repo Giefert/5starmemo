@@ -21,7 +21,7 @@ import { StudyCardData, StudyDeckSearchMatch, StudyDeckSearchMatchDetail } from 
 import { StudyCard, LinkedTerm } from '../components/StudyCard';
 import { SwipeableCard } from '../components/SwipeableCard';
 import { GlossaryTermModal } from '../components/GlossaryTermModal';
-import { StripedImagePlaceholder } from '../components/StripedImagePlaceholder';
+import { BlurredImageBackground } from '../components/BlurredImageBackground';
 import { collectSearchFields } from '../utils/studySearch';
 
 const COLORS = {
@@ -90,7 +90,7 @@ function cardMatchesQuery(card: StudyCardData, query: string) {
   );
 }
 
-interface BrowseScreenProps {
+interface DeckCardBrowserScreenProps {
   deckId: string;
   deckTitle: string;
   onExit: () => void;
@@ -98,13 +98,14 @@ interface BrowseScreenProps {
   searchQuery?: string;
   searchMatches?: StudyDeckSearchMatch[];
   onSearchQueryChange?: (query: string) => void;
+  cardListBackLabel?: string;
   // When set, open straight to this card's detail view instead of the deck
   // list — used by the bulletin, where tapping a card item opens the card
   // itself. Backing out then returns to the caller, skipping the list.
   initialCardId?: string;
 }
 
-export const BrowseScreen: React.FC<BrowseScreenProps> = ({
+export const DeckCardBrowserScreen: React.FC<DeckCardBrowserScreenProps> = ({
   deckId,
   deckTitle,
   onExit,
@@ -112,6 +113,7 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({
   searchQuery = '',
   searchMatches = [],
   onSearchQueryChange,
+  cardListBackLabel = 'Browse',
   initialCardId,
 }) => {
   const insets = useSafeAreaInsets();
@@ -158,7 +160,7 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({
       // A stale bulletin may point at a card that was removed after its
       // payload loaded. Fall back to the deck index only in that rare case.
       const data = await apiService.getDeckForStudy(deckId, 'full');
-      // Browse is an index of the deck, so list items alphabetically by the
+      // The card browser is an index of the deck, so list items alphabetically by the
       // same name the row renders. (The shared study endpoint orders by FSRS
       // urgency for study sessions; that ordering is wrong for browsing.)
       const sorted = [...data.cards].sort((a, b) =>
@@ -202,7 +204,7 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({
   };
 
   // A card opened directly from the bulletin has no list behind it, so backing
-  // out leaves Browse entirely; one reached via the list returns to the list.
+  // out leaves the card browser entirely; one reached via the list returns to the list.
   const handleCardBack = () => {
     if (openedDirectly) {
       onExit();
@@ -227,9 +229,9 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({
       />
     ) : null
   );
-  const renderBrowseSearchBar = (variant: 'paper' | 'ink') => canEditSearch ? (
+  const renderCardBrowserSearchBar = (variant: 'paper' | 'ink') => canEditSearch ? (
     <>
-      <BrowseSearchBar
+      <CardBrowserSearchBar
         query={searchQuery}
         onChangeQuery={onSearchQueryChange!}
         isMismatch={selectedCardSearchMiss}
@@ -276,7 +278,7 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({
               />
             </Svg>
             <Text style={styles.ribbonBackText} numberOfLines={1}>
-              Browse
+              {cardListBackLabel}
             </Text>
           </TouchableOpacity>
         </View>
@@ -313,7 +315,7 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({
                     />
                   </Svg>
                 </TouchableOpacity>
-                {renderBrowseSearchBar('ink')}
+                {renderCardBrowserSearchBar('ink')}
               </View>
             </View>
           }
@@ -348,7 +350,7 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({
                   </TouchableOpacity>
                 </View>
               </View>
-              {renderBrowseSearchBar('paper')}
+              {renderCardBrowserSearchBar('paper')}
             </View>
           }
         />
@@ -454,7 +456,7 @@ export const BrowseScreen: React.FC<BrowseScreenProps> = ({
         />
       )}
 
-      {renderBrowseSearchBar('paper')}
+      {renderCardBrowserSearchBar('paper')}
     </KeyboardAvoidingView>
   );
 };
@@ -486,16 +488,21 @@ function CardRow({
       activeOpacity={0.7}
     >
       <View style={styles.thumb}>
-        <StripedImagePlaceholder style={StyleSheet.absoluteFillObject} />
         {imageUrl ? (
-          <Image
-            source={{ uri: imageUrl }}
-            style={styles.thumbImage}
-            contentFit="contain"
-            cachePolicy="memory-disk"
-            priority="low"
-            transition={150}
-          />
+          <>
+            <BlurredImageBackground
+              imageUrl={imageUrl}
+              style={StyleSheet.absoluteFillObject}
+            />
+            <Image
+              source={{ uri: imageUrl }}
+              style={styles.thumbImage}
+              contentFit="contain"
+              cachePolicy="memory-disk"
+              priority="low"
+              transition={150}
+            />
+          </>
         ) : null}
       </View>
       <View style={styles.itemText}>
@@ -580,7 +587,7 @@ function HighlightedText({
   );
 }
 
-function BrowseSearchBar({
+function CardBrowserSearchBar({
   query,
   onChangeQuery,
   isMismatch,

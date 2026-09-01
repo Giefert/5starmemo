@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 import { Image } from 'expo-image';
-import { StripedImagePlaceholder } from './StripedImagePlaceholder';
+import { BlurredImageBackground } from './BlurredImageBackground';
 import {
   StudyCardData,
   isMakiCard,
@@ -309,7 +309,8 @@ export const StudyCard: React.FC<StudyCardProps> = ({ cardData, isFlipped, linke
           <View style={styles.imageArea}>
             {imageUrl ? (
               <>
-                <StripedImagePlaceholder
+                <BlurredImageBackground
+                  imageUrl={imageUrl}
                   tone="ink"
                   style={StyleSheet.absoluteFillObject}
                 />
