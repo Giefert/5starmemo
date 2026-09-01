@@ -4,29 +4,29 @@ This is the repository's curated continuity record. It captures accepted
 project state and active coordination, not a transcript. Reconcile it whenever
 work or steering materially changes.
 
-Last reconciled: 2026-09-01 by Codex root at `6ce6a73` (`main`; working tree
-intentionally dirty)
+Last reconciled: 2026-09-01 by Codex root after product checkpoint `b173d88`
+(`main`; W5 paused for the user's scope decision)
 
-Current work-log coordinator: Codex root for W4, the accepted-checkpoint and
-maintenance integration turn.
+Current work-log coordinator: Codex root for W5, the dashboard lint review and
+remediation turn.
 
 ## Resume here
 
 - W1 and W3 are durable in `df4810f`: `AGENTS.md`, `WORKLOG.md`, and the
   corrected `README.md` now survive a clean checkout.
-- The user accepted the complete W2 mobile workspace as one checkpoint and
-  authorized committing it separately. Its commit is paused on one newly found
-  product contradiction: fresh users are shown reminders enabled at noon even
-  though no notification has been scheduled. Await the user's choice between
-  default-Off and automatic scheduling before editing or committing W2.
+- W2 is durable in `b173d88`: the accepted card-browser, Library, image, and
+  automatic-On reminder work was committed as one separate mobile checkpoint.
+  Automatic-On means the first authenticated use with no saved reminder
+  preference; it is not a literal reinstall detector because SecureStore is
+  account-scoped and may survive an iOS reinstall.
 - Read tracked [CLAUDE.md](CLAUDE.md) for repository constraints and
   [DESIGN.md](DESIGN.md) for the Carte design system. Use current tracked code
   and commits for implemented behavior. Local `*-HANDOFF.md` files are ignored
   by Git and are historical evidence only, not durable project truth.
 - [README.md](README.md) is current and committed in `df4810f`.
 - Never record credentials or other secrets here.
-- W4 is active but waiting for the reminder decision. Root owns all writes and
-  commits; its read-only audits are complete.
+- W4 is complete. W5 is the next user-requested step: explain the 38 dashboard
+  lint errors and 10 warnings before making any lint-related edit.
 
 ## Where we were
 
@@ -53,6 +53,9 @@ maintenance integration turn.
   dashboard-mockup references, and replaced the dashboard's starter README.
 - `6ce6a73`: self-hosted the dashboard's Fraunces, Inter, and Newsreader files
   with their OFL licenses and repaired both host API `start` commands.
+- `b173d88`: integrated the accepted mobile Library/card-browser/image changes
+  and a serialized automatic-On reminder lifecycle that fails closed when
+  native notification capability is unavailable.
 
 ### Durable decisions
 
@@ -89,11 +92,11 @@ maintenance integration turn.
 - The schema baseline header says migration 016 even though its recorded folded
   list includes 017 and 018; this documentation cleanup was not part of W4.
 - Dashboard lint currently reports 48 findings: 38 errors and 10 warnings. The
-  user wants the errors repaired but requested a separate review before any
-  lint-related edit.
-- W2's reminder default is internally inconsistent as described above. Static
-  checks otherwise pass; the hidden-but-mounted Library card catalog also needs
-  later device verification for keyboard dismissal when switching tabs.
+  user wants the errors repaired but requested this separate review before any
+  lint-related edit; W5 must preserve that pause until they approve the scope.
+- W2's automatic-On lifecycle is implemented and statically validated. Native
+  notification permission prompts and delivery still require a clean-device
+  check; no production-connected account or device state was changed during W4.
 
 ## Where we are
 
@@ -116,16 +119,18 @@ maintenance integration turn.
 #### W2 — Mobile-app workspace changes
 
 - Owner: Codex root for the authorized W4 integration.
-- Status: accepted as a complete checkpoint by the user on 2026-09-01, but its
-  separate commit is paused for the reminder behavior decision.
+- Status: accepted and committed in `b173d88`.
 - Boundary: one umbrella lane because its substreams overlap in shared files.
   It includes the card-browser replacement, Library card-catalog/navigation/
-  state work, card image treatment, and reminder defaults. Home and Library
-  category contents are again always expanded; the Bulletin accordion remains
-  unchanged. TypeScript and whitespace checks passed after the rollback. Do not
-  include unrelated paths in its commit.
-- Resume evidence: current `git status`, tracked diff, and the two untracked
-  files listed below.
+  state work, card image treatment, and reminder defaults. The user's
+  automatic-On choice expands the boundary to `mobile-app/App.tsx` for the
+  authenticated-session initialization hook. Home and Library category
+  contents are again always expanded; the Bulletin accordion remains unchanged.
+  TypeScript and whitespace checks passed after the rollback.
+- Validation: mobile TypeScript and whitespace checks passed; iOS, Android, and
+  web Expo bundles completed; no stale `BrowseScreen` reference remained; three
+  read-only audits found no static commit blocker.
+- Resume evidence: `b173d88`.
 
 #### W3 — README and documentation consistency refresh
 
@@ -149,8 +154,7 @@ maintenance integration turn.
 #### W4 — Accepted checkpoints and maintenance integration
 
 - Owner: Codex root; sole writer and integrator.
-- Status: active; waiting for the user's reminder-default choice before W2 can
-  be integrated.
+- Status: completed through `b173d88`.
 - Authorized scope:
   - commit accepted W1/W3 together and accepted W2 separately;
   - retain broad Claude permissions and current Node versions;
@@ -165,61 +169,81 @@ maintenance integration turn.
 - Deferred sequence explicitly requested by the user: after W4, discuss the
   dashboard lint corrections before editing them; after lint is resolved,
   revisit deployment/GitHub access; then revisit release and platform status.
-- Completed outcomes: created `df4810f`, `5c2e259`, and `6ce6a73`; removed the
-  stale worktree and branch; all read-only audits were reviewed and integrated.
+- Completed outcomes: created `df4810f`, `5c2e259`, `6ce6a73`, and `b173d88`;
+  removed the stale worktree and branch; implemented the user's automatic-On
+  reminder choice; all read-only audits were reviewed and integrated.
 - Validation: both API builds and emitted-entry `node --check` checks passed;
   all 30 mobile API tests passed; the dashboard build completed without network
   font access; targeted layout lint passed; local browser review confirmed the
   login UI renders correctly and font requests use only `/_next/static/media`
   with no Google font requests.
+- W2 validation: mobile TypeScript and whitespace checks pass; iOS, Android,
+  and web Expo bundles complete; no stale `BrowseScreen` reference remains.
+  The reminder manager waits for authentication, serializes lifecycle changes,
+  uses a deterministic device schedule, handles iOS provisional permission and
+  blocked Android channels, retries on foreground return, clears on sign-out,
+  and fails closed on denial. Library tab changes now explicitly dismiss the
+  keyboard while preserving the mounted card-catalog state.
+
+#### W5 — Dashboard lint remediation
+
+- Owner: Codex root; sole writer. Read-only support lanes may audit but not edit.
+- Status: active review; awaiting the user's scope decision before any lint
+  correction.
+- Current findings: 38 errors (36 unsafe `any` types, one unescaped apostrophe,
+  one empty interface) and 10 warnings (four unused declarations, four React
+  effect dependency findings, and two raw-image findings).
+- Boundary: `web-dashboard` only. Preserve behavior, R2 cost safeguards, and
+  the already accepted self-hosted-font implementation.
+- Read-only audit outcome:
+  - the 36 `any` errors are 29 catch variables, six card-API contract types,
+    and one management display cast; existing shared types plus one narrowed
+    Axios-error helper can replace them without a broad rule exemption;
+  - the apostrophe, empty interface, and four unused declarations are safe
+    mechanical cleanup;
+  - all four effect warnings should be repaired with stale-response protection,
+    not suppressed, because route or filter changes can otherwise show older
+    data;
+  - both raw images are intentional: one preserves direct immutable R2 delivery
+    without adding VPS image-proxy work, and the editor preview also accepts
+    browser-only `blob:` URLs. Use narrow documented suppressions rather than a
+    global rule change or a mechanical `next/image` conversion;
+  - the preview creates object URLs during render without revoking them. If the
+    user approves the complete clean pass, repair that small memory leak with
+    the image-warning work.
+- All three support audits completed without editing files; no active support
+  lane remains.
 
 All current lanes use `main` in `/Users/one/Documents/git/5starmemo`; no linked
-worktree remains. W2 is workspace-local and cannot be recovered from Git until
-its authorized checkpoint is created.
-
-### W2 protected path boundary
-
-This is a reconciliation snapshot, not proof of intent. Recheck `git status`
-before any later work:
-
-- `mobile-app/components/StudyCard.tsx`
-- `mobile-app/components/BlurredImageBackground.tsx` (untracked)
-- `mobile-app/contexts/DecksContext.tsx`
-- `mobile-app/screens/BrowseScreen.tsx` (deleted; paired with the replacement)
-- `mobile-app/screens/BulletinScreen.tsx`
-- `mobile-app/screens/DeckCardBrowserScreen.tsx` (untracked replacement)
-- `mobile-app/screens/HomeScreen.tsx`
-- `mobile-app/screens/LibraryScreen.tsx`
-- `mobile-app/screens/SettingsScreen.tsx`
-- `mobile-app/services/reminders.ts`
+worktree remains. W2 is recoverable from `b173d88`; only this W5 coordination
+update is currently uncommitted.
 
 ## Where we are going
 
 ### Current milestone
 
-Finish W4 without committing a misleading reminder state, then present and
-resolve the dashboard lint plan before revisiting access and release decisions.
+Resolve the dashboard lint baseline without changing behavior unexpectedly,
+then revisit access and release decisions in the user's required order.
 
-W4 acceptance bar:
+W5 acceptance bar:
 
 - root instructions require the work log to be read and synchronized;
 - the log clearly distinguishes accepted history, active state, and future work;
-- pre-existing uncommitted work remains visible and protected;
-- delegated work has explicit ownership, boundaries, and integration status;
-- the workflow remains compact enough to maintain in normal work;
-- the accepted workflow and project overview remain durable in Git;
-- W2 is committed separately only after its reminder behavior is coherent;
-- accepted documentation/runtime cleanup remains separated by concern;
-- the next lint discussion presents concrete findings before any edit.
+- present concrete lint categories and tradeoffs before editing;
+- obtain the user's scope choice;
+- replace unsafe types with real types rather than disabling the rule globally;
+- treat effect warnings as behavior-sensitive rather than mechanical;
+- preserve R2 cost safeguards when resolving raw-image warnings;
+- finish with a clean dashboard lint run and successful dashboard build.
 
 ### Ordered next work
 
-1. Obtain the reminder behavior decision, make only the corresponding W2 fix,
-   rerun mobile validation, and create the authorized W2 checkpoint.
-2. Close W4 and present the dashboard lint findings and choices before changing
-   lint-related code.
-3. After the lint step is resolved, revisit deployment and GitHub access.
-4. After the access step is resolved, revisit release and platform status.
+1. Present the dashboard lint findings and choices; do not edit until the user
+   approves the remediation scope.
+2. Implement the approved lint corrections, validate, and create a separate
+   dashboard checkpoint.
+3. After lint is resolved, revisit deployment and GitHub access.
+4. After access is resolved, revisit release and platform status.
 
 ### Candidate product backlog
 
