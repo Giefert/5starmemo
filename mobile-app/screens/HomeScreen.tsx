@@ -15,7 +15,6 @@ import {
   FlatList,
   TextInput,
   ActivityIndicator,
-  Alert,
   RefreshControl,
   StatusBar,
   Animated,
@@ -31,6 +30,7 @@ import Svg, { Circle, Line } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { useAuth } from '../contexts/AuthContext';
 import { useDecks } from '../contexts/DecksContext';
+import { useDialog } from '../contexts/DialogContext';
 import { StudentDeck, DeckType, GlossaryTermSummary } from '../types/shared';
 import apiService from '../services/api';
 import { loadFavorites, saveFavorites } from '../utils/favorites';
@@ -91,6 +91,7 @@ const CATEGORY_ORDER: { type: DeckType; label: string }[] = [
 ];
 
 export const HomeScreen: React.FC = () => {
+  const showDialog = useDialog();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const navigation = useNavigation();
@@ -352,14 +353,12 @@ export const HomeScreen: React.FC = () => {
       }
 
       const { title, message } = describeLoadError(error);
-      Alert.alert(
+      showDialog({
         title,
         message,
-        [
-          { text: 'Retry', onPress: () => loadData() },
-          { text: 'Continue Offline' },
-        ]
-      );
+        primaryAction: { label: 'Retry', onPress: () => { void loadData(); } },
+        secondaryAction: { label: 'Not now' },
+      });
     } finally {
       setIsLoadingDecks(false);
       setIsRefreshing(false);
@@ -406,22 +405,20 @@ export const HomeScreen: React.FC = () => {
 
   const handleDeleteCustomDeck = (deck: CustomStudyDeck) => {
     if (!restaurant?.id) return;
-    Alert.alert(
-      'Delete Custom Deck',
-      `Delete "${deck.title}" from this device?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            const next = customDecks.filter(existing => existing.id !== deck.id);
-            setCustomDecks(next);
-            await saveCustomDecks(restaurant.id!, next);
-          },
+    showDialog({
+      title: 'Delete this custom deck?',
+      message: `“${deck.title}” will be removed from this device.`,
+      primaryAction: { label: 'Cancel' },
+      secondaryAction: {
+        label: 'Delete',
+        destructive: true,
+        onPress: async () => {
+          const next = customDecks.filter(existing => existing.id !== deck.id);
+          setCustomDecks(next);
+          await saveCustomDecks(restaurant.id!, next);
         },
-      ],
-    );
+      },
+    });
   };
 
   const handleStartCustomDeck = async (deck: CustomStudyDeck) => {
@@ -476,7 +473,11 @@ export const HomeScreen: React.FC = () => {
         .filter((item): item is StudySessionItem => item != null);
 
       if (items.length === 0) {
-        Alert.alert('Custom Deck Unavailable', 'None of this deck\'s items are available right now.');
+        showDialog({
+          title: 'This deck is unavailable',
+          message: 'None of its items are available right now.',
+          primaryAction: { label: 'OK' },
+        });
         return;
       }
 
@@ -484,7 +485,11 @@ export const HomeScreen: React.FC = () => {
       setSelectedCustomStudy({ title: deck.title, items });
       setScreenState('study');
     } catch (error) {
-      Alert.alert('Error', `Failed to load custom deck: ${error}`);
+      showDialog({
+        title: 'Couldn’t open this deck',
+        message: 'Please try again.',
+        primaryAction: { label: 'OK' },
+      });
     } finally {
       setIsStartingCustomDeck(false);
     }
@@ -587,7 +592,7 @@ export const HomeScreen: React.FC = () => {
   const getSearchMatches = (deck: StudentDeck) =>
     visibleSearchResult?.matchesByDeckId[deck.id] ?? [];
 
-  // A section is a Glossary-style header followed by its rows. Rendered only
+  // A section is a category label followed by its rows. Rendered only
   // when the section has decks — unless an `emptyText`
   // placeholder is given, in which case the header always shows with the
   // placeholder standing in for the rows (used by Favorites, which is always on).
@@ -599,6 +604,7 @@ export const HomeScreen: React.FC = () => {
     if (sectionDecks.length > 0) {
       return [
         <View key={`${title}-header`} style={styles.sectionHeader}>
+          <View style={styles.sectionAccent} accessible={false} />
           <Text style={styles.sectionGlyph}>{title}</Text>
         </View>,
         ...sectionDecks.map((deck, i) => (
@@ -621,6 +627,7 @@ export const HomeScreen: React.FC = () => {
     if (emptyText) {
       return [
         <View key={`${title}-header`} style={styles.sectionHeader}>
+          <View style={styles.sectionAccent} accessible={false} />
           <Text style={styles.sectionGlyph}>{title}</Text>
         </View>,
         <Text key={`${title}-empty`} style={styles.sectionPlaceholder}>
@@ -687,6 +694,7 @@ export const HomeScreen: React.FC = () => {
         ) : (
           <View>
             <View style={styles.sectionHeader}>
+              <View style={styles.sectionAccent} accessible={false} />
               <Text style={styles.sectionGlyph}>Custom</Text>
             </View>
             {customDecks.map((deck, i) => (
@@ -1197,23 +1205,34 @@ const styles = StyleSheet.create({
     width: '100%',
   },
 
-  // Section header — mirrors the Library tab's Glossary letter headers.
+  // Category labels use the mode-label type with an amber leading rule.
   sectionHeader: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     paddingHorizontal: 24,
     paddingTop: 20,
-    paddingBottom: 8,
+    paddingBottom: 10,
     backgroundColor: COLORS.paper,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.paperHair,
   },
+  sectionAccent: {
+    width: 3,
+    height: 14,
+    borderRadius: 1.5,
+    backgroundColor: COLORS.amber,
+    marginRight: 10,
+    flexShrink: 0,
+  },
   sectionGlyph: {
-    fontFamily: 'Fraunces_600SemiBold',
-    fontSize: 28,
-    letterSpacing: -0.4,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    lineHeight: 14,
+    letterSpacing: 2.2,
+    textTransform: 'uppercase',
     color: COLORS.ink,
     marginRight: 10,
+    flexShrink: 1,
   },
   sectionPlaceholder: {
     fontFamily: 'JetBrainsMono_400Regular',

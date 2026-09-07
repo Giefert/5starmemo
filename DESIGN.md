@@ -136,9 +136,42 @@ When a new surface needs something the Carte direction doesn't define, **ask bef
 
 - Form inputs (deck editor fields) — not yet designed
 - Empty states — not yet designed
-- Modals / confirmation dialogs — not yet designed
+- Dashboard-specific dialog integration — the mobile dialog pattern below is defined
 - Loading / skeleton states — not yet designed
 - Mobile / narrow-viewport behavior — this dashboard is designed at 1440px; responsive rules tbd
 - Dark-mode toggle — none. The admin is always ink+paper.
 
 Every addition should feel like it was always part of the Carte system. If a candidate solution could belong to any generic SaaS dashboard, it's wrong.
+
+## 8 · Mobile popups
+
+The supplied September 2026 popup mockups define app-owned dialogs. The user's
+clarification makes the **first mockup's split action row** authoritative for
+all two-action popups; the stacked examples are references for copy and styling.
+The shared implementation is [`AppDialog`](mobile-app/components/AppDialog.tsx).
+
+- Center a paper `#F4EEE1` panel, maximum width 300, radius 2, with no shadow,
+  accent rule, eyebrow, or serif title. Use a `rgba(20,18,15,0.72)` scrim without
+  blur. Allow long content to scroll while keeping actions reachable.
+- Titles use Inter 600, 18px, tracking −0.015em, ink and sentence case. Describe
+  the action directly. Body uses Inter 400, 14px, 1.45 line height, inkMute,
+  with one short consequence or recovery message wherever possible.
+- Put the unfilled secondary action on the **left**, and the filled amber safe
+  action on the **right**, separated by 8px. Both use Inter 600, 15px, sentence
+  case, radius 2, and at least 44px height. A single action fills the row.
+  Destructive actions are red; simple dismissals are muted. The session's red
+  Exit action follows the first mockup, alongside amber Keep studying.
+- Use 22px copy padding and 14px action padding. The scrim fades in over 120ms;
+  the panel fades and rises 8px over 160ms with ease-out and no scale or spring.
+  Respect reduced motion and text scaling.
+- Backdrop, Back, and accessibility escape choose the non-destructive dismissal:
+  Keep studying, Cancel, Not now, or a notice's OK. They never reset/delete or
+  start/retry an operation. Single-notice dismissal preserves its completion
+  callback. Block duplicate presses and dismissal during a pending operation.
+- Settings forms and their nested confirmations share one native host. The
+  glossary preserves rich definitions inside the same paper dialog. Actual OS
+  permission and share interfaces remain native system surfaces.
+
+`DialogProvider` supplies queued app notices/confirmations to Login, Study and
+Home. Settings owns its form/notice state locally so a confirmation or recovery
+notice remains above its form without competing native modal presentations.

@@ -1305,6 +1305,7 @@ function LibraryCardCatalogPane({
     if (sectionDecks.length > 0) {
       return [
         <View key={`${title}-header`} style={styles.cardCatalogSectionHeader}>
+          <View style={styles.cardCatalogSectionAccent} accessible={false} />
           <Text style={styles.cardCatalogSectionTitle}>{title}</Text>
           <Text style={styles.cardCatalogSectionCount}>{sectionDecks.length}</Text>
         </View>,
@@ -1328,6 +1329,7 @@ function LibraryCardCatalogPane({
     if (emptyText) {
       return [
         <View key={`${title}-header`} style={styles.cardCatalogSectionHeader}>
+          <View style={styles.cardCatalogSectionAccent} accessible={false} />
           <Text style={styles.cardCatalogSectionTitle}>{title}</Text>
         </View>,
         <Text key={`${title}-empty`} style={styles.cardCatalogPlaceholder}>
@@ -1802,20 +1804,31 @@ const styles = StyleSheet.create({
 
   cardCatalogSectionHeader: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     paddingHorizontal: 26,
     paddingTop: 20,
-    paddingBottom: 8,
+    paddingBottom: 10,
     backgroundColor: COLORS.paper,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.paperHairLt,
   },
+  cardCatalogSectionAccent: {
+    width: 3,
+    height: 14,
+    borderRadius: 1.5,
+    backgroundColor: COLORS.amber,
+    marginRight: 10,
+    flexShrink: 0,
+  },
   cardCatalogSectionTitle: {
-    fontFamily: 'Fraunces_600SemiBold',
-    fontSize: 28,
-    letterSpacing: -0.4,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    lineHeight: 14,
+    letterSpacing: 2.2,
+    textTransform: 'uppercase',
     color: COLORS.ink,
     marginRight: 10,
+    flexShrink: 1,
   },
   cardCatalogSectionCount: {
     fontFamily: 'JetBrainsMono_400Regular',

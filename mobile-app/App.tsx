@@ -6,6 +6,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { DecksProvider } from './contexts/DecksContext';
+import { DialogProvider } from './contexts/DialogContext';
 import { LoginScreen } from './screens/LoginScreen';
 import TabNavigator from './navigation/TabNavigator';
 import { View, ActivityIndicator, AppState, StyleSheet } from 'react-native';
@@ -13,7 +14,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFonts } from 'expo-font';
 import { Fraunces_500Medium, Fraunces_600SemiBold } from '@expo-google-fonts/fraunces';
 import { Newsreader_500Medium_Italic } from '@expo-google-fonts/newsreader';
-import { Inter_400Regular, Inter_500Medium, Inter_700Bold } from '@expo-google-fonts/inter';
+import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { JetBrainsMono_400Regular } from '@expo-google-fonts/jetbrains-mono';
 import {
   clearDailyReminderSchedule,
@@ -95,6 +96,7 @@ export default function App() {
     Newsreader_500Medium_Italic,
     Inter_400Regular,
     Inter_500Medium,
+    Inter_600SemiBold,
     Inter_700Bold,
     JetBrainsMono_400Regular,
   });
@@ -109,8 +111,10 @@ export default function App() {
         <AuthProvider>
           <DailyReminderManager />
           <DecksProvider>
-            <AppNavigator />
-            <StatusBar style="auto" />
+            <DialogProvider>
+              <AppNavigator />
+              <StatusBar style="auto" />
+            </DialogProvider>
           </DecksProvider>
         </AuthProvider>
       </SafeAreaProvider>

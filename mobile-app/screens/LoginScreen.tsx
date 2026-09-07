@@ -5,14 +5,15 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
+import { useDialog } from '../contexts/DialogContext';
 
 export const LoginScreen: React.FC = () => {
+  const showDialog = useDialog();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -20,7 +21,10 @@ export const LoginScreen: React.FC = () => {
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      Alert.alert('Error', 'Please enter both email and password');
+      showDialog({
+        title: 'Enter your email and password',
+        primaryAction: { label: 'OK' },
+      });
       return;
     }
 
@@ -28,7 +32,11 @@ export const LoginScreen: React.FC = () => {
     try {
       await login({ email: email.trim(), password });
     } catch (error) {
-      Alert.alert('Login Failed', error instanceof Error ? error.message : 'An error occurred');
+      showDialog({
+        title: 'Couldn’t log in',
+        message: error instanceof Error ? error.message : 'Please try again.',
+        primaryAction: { label: 'OK' },
+      });
     } finally {
       setIsLoading(false);
     }

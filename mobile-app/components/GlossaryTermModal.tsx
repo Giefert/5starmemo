@@ -1,15 +1,15 @@
 import React from 'react';
 import {
   View,
-  Text,
   StyleSheet,
-  Modal,
-  Pressable,
-  ScrollView,
   useWindowDimensions,
 } from 'react-native';
-import RenderHtml from 'react-native-render-html';
+import RenderHtml, { defaultSystemFonts } from 'react-native-render-html';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { cleanHtml, customHTMLElementModels } from '../utils/html';
+import { AppDialog } from './AppDialog';
+
+const systemFonts = [...defaultSystemFonts, 'Inter_400Regular', 'Inter_600SemiBold'];
 
 interface GlossaryTermModalProps {
   term: { term: string; definition: string } | null;
@@ -18,103 +18,62 @@ interface GlossaryTermModalProps {
 
 export const GlossaryTermModal: React.FC<GlossaryTermModalProps> = ({ term, onDismiss }) => {
   const { width } = useWindowDimensions();
-  const contentWidth = width - 64 - 48; // overlay padding (32*2) + card padding (24*2)
+  const insets = useSafeAreaInsets();
+  const contentWidth = Math.max(0, Math.min(300, width - insets.left - insets.right - 48) - 44);
 
   return (
-    <Modal
+    <AppDialog
       visible={term !== null}
-      transparent
-      animationType="fade"
-      onRequestClose={onDismiss}
+      title={term?.term ?? ''}
+      primaryAction={{ label: 'Close', onPress: onDismiss }}
+      onDismiss={onDismiss}
     >
-      <Pressable style={styles.overlay} onPress={onDismiss}>
-        <View style={styles.card}>
-          {term && (
-            <ScrollView bounces={false} showsVerticalScrollIndicator={true}>
-              <Pressable>
-                <Text style={styles.termName}>{term.term}</Text>
-                <View style={styles.divider} />
-                <RenderHtml
-                  contentWidth={contentWidth}
-                  source={{ html: cleanHtml(term.definition) }}
-                  baseStyle={styles.definition}
-                  enableExperimentalMarginCollapsing={true}
-                  customHTMLElementModels={customHTMLElementModels}
-                  tagsStyles={{
-                    p: { marginVertical: 4 },
-                    ul: { marginVertical: 8, paddingLeft: 0 },
-                    li: { marginVertical: 0, paddingVertical: 2 },
-                    strong: { fontWeight: '600' },
-                    em: { fontStyle: 'italic' },
-                    u: { textDecorationLine: 'underline' },
-                    hr: { marginVertical: 12, backgroundColor: '#E5E7EB' },
-                    h1: { fontSize: 31, fontWeight: 'bold', marginVertical: 8, lineHeight: 40 },
-                    h2: { fontSize: 25, fontWeight: 'bold', marginVertical: 6, lineHeight: 32 },
-                    h3: { fontSize: 20, fontWeight: '600', marginVertical: 4, lineHeight: 28 },
-                  }}
-                  classesStyles={{
-                    'font-large': { fontSize: 20 },
-                    'font-larger': { fontSize: 24 },
-                    'font-largest': { fontSize: 32 },
-                  }}
-                  renderersProps={{
-                    ul: {
-                      markerBoxStyle: {
-                        paddingTop: 2,
-                        paddingRight: 8,
-                      },
-                    },
-                    ol: {
-                      markerBoxStyle: {
-                        paddingTop: 2,
-                        paddingRight: 8,
-                      },
-                    },
-                  }}
-                />
-              </Pressable>
-            </ScrollView>
-          )}
+      {term && (
+        <View style={styles.content}>
+          <RenderHtml
+            contentWidth={contentWidth}
+            source={{ html: cleanHtml(term.definition) }}
+            baseStyle={styles.definition}
+            systemFonts={systemFonts}
+            enableExperimentalMarginCollapsing={true}
+            customHTMLElementModels={customHTMLElementModels}
+            tagsStyles={{
+              p: { marginVertical: 4 },
+              ul: { marginVertical: 8, paddingLeft: 0 },
+              li: { marginVertical: 0, paddingVertical: 2 },
+              strong: { fontFamily: 'Inter_600SemiBold', fontWeight: 'normal' },
+              em: { fontStyle: 'italic' },
+              u: { textDecorationLine: 'underline' },
+              hr: { marginVertical: 12, backgroundColor: '#D8CFB8' },
+              h1: { fontFamily: 'Inter_600SemiBold', fontWeight: 'normal', fontSize: 20, color: '#14120F', marginVertical: 8, lineHeight: 26 },
+              h2: { fontFamily: 'Inter_600SemiBold', fontWeight: 'normal', fontSize: 18, color: '#14120F', marginVertical: 6, lineHeight: 24 },
+              h3: { fontFamily: 'Inter_600SemiBold', fontWeight: 'normal', fontSize: 16, color: '#14120F', marginVertical: 4, lineHeight: 22 },
+            }}
+            classesStyles={{
+              'font-large': { fontSize: 16, lineHeight: 22 },
+              'font-larger': { fontSize: 18, lineHeight: 24 },
+              'font-largest': { fontSize: 20, lineHeight: 26 },
+            }}
+            renderersProps={{
+              ul: { markerBoxStyle: { paddingTop: 2, paddingRight: 8 } },
+              ol: { markerBoxStyle: { paddingTop: 2, paddingRight: 8 } },
+            }}
+          />
         </View>
-      </Pressable>
-    </Modal>
+      )}
+    </AppDialog>
   );
 };
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 32,
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 24,
-    maxHeight: '60%',
-    width: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  termName: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#2D2D2D',
-    marginBottom: 12,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#F0F0F0',
-    marginBottom: 12,
+  content: {
+    paddingHorizontal: 22,
+    paddingBottom: 8,
   },
   definition: {
-    fontSize: 16,
-    color: '#4B5563',
-    lineHeight: 24,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 14,
+    color: '#6B6255',
+    lineHeight: 20.3,
   },
 });

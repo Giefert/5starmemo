@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ActivityIndicator,
-  Alert,
   TouchableOpacity,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
@@ -19,6 +18,7 @@ import { GlossaryTermModal } from '../components/GlossaryTermModal';
 import { RatingButtons } from '../components/RatingButtons';
 import apiService from '../services/api';
 import { StartTarget, StudySessionItem } from '../services/StudySessionManager';
+import { useDialog } from '../contexts/DialogContext';
 
 const COLORS = {
   ink: '#14120F',
@@ -59,6 +59,7 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
   onExit
 }) => {
   const insets = useSafeAreaInsets()
+  const showDialog = useDialog();
   // Full-deck sessions browse the entire deck — there's no recall to grade,
   // so they advance with a plain "Next" rather than rating buttons.
   const isLocalSession = target.kind === 'custom' || (target.kind === 'deck' && target.mode === 'full');
@@ -99,11 +100,11 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
         if (!cancelled) updateCurrentState();
       } catch (error) {
         if (!cancelled) {
-          Alert.alert(
-            'Error',
-            `Failed to start study session: ${error}`,
-            [{ text: 'OK', onPress: onExit }]
-          );
+          showDialog({
+            title: 'Couldn’t start this session',
+            message: 'Please try again.',
+            primaryAction: { label: 'OK', onPress: onExit },
+          });
         }
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -205,7 +206,11 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
       if (completesSession && isStillCurrent) updateCurrentState();
     } catch (error) {
       updateCurrentState();
-      Alert.alert('Error', `Failed to submit rating: ${error}`);
+      showDialog({
+        title: 'Rating wasn’t saved',
+        message: 'Please rate this card again.',
+        primaryAction: { label: 'OK' },
+      });
     } finally {
       isSubmittingRef.current = false;
       setIsSubmitting(false);
@@ -221,7 +226,11 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
       await studySessionManager.advance();
       updateCurrentState();
     } catch (error) {
-      Alert.alert('Error', `Failed to advance: ${error}`);
+      showDialog({
+        title: 'Couldn’t open the next card',
+        message: 'Please try again.',
+        primaryAction: { label: 'OK' },
+      });
     } finally {
       isSubmittingRef.current = false;
       setIsSubmitting(false);
@@ -229,23 +238,20 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
   };
 
   const handleExit = () => {
-    Alert.alert(
-      'Exit Study Session',
-      isLocalSession
-        ? 'Are you sure you want to exit? This session is not logged.'
-        : 'Are you sure you want to exit? Your progress will be saved.',
-      [
-        { text: 'Continue Studying', style: 'cancel' },
-        {
-          text: 'Exit',
-          style: 'destructive',
-          onPress: () => {
-            studySessionManager.reset();
-            onExit();
-          }
+    if (isSubmittingRef.current) return;
+    showDialog({
+      title: 'Exit this session?',
+      message: isLocalSession ? 'This session is not logged.' : 'Your progress is saved.',
+      primaryAction: { label: 'Keep studying' },
+      secondaryAction: {
+        label: 'Exit',
+        destructive: true,
+        onPress: () => {
+          studySessionManager.reset();
+          onExit();
         },
-      ]
-    );
+      },
+    });
   };
 
   if (isLoading) {
@@ -289,6 +295,10 @@ export const StudyScreen: React.FC<StudyScreenProps> = ({
           <TouchableOpacity
             style={styles.exitButton}
             onPress={handleExit}
+            disabled={isSubmitting}
+            accessibilityRole="button"
+            accessibilityLabel="Exit study session"
+            accessibilityState={{ disabled: isSubmitting }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Text style={styles.exitIcon}>✕</Text>

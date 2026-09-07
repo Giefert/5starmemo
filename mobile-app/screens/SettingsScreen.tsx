@@ -3,11 +3,9 @@ import {
   View,
   Text,
   StyleSheet,
-  Alert,
   Share,
   ActivityIndicator,
   AppState,
-  Modal,
   Pressable,
   ScrollView,
   StatusBar,
@@ -20,6 +18,7 @@ import { useCalendars } from 'expo-localization';
 import Svg, { Path } from 'react-native-svg';
 import { useAuth } from '../contexts/AuthContext';
 import { useDecks } from '../contexts/DecksContext';
+import { AppDialog, type DialogOptions } from '../components/AppDialog';
 import apiService from '../services/api';
 import {
   DailyReminderSettings,
@@ -226,6 +225,7 @@ function WheelPicker<T extends string | number>({
         snapToInterval={WHEEL_ITEM_HEIGHT}
         decelerationRate="fast"
         bounces={false}
+        nestedScrollEnabled
         scrollEnabled={!disabled}
         onMomentumScrollEnd={handleScrollEnd}
         onScrollEndDrag={handleDragEnd}
@@ -337,6 +337,18 @@ export default function SettingsScreen() {
   const [selectedDeckIds, setSelectedDeckIds] = useState<Set<string>>(new Set());
   const [isLoadingDecks, setIsLoadingDecks] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const [notice, setNotice] = useState<DialogOptions | null>(null);
+  const resetLoadRequest = useRef(0);
+
+  const dismissNotice = () => setNotice(null);
+
+  const showNotice = (title: string, message: string) => {
+    setNotice({
+      title,
+      message,
+      primaryAction: { label: 'OK', onPress: dismissNotice },
+    });
+  };
 
   // The masthead is dark behind the status bar — keep its text light, matching
   // the other tabs.
@@ -409,8 +421,8 @@ export default function SettingsScreen() {
       if (!result.permissionGranted) {
         setReminderDraftEnabled(false);
         setShowReminderModal(false);
-        Alert.alert(
-          'Notifications Off',
+        showNotice(
+          'Notifications are off',
           'Allow notifications for Tusavor in your device settings to use a daily reminder.',
         );
         return;
@@ -420,7 +432,7 @@ export default function SettingsScreen() {
     } catch {
       setReminderSettings(null);
       setIsReminderUnavailable(true);
-      Alert.alert('Error', 'Failed to update the daily reminder. Please try again.');
+      showNotice('Couldn’t save the reminder', 'Please try again.');
     } finally {
       setIsSavingReminder(false);
     }
@@ -435,7 +447,7 @@ export default function SettingsScreen() {
         title: 'My Tusavor Data',
       });
     } catch {
-      Alert.alert('Error', 'Failed to export data. Please try again.');
+      showNotice('Couldn’t export your data', 'Please try again.');
     } finally {
       setIsExporting(false);
     }
@@ -458,12 +470,13 @@ export default function SettingsScreen() {
       }
       await logout();
     } catch {
-      Alert.alert('Error', 'Failed to delete account. Please try again.');
+      showNotice('Couldn’t delete your account', 'Please try again.');
       setIsDeleting(false);
     }
   };
 
   const openResetModal = async () => {
+    const request = ++resetLoadRequest.current;
     setShowResetModal(true);
     setSelectedDeckIds(new Set());
     const needsInitialLoad = decks.length === 0;
@@ -471,10 +484,12 @@ export default function SettingsScreen() {
     try {
       await loadDecks();
     } catch {
-      Alert.alert('Error', 'Failed to load decks. Please try again.');
-      setShowResetModal(false);
+      if (request === resetLoadRequest.current) {
+        showNotice('Couldn’t load your decks', 'Please try again.');
+        setShowResetModal(false);
+      }
     } finally {
-      setIsLoadingDecks(false);
+      if (request === resetLoadRequest.current) setIsLoadingDecks(false);
     }
   };
 
@@ -509,9 +524,9 @@ export default function SettingsScreen() {
         // The next consumer can retry; the reset itself already succeeded.
       });
       setShowResetModal(false);
-      Alert.alert('Progress Reset', `${label} reset successfully.`);
+      showNotice('Progress reset', `${label} reset successfully.`);
     } catch {
-      Alert.alert('Error', 'Failed to reset progress. Please try again.');
+      showNotice('Couldn’t reset progress', 'Please try again.');
     } finally {
       setIsResetting(false);
     }
@@ -519,30 +534,187 @@ export default function SettingsScreen() {
 
   const handleResetConfirm = () => {
     if (selectedDeckIds.size === 0) {
-      Alert.alert('Select a deck', 'Choose at least one deck, or use "Select all decks".');
+      showNotice('Select a deck', 'Choose at least one deck to reset.');
       return;
     }
     const resettingAll = selectedDeckIds.size === decks.length;
-    const message = resettingAll
-      ? 'This will erase your study progress for every deck. You\'ll start fresh on all cards. Continue?'
-      : `This will erase your study progress for cards in ${selectedDeckIds.size} deck${selectedDeckIds.size === 1 ? '' : 's'}. Shared cards will also reset in every other deck that uses them. Continue?`;
-    Alert.alert(
-      'Reset Progress',
-      message,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reset',
-          style: 'destructive',
-          onPress: () =>
-            performReset(
-              resettingAll ? undefined : Array.from(selectedDeckIds),
-              resettingAll ? 'All progress' : 'Selected decks',
-            ),
+    const deckIds = resettingAll ? undefined : Array.from(selectedDeckIds);
+    setNotice({
+      title: resettingAll
+        ? 'Reset all study progress?'
+        : `Reset ${selectedDeckIds.size} deck${selectedDeckIds.size === 1 ? '' : 's'}?`,
+      message: resettingAll
+        ? 'All cards go back to unseen. This can’t be undone.'
+        : 'Shared cards reset in every deck. This can’t be undone.',
+      primaryAction: { label: 'Cancel', onPress: dismissNotice },
+      secondaryAction: {
+        label: 'Reset',
+        destructive: true,
+        onPress: () => {
+          dismissNotice();
+          void performReset(deckIds, resettingAll ? 'All progress' : 'Selected decks');
         },
-      ],
-    );
+      },
+    });
   };
+
+  const closeReminderModal = () => {
+    if (!isSavingReminder) setShowReminderModal(false);
+  };
+
+  const closeResetModal = () => {
+    if (!isResetting) {
+      resetLoadRequest.current += 1;
+      setShowResetModal(false);
+    }
+  };
+
+  const activeForm: DialogOptions | null = showReminderModal
+    ? {
+        title: 'Daily reminder',
+        message: 'A daily nudge to open Tusavor.',
+        primaryAction: {
+          label: 'Save',
+          onPress: handleSaveReminder,
+          disabled: isSavingReminder,
+          busy: isSavingReminder,
+        },
+        secondaryAction: {
+          label: 'Cancel',
+          onPress: closeReminderModal,
+          disabled: isSavingReminder,
+        },
+        onDismiss: closeReminderModal,
+      }
+    : showResetModal
+      ? {
+          title: 'Reset study progress',
+          message: 'Choose decks to make their cards unseen. Shared cards reset in every deck.',
+          primaryAction: {
+            label: 'Cancel',
+            onPress: closeResetModal,
+            disabled: isResetting,
+          },
+          secondaryAction: {
+            label: `Reset${selectedDeckIds.size > 0 ? ` (${selectedDeckIds.size})` : ''}`,
+            onPress: handleResetConfirm,
+            destructive: true,
+            disabled: isResetting || isLoadingDecks || decks.length === 0,
+            busy: isResetting,
+          },
+          onDismiss: closeResetModal,
+        }
+      : null;
+  const currentDialog = activeForm ?? notice;
+
+  // Keep one native host through form/notice transitions. Confirmation and
+  // recoverable errors sit inside that host so iOS never stacks native modals.
+  const popup = (
+    <AppDialog
+      visible={currentDialog !== null}
+      title={currentDialog?.title ?? ''}
+      message={currentDialog?.message}
+      primaryAction={currentDialog?.primaryAction ?? { label: 'OK', onPress: dismissNotice }}
+      secondaryAction={currentDialog?.secondaryAction}
+      layout={currentDialog?.layout}
+      onDismiss={() => {
+        if (notice) {
+          (notice.onDismiss ?? dismissNotice)();
+        } else {
+          currentDialog?.onDismiss?.();
+        }
+      }}
+      overlay={activeForm && notice ? (
+        <AppDialog
+          {...notice}
+          visible
+          inline
+          onDismiss={notice.onDismiss ?? dismissNotice}
+        />
+      ) : undefined}
+    >
+      {showReminderModal ? (
+        <View style={styles.reminderContent}>
+          <View style={styles.reminderToggleRow}>
+            <View style={styles.reminderToggleCopy}>
+              <Text style={styles.reminderToggleLabel}>Reminder</Text>
+              <Text style={styles.reminderToggleDetail}>
+                {reminderDraftEnabled
+                  ? `On at ${formatDailyReminderTime(
+                      reminderDraftTime.hour,
+                      reminderDraftTime.minute,
+                      deviceUses24HourClock,
+                    )}`
+                  : 'Off'}
+              </Text>
+            </View>
+            <Switch
+              accessibilityLabel="Daily reminder"
+              value={reminderDraftEnabled}
+              onValueChange={setReminderDraftEnabled}
+              disabled={isSavingReminder}
+              trackColor={{ false: COLORS.paperHair, true: COLORS.amber }}
+              thumbColor={COLORS.paper}
+            />
+          </View>
+
+          <ReminderTimeWheel
+            time={reminderDraftTime}
+            uses24HourClock={deviceUses24HourClock}
+            disabled={!reminderDraftEnabled || isSavingReminder}
+            onChange={setReminderDraftTime}
+          />
+        </View>
+      ) : showResetModal ? (
+        isLoadingDecks ? (
+          <View style={styles.modalLoading}>
+            <ActivityIndicator size="large" color={COLORS.inkMute} />
+          </View>
+        ) : (
+          <View style={styles.resetContent}>
+            <Pressable
+              style={styles.selectAllRow}
+              onPress={toggleSelectAll}
+              disabled={decks.length === 0 || isResetting}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: allSelected, disabled: decks.length === 0 || isResetting }}
+            >
+              <View style={[styles.checkbox, allSelected && styles.checkboxChecked]}>
+                {allSelected && <Text style={styles.checkmark}>✓</Text>}
+              </View>
+              <Text style={styles.selectAllText}>Select all decks</Text>
+            </Pressable>
+
+            <ScrollView style={styles.deckList} nestedScrollEnabled contentContainerStyle={{ paddingBottom: 8 }}>
+              {decks.length === 0 ? (
+                <Text style={styles.emptyText}>No decks available.</Text>
+              ) : (
+                decks.map((deck) => {
+                  const isSelected = selectedDeckIds.has(deck.id);
+                  return (
+                    <Pressable
+                      key={deck.id}
+                      style={styles.deckRow}
+                      onPress={() => toggleDeck(deck.id)}
+                      disabled={isResetting}
+                      accessibilityRole="checkbox"
+                      accessibilityLabel={deck.title}
+                      accessibilityState={{ checked: isSelected, disabled: isResetting }}
+                    >
+                      <View style={[styles.checkbox, isSelected && styles.checkboxChecked]}>
+                        {isSelected && <Text style={styles.checkmark}>✓</Text>}
+                      </View>
+                      <Text style={styles.deckTitle}>{deck.title}</Text>
+                    </Pressable>
+                  );
+                })
+              )}
+            </ScrollView>
+          </View>
+        )
+      ) : null}
+    </AppDialog>
+  );
 
   const reminderDetail = isLoadingReminder
     ? 'Loading...'
@@ -557,7 +729,12 @@ export default function SettingsScreen() {
         : 'Off';
 
   if (showPrivacy) {
-    return <PrivacyPolicyScreen onBack={() => setShowPrivacy(false)} />;
+    return (
+      <>
+        <PrivacyPolicyScreen onBack={() => setShowPrivacy(false)} />
+        {popup}
+      </>
+    );
   }
 
   if (showDeleteAccount) {
@@ -615,6 +792,7 @@ export default function SettingsScreen() {
             )}
           </Pressable>
         </ScrollView>
+        {popup}
       </View>
     );
   }
@@ -635,6 +813,7 @@ export default function SettingsScreen() {
             <NavRow label="Delete Account" onPress={() => setShowDeleteAccount(true)} />
           </View>
         </View>
+        {popup}
       </View>
     );
   }
@@ -675,167 +854,7 @@ export default function SettingsScreen() {
         </Pressable>
       </View>
 
-      <Modal
-        visible={showReminderModal}
-        animationType="slide"
-        transparent
-        onRequestClose={() => !isSavingReminder && setShowReminderModal(false)}
-      >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => !isSavingReminder && setShowReminderModal(false)}
-        >
-          <Pressable style={styles.modalCard} onPress={() => {}}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Daily Reminder</Text>
-              <Text style={styles.modalSubtitle}>
-                A simple daily nudge to open Tusavor.
-              </Text>
-            </View>
-
-            <View style={styles.reminderContent}>
-              <View style={styles.reminderToggleRow}>
-                <View style={styles.reminderToggleCopy}>
-                  <Text style={styles.reminderToggleLabel}>Reminder</Text>
-                  <Text style={styles.reminderToggleDetail}>
-                    {reminderDraftEnabled
-                      ? `On at ${formatDailyReminderTime(
-                          reminderDraftTime.hour,
-                          reminderDraftTime.minute,
-                          deviceUses24HourClock,
-                        )}`
-                      : 'Off'}
-                  </Text>
-                </View>
-                <Switch
-                  value={reminderDraftEnabled}
-                  onValueChange={setReminderDraftEnabled}
-                  disabled={isSavingReminder}
-                  trackColor={{ false: COLORS.paperHair, true: COLORS.amber }}
-                  thumbColor={COLORS.paper}
-                />
-              </View>
-
-              <ReminderTimeWheel
-                time={reminderDraftTime}
-                uses24HourClock={deviceUses24HourClock}
-                disabled={!reminderDraftEnabled || isSavingReminder}
-                onChange={setReminderDraftTime}
-              />
-            </View>
-
-            <View style={[styles.modalActions, { paddingBottom: insets.bottom + 16 }]}>
-              <Pressable
-                style={[styles.actionButton, styles.actionSecondary]}
-                onPress={() => setShowReminderModal(false)}
-                disabled={isSavingReminder}
-              >
-                <Text style={styles.actionSecondaryText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.actionButton, styles.actionPrimaryAmber]}
-                onPress={handleSaveReminder}
-                disabled={isSavingReminder}
-              >
-                {isSavingReminder ? (
-                  <ActivityIndicator size="small" color={COLORS.ink} />
-                ) : (
-                  <Text style={styles.actionPrimaryAmberText}>Save</Text>
-                )}
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-      <Modal
-        visible={showResetModal}
-        animationType="slide"
-        transparent
-        onRequestClose={() => !isResetting && setShowResetModal(false)}
-      >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => !isResetting && setShowResetModal(false)}
-        >
-          <Pressable style={styles.modalCard} onPress={() => {}}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Reset Study Progress</Text>
-              <Text style={styles.modalSubtitle}>
-                Select decks to reset, or reset everything at once. This clears your
-                FSRS ratings so cards behave like new. Progress belongs to the card,
-                so resetting a shared card affects every deck that uses it.
-              </Text>
-            </View>
-
-            {isLoadingDecks ? (
-              <View style={styles.modalLoading}>
-                <ActivityIndicator size="large" color={COLORS.inkMute} />
-              </View>
-            ) : (
-              <>
-                <Pressable
-                  style={styles.selectAllRow}
-                  onPress={toggleSelectAll}
-                  disabled={decks.length === 0}
-                >
-                  <View style={[styles.checkbox, allSelected && styles.checkboxChecked]}>
-                    {allSelected && <Text style={styles.checkmark}>✓</Text>}
-                  </View>
-                  <Text style={styles.selectAllText}>Select all decks</Text>
-                </Pressable>
-
-                <ScrollView style={styles.deckList} contentContainerStyle={{ paddingBottom: 8 }}>
-                  {decks.length === 0 ? (
-                    <Text style={styles.emptyText}>No decks available.</Text>
-                  ) : (
-                    decks.map((deck) => {
-                      const isSelected = selectedDeckIds.has(deck.id);
-                      return (
-                        <Pressable
-                          key={deck.id}
-                          style={styles.deckRow}
-                          onPress={() => toggleDeck(deck.id)}
-                        >
-                          <View style={[styles.checkbox, isSelected && styles.checkboxChecked]}>
-                            {isSelected && <Text style={styles.checkmark}>✓</Text>}
-                          </View>
-                          <Text style={styles.deckTitle} numberOfLines={1}>
-                            {deck.title}
-                          </Text>
-                        </Pressable>
-                      );
-                    })
-                  )}
-                </ScrollView>
-              </>
-            )}
-
-            <View style={[styles.modalActions, { paddingBottom: insets.bottom + 16 }]}>
-              <Pressable
-                style={[styles.actionButton, styles.actionSecondary]}
-                onPress={() => setShowResetModal(false)}
-                disabled={isResetting}
-              >
-                <Text style={styles.actionSecondaryText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.actionButton, styles.actionPrimary]}
-                onPress={handleResetConfirm}
-                disabled={isResetting || isLoadingDecks || decks.length === 0}
-              >
-                {isResetting ? (
-                  <ActivityIndicator size="small" color={COLORS.paper} />
-                ) : (
-                  <Text style={styles.actionPrimaryText}>
-                    Reset Selected{selectedDeckIds.size > 0 ? ` (${selectedDeckIds.size})` : ''}
-                  </Text>
-                )}
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      {popup}
     </View>
   );
 }
@@ -1034,45 +1053,14 @@ const styles = StyleSheet.create({
     lineHeight: 23,
   },
 
-  // ── Reset bottom sheet ─────────────────────────────────────
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(20,18,15,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalCard: {
-    backgroundColor: COLORS.paper,
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
-    maxHeight: '85%',
-  },
-  modalHeader: {
-    paddingHorizontal: 26,
-    paddingTop: 22,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.paperHair,
-  },
-  modalTitle: {
-    fontFamily: 'Fraunces_600SemiBold',
-    fontSize: 24,
-    color: COLORS.ink,
-    letterSpacing: -0.5,
-  },
-  modalSubtitle: {
-    marginTop: 8,
-    fontFamily: 'Newsreader_500Medium_Italic',
-    fontSize: 14,
-    color: COLORS.inkMute,
-    lineHeight: 20,
-  },
+  // ── Paper dialog forms ─────────────────────────────────────
   modalLoading: {
     padding: 36,
     alignItems: 'center',
   },
   reminderContent: {
-    paddingHorizontal: 26,
-    paddingVertical: 20,
+    paddingHorizontal: 14,
+    paddingBottom: 18,
   },
   reminderToggleRow: {
     flexDirection: 'row',
@@ -1085,17 +1073,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   reminderToggleLabel: {
-    fontFamily: 'Fraunces_500Medium',
-    fontSize: 21,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 15,
     color: COLORS.ink,
-    letterSpacing: -0.3,
   },
   reminderToggleDetail: {
     marginTop: 4,
-    fontFamily: 'Inter_500Medium',
-    fontSize: 11,
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
     color: COLORS.inkMute,
   },
   timeWheel: {
@@ -1112,7 +1097,7 @@ const styles = StyleSheet.create({
   },
   wheelPicker: {
     flex: 1,
-    minWidth: 72,
+    minWidth: 0,
     height: WHEEL_PICKER_HEIGHT,
     overflow: 'hidden',
   },
@@ -1139,39 +1124,41 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   wheelItemText: {
-    fontFamily: 'Fraunces_500Medium',
-    fontSize: 23,
-    lineHeight: 28,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 20,
+    lineHeight: 26,
     color: COLORS.inkFaint,
-    letterSpacing: -0.2,
   },
   wheelItemTextSelected: {
     color: COLORS.ink,
   },
+  resetContent: {
+    paddingHorizontal: 14,
+    paddingBottom: 8,
+  },
   selectAllRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 26,
-    paddingVertical: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 12,
     backgroundColor: COLORS.paperSoft,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.paperHair,
   },
   selectAllText: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 11,
-    letterSpacing: 1.6,
-    textTransform: 'uppercase',
+    flex: 1,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 14,
     color: COLORS.ink,
   },
   deckList: {
-    maxHeight: 320,
+    maxHeight: 280,
   },
   deckRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 26,
-    paddingVertical: 14,
+    paddingHorizontal: 8,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.paperHair,
   },
@@ -1186,72 +1173,27 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   checkboxChecked: {
-    backgroundColor: COLORS.red,
-    borderColor: COLORS.red,
+    backgroundColor: COLORS.amber,
+    borderColor: COLORS.amber,
   },
   checkmark: {
-    color: COLORS.paper,
+    color: COLORS.ink,
     fontSize: 14,
     fontWeight: '700',
     lineHeight: 16,
   },
   deckTitle: {
     flex: 1,
-    fontFamily: 'Fraunces_500Medium',
-    fontSize: 17,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 14,
+    lineHeight: 20,
     color: COLORS.ink,
-    letterSpacing: -0.2,
   },
   emptyText: {
-    paddingHorizontal: 26,
+    paddingHorizontal: 8,
     paddingVertical: 20,
-    fontFamily: 'Newsreader_500Medium_Italic',
+    fontFamily: 'Inter_400Regular',
     fontSize: 14,
     color: COLORS.inkMute,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    paddingHorizontal: 26,
-    paddingTop: 16,
-    gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.paperHair,
-  },
-  actionButton: {
-    flex: 1,
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  actionSecondary: {
-    borderWidth: 1,
-    borderColor: COLORS.paperHair,
-  },
-  actionSecondaryText: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 11,
-    letterSpacing: 1.8,
-    textTransform: 'uppercase',
-    color: COLORS.inkMute,
-  },
-  actionPrimary: {
-    backgroundColor: COLORS.red,
-  },
-  actionPrimaryText: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 11,
-    letterSpacing: 1.8,
-    textTransform: 'uppercase',
-    color: COLORS.paper,
-  },
-  actionPrimaryAmber: {
-    backgroundColor: COLORS.amber,
-  },
-  actionPrimaryAmberText: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 11,
-    letterSpacing: 1.8,
-    textTransform: 'uppercase',
-    color: COLORS.ink,
   },
 });
