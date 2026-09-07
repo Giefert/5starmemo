@@ -4,10 +4,11 @@ This is the repository's curated continuity record. It captures accepted
 project state and active coordination, not a transcript. Reconcile it whenever
 work or steering materially changes.
 
-Last reconciled: 2026-09-01 by Codex root at `2d14ad6` (`main`; W7 Option A
-repository/EAS audit complete; App Store Connect sign-in required)
+Last reconciled: 2026-09-06 by Codex root at `ab2294c` (`main`; W8/W9 committed
+and pushed to `origin/main`; this continuity update follows; W7 awaiting sign-in)
 
-Current work-log coordinator: Codex root for the W7 iOS-first status audit.
+Current work-log coordinator: Codex root; no active support lanes. W7's pending
+read-only release inspection remains recorded below.
 
 ## Resume here
 
@@ -30,6 +31,9 @@ Current work-log coordinator: Codex root for the W7 iOS-first status audit.
   errors and meaningful warnings, retain two narrowly documented raw-image
   exceptions, and repair the related preview object-URL leak.
 - W5 is durable in `e8b6836`.
+- W8/W9 are accepted and committed together in `ab2294c`: shared Carte popups
+  and Study/Library category headers. The user authorized the push, which also
+  synchronized the 11 earlier accepted local checkpoints through `2c94fb3`.
 - W6 Option C read-only verification confirmed that the tracked access gates
   are not satisfied. It also caused an inline server-side GitHub credential to
   appear in audit output. Never reproduce the value; treat it as exposed. On
@@ -73,6 +77,9 @@ Current work-log coordinator: Codex root for the W7 iOS-first status audit.
 - `e8b6836`: removed the dashboard lint baseline, repaired stale route/load
   races, and made preview object-URL ownership explicit while retaining two
   narrowly justified raw-image exceptions.
+- `ab2294c`: unified mobile popups with the user-approved split-row Carte
+  design and integrated the preserved Study/Library category-header styling.
+  See [DESIGN.md §8](DESIGN.md#8--mobile-popups); native-device popup QA remains.
 
 ### Durable decisions
 
@@ -271,9 +278,9 @@ worktree remains. W2 is recoverable from `b173d88` and W5 from `e8b6836`.
 - Boundary: reconcile the tracked pre-launch SSH/deploy-user and broad GitHub
   credential TODOs in [CLAUDE.md](CLAUDE.md) with freshly verified external
   state before changing access. Do not display or copy credential values.
-- No server, GitHub, credential, push, deployment, or production-data action is
-  currently authorized. Do not resume live inspection merely to gather more
-  evidence; wait for the user to reopen this lane.
+- No server, credential, access-setting, deployment, or production-data action
+  is authorized in this lane. W9's separately authorized repository push does
+  not reopen access remediation or live inspection.
 - The three read-only support lanes completed without editing: they reconciled
   tracked history, the Docker Compose deployment boundary, local Git/SSH
   selection metadata, and what requires live evidence. No support lane remains.
@@ -330,6 +337,68 @@ worktree remains. W2 is recoverable from `b173d88` and W5 from `e8b6836`.
   action, reviewer-account use, credential rotation, or release-setting change
   has occurred or is authorized.
 
+#### W8 — Study and Library category-header styling
+
+- Owner: Codex root, sole writer of `HomeScreen.tsx`, `LibraryScreen.tsx`, and
+  this log in the main workspace.
+- Status: accepted, committed in `ab2294c`, and pushed to `origin/main`.
+- Outcome: category headers use the mode labels' `Inter_700Bold` in uppercase
+  at 11px with 2.2px tracking and a 3×14px amber leading line. Favorites, empty
+  Favorites, and Custom share the treatment. Categories stay expanded.
+- Validation: mobile TypeScript and whitespace checks passed. Reviewed Study
+  and Library Cards in the running iPhone 16 Pro simulator: labels, accents,
+  and Library counts align. A read-only review confirmed all five render paths
+  are covered and no interaction changes; its stale comment finding was fixed.
+  No support agent remains active.
+- Resume evidence: `ab2294c`, particularly `mobile-app/screens/HomeScreen.tsx`
+  and `mobile-app/screens/LibraryScreen.tsx`.
+- Boundary: Study category headers and Library Cards category headers. W6/W7
+  directions are unaffected; no release or external-state changes.
+
+#### W9 — App-owned Carte popups
+
+- Owner: Codex root, integrated all support work; no active support agent.
+- Status: accepted, committed in `ab2294c`, and pushed to `origin/main`.
+- Integration: the user authorized commit and push of the pending changes,
+  including W8's preserved header styling. Root reviewed the outgoing history
+  and synchronized the earlier 11 accepted local checkpoints in the same push.
+  This Git synchronization does not authorize W6 remediation or deployment.
+- Accepted design steering: screenshot 1's **split row** is the actual layout
+  for every two-action popup (secondary left, amber safe action right).
+  Screenshots 2/3 supply tokens and examples, not stacked-action requirements.
+  Red Exit follows screenshot 1; ordinary dismissals remain muted.
+- Outcome: [AppDialog](mobile-app/components/AppDialog.tsx) supplies the 300px
+  paper panel, Inter 600/400 typography, 72% ink scrim, subtle fade/rise,
+  reduced-motion support, scrolling content and reachable action row.
+  [DialogProvider](mobile-app/contexts/DialogContext.tsx) replaces all native
+  alerts in Login/Home/Study. Settings uses the same component with one native
+  host for its reminder/reset forms and nested notices; glossary retains rich
+  definitions inside the shared paper dialog. Load-error copy is concise and
+  student-facing. Actual OS permission/share interfaces remain native.
+- Safety/behavior: preserve reset warnings and captured selections, dispatch
+  each action once, route Back/backdrop/escape to safe dismissal, and block
+  exit while a rating is saving. Queued identical notices stay actionable.
+  Nested notices hide covered form controls and remove them from web keyboard
+  focus; dismissing a notice restores the form.
+- Validation: mobile TypeScript, whitespace, and final iOS/web preview exports
+  pass. Root visually reviewed actual shared components at 390×844 and 320×568
+  with isolated fixture data: exit, reset, notice, reminder, and long glossary
+  content. Exercised safe dismissal, choice cancellation, identical notice
+  queue, reset cancel/reopen/success, and reminder-error recovery. Found and
+  fixed covered-form keyboard focus during that review; retest passed.
+- Limits: this is local rendering/interaction plus iOS bundle validation, not
+  a native-device or TestFlight run. No production data, permissions, account,
+  notification schedule, deployment, or release state was changed.
+- Support outcomes: Settings and glossary implementations reviewed/integrated;
+  independent read-only reviews found no remaining native blocker. Temporary
+  preview/mocks were validation aids, not product code or durable dependencies.
+  Final commit-boundary review confirmed exactly the intended 12 paths, no
+  fixture/dependency additions, and no credential changes; TypeScript and
+  whitespace checks passed again. No support lane remains active.
+- Resume evidence: `ab2294c` and [DESIGN.md §8](DESIGN.md#8--mobile-popups).
+  The push succeeded and local/remote product heads matched `ab2294c` before
+  this continuity-only follow-up. W6/W7 directions are unaffected.
+
 ## Where we are going
 
 ### Current milestone
@@ -347,6 +416,9 @@ W7 acceptance bar:
 - retain W6 as an unresolved pre-launch gate regardless of release planning.
 
 ### Ordered next work
+
+W8/W9 are integrated. Native-device popup QA remains part of the next mobile
+test pass; the release sequence still awaits sign-in and separate authorization.
 
 1. The user signs in to App Store Connect in the retained Chrome tab and tells
    Codex when it is ready; root then inspects current build, TestFlight,
